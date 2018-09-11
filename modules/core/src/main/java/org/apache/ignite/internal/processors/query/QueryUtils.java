@@ -34,6 +34,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.binary.BinaryField;
@@ -1274,6 +1276,20 @@ public class QueryUtils {
         Map<String, Object> dfltVals = entity.getDefaultFieldValues();
         Map<String, Integer> precision = entity.getFieldsPrecision();
         Map<String, Integer> scale = entity.getFieldsScale();
+
+        if (!F.isEmpty(scale)) {
+            if (F.isEmpty(precision)) {
+                throw new IgniteSQLException("Columns: " + scale.keySet().stream().collect(Collectors.joining(", ")) +
+                        " have only scale constraint. Both of precision and scale constraint required.");
+            }
+
+            for (String fld : scale.keySet()) {
+                if (!precision.containsKey(fld)) {
+                    throw new IgniteSQLException("Column: '" + fld +
+                            "' has only scale constraint. Both of precision and scale constraint required.");
+                }
+            }
+        }
 
         if (!F.isEmpty(precision)) {
             for (String fld : precision.keySet()) {
