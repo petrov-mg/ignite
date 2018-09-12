@@ -35,6 +35,7 @@ import org.apache.ignite.cache.CacheEntryProcessor;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.QueryEntity;
 import org.apache.ignite.configuration.CacheConfiguration;
+import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.jetbrains.annotations.NotNull;
@@ -92,6 +93,7 @@ public class IgniteCachePartitionedAtomicColumnConstraintsTest extends GridCommo
 
     /** */
     private Consumer<Runnable> shouldSucceed = Runnable::run;
+
 
     /** @throws Exception If failed.*/
     private void createCacheForStringTest() throws Exception {
@@ -223,6 +225,66 @@ public class IgniteCachePartitionedAtomicColumnConstraintsTest extends GridCommo
         createCacheForDecimalPrecisionTest();
 
         createCacheForDecimalScaleTest();
+    }
+
+    /** @throws Exception If failed.*/
+    public void testCreateDecimalDecimalCacheWithMissingPrecisionFail() throws Exception {
+        Map<String, Integer> decDecScale = new HashMap<>();
+
+        decDecScale.put(KEY_FIELD_NAME, 2);
+
+        decDecScale.put(VAL_FIELD_NAME, 2);
+
+        assertThrowsWithCause(() ->
+                jcache(grid(0), cacheConfiguration(new QueryEntity(BigDecimal.class.getName(), BigDecimal.class.getName())
+                    .setFieldsScale(decDecScale)), "DEC_DEC_FOR_PRECISION_MISSING"),
+                IgniteSQLException.class);
+    }
+
+    /** @throws Exception If failed.*/
+    public void testCreateDecimalOrganizationCacheWithMissingPrecisionFail() throws Exception {
+        Map<String, Integer> decOrgScale = new HashMap<>();
+
+        decOrgScale.put(KEY_FIELD_NAME, 2);
+
+        assertThrowsWithCause(() ->
+            jcache(grid(0), cacheConfiguration(new QueryEntity(BigDecimal.class.getName(), DecOrganization.class.getName())
+                .setFieldsScale(decOrgScale)), "DEC_ORG_FOR_PRECISION_MISSING"),
+            IgniteSQLException.class);
+    }
+
+    /** @throws Exception If failed.*/
+    public void testCreateDecimalOrganizationWithFieldsCacheWithMissingPrecisionFail() throws Exception {
+        Map<String, Integer> decOrgScale = new HashMap<>();
+
+        decOrgScale.put(KEY_FIELD_NAME, 2);
+
+        assertThrowsWithCause(() ->
+            jcache(grid(0), cacheConfiguration(new QueryEntity(BigDecimal.class.getName(), DecOrganization.class.getName())
+                .addQueryField("id", "java.math.BigDecimal", "id")
+                .addQueryField("salary", "java.math.BigDecimal", "salary")
+                .setFieldsScale(decOrgScale)), "DEC_ORG_WITH_FIELDS_FOR_PRECISION_MISSING"),
+            IgniteSQLException.class);
+
+    }
+
+    /** @throws Exception If failed.*/
+    public void testCreateOrganizationEmployeeCacheWithMissingPrecisionFail() throws Exception {
+        Map<String, Integer> orgEmployeeScale = new HashMap<>();
+        Map<String, Integer> orgEmployeePrecision = new HashMap<>();
+
+        orgEmployeeScale.put("id", 2);
+
+        orgEmployeeScale.put("salary", 2);
+
+        orgEmployeePrecision.put("id", 4);
+
+        assertThrowsWithCause(() ->
+            jcache(grid(0), cacheConfiguration(new QueryEntity(DecOrganization.class.getName(), Employee.class.getName())
+                .addQueryField("id", "java.math.BigDecimal", "id")
+                .addQueryField("salary", "java.math.BigDecimal", "salary")
+                .setFieldsScale(orgEmployeeScale).setFieldsPrecision(orgEmployeePrecision)), "ORG_EMPOYEE_FOR_PRECISION_MISSING"),
+            IgniteSQLException.class);
     }
 
     /**
