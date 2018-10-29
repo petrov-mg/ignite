@@ -1484,13 +1484,14 @@ public class GridQueryProcessor extends GridProcessorAdapter {
      * @param writeSyncMode Write synchronization mode.
      * @param backups Backups.
      * @param ifNotExists Quietly ignore this command if table already exists.
+     * @param encrypted Encrypted flag.
      * @throws IgniteCheckedException If failed.
      */
     @SuppressWarnings("unchecked")
     public void dynamicTableCreate(String schemaName, QueryEntity entity, String templateName, String cacheName,
         String cacheGroup, @Nullable String dataRegion, String affinityKey, @Nullable CacheAtomicityMode atomicityMode,
-        @Nullable CacheWriteSynchronizationMode writeSyncMode, @Nullable Integer backups, boolean ifNotExists)
-        throws IgniteCheckedException {
+        @Nullable CacheWriteSynchronizationMode writeSyncMode, @Nullable Integer backups, boolean ifNotExists,
+        boolean encrypted) throws IgniteCheckedException {
         assert !F.isEmpty(templateName);
         assert backups == null || backups >= 0;
 
@@ -1534,6 +1535,7 @@ public class GridQueryProcessor extends GridProcessorAdapter {
         if (backups != null)
             ccfg.setBackups(backups);
 
+        ccfg.setEncryptionEnabled(encrypted);
         ccfg.setSqlSchema(schemaName);
         ccfg.setSqlEscapeAll(true);
         ccfg.setQueryEntities(Collections.singleton(entity));
@@ -1755,7 +1757,7 @@ public class GridQueryProcessor extends GridProcessorAdapter {
      */
     public IgniteInternalFuture<?> rebuildIndexesFromHash(Set<Integer> cacheIds) {
         if (!busyLock.enterBusy())
-            throw new IllegalStateException("Failed to rebuild indexes from hash (grid is stopping).");
+            return new GridFinishedFuture<>(new NodeStoppingException("Failed to rebuild indexes from hash (grid is stopping)."));
 
         // Because of alt type ids, there can be few entries in 'types' for a single cache.
         // In order to avoid processing a cache more than once, let's track processed names.
@@ -2111,7 +2113,7 @@ public class GridQueryProcessor extends GridProcessorAdapter {
         final boolean failOnMultipleStmts) {
         checkxEnabled();
 
-        validateSqlFieldsQuery(qry);
+        validateSqlFieldsQuery(qry, ctx, cctx);
 
         if (!ctx.state().publicApiActiveState(true)) {
             throw new IgniteException("Can not perform the operation because the cluster is inactive. Note, that " +
@@ -2161,13 +2163,31 @@ public class GridQueryProcessor extends GridProcessorAdapter {
      * Validate SQL fields query.
      *
      * @param qry Query.
+     * @param ctx Kernal context.
+     * @param cctx Cache context.
      */
-    private static void validateSqlFieldsQuery(SqlFieldsQuery qry) {
+    private static void validateSqlFieldsQuery(SqlFieldsQuery qry, GridKernalContext ctx,
+        @Nullable GridCacheContext<?, ?> cctx) {
         if (qry.isReplicatedOnly() && qry.getPartitions() != null)
             throw new CacheException("Partitions are not supported in replicated only mode.");
 
         if (qry.isDistributedJoins() && qry.getPartitions() != null)
             throw new CacheException("Using both partitions and distributed JOINs is not supported for the same query");
+
+        if (qry.isLocal() && ctx.clientNode() && (cctx == null || cctx.config().getCacheMode() != CacheMode.LOCAL))
+            throw new CacheException("Execution of local SqlFieldsQuery on client node disallowed.");
+    }
+
+    /**
+     * Validate SQL query.
+     *
+     * @param qry Query.
+     * @param ctx Kernal context.
+     * @param cctx Cache context.
+     */
+    private static void validateSqlQuery(SqlQuery qry, GridKernalContext ctx, GridCacheContext<?, ?> cctx) {
+        if (qry.isLocal() && ctx.clientNode() && cctx.config().getCacheMode() != CacheMode.LOCAL)
+            throw new CacheException("Execution of local SqlQuery on client node disallowed.");
     }
 
     /**
@@ -2238,6 +2258,8 @@ public class GridQueryProcessor extends GridProcessorAdapter {
      */
     public <K, V> QueryCursor<Cache.Entry<K,V>> querySql(final GridCacheContext<?,?> cctx, final SqlQuery qry,
         boolean keepBinary) {
+        validateSqlQuery(qry, ctx, cctx);
+
         if (qry.isReplicatedOnly() && qry.getPartitions() != null)
             throw new CacheException("Partitions are not supported in replicated only mode.");
 

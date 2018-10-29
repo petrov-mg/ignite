@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.sql;
 
 import java.io.Serializable;
+import java.util.Collections;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cache.CacheAtomicityMode;
@@ -44,8 +45,6 @@ public class IgniteCacheTransactionalSnapshotNullConstraintTest extends GridComm
     /** */
     private static final String PARTITIONED_CACHE_NAME = "partitionedCacheName";
 
-    /** */
-
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {
         startGrid(0);
@@ -53,7 +52,6 @@ public class IgniteCacheTransactionalSnapshotNullConstraintTest extends GridComm
         jcache(grid(0), cacheConfiguration(REPLICATED, TRANSACTIONAL_SNAPSHOT), REPLICATED_CACHE_NAME);
 
         jcache(grid(0), cacheConfiguration(PARTITIONED, TRANSACTIONAL_SNAPSHOT), PARTITIONED_CACHE_NAME);
-
     }
 
     /** */
@@ -63,9 +61,7 @@ public class IgniteCacheTransactionalSnapshotNullConstraintTest extends GridComm
         cfg.setCacheMode(cacheMode);
         cfg.setAtomicityMode(atomicityMode);
         cfg.setWriteSynchronizationMode(FULL_SYNC);
-        QueryEntity qe = new QueryEntity(new QueryEntity(Integer.class, Person.class));
-
-        cfg.setQueryEntities(F.asList(qe));
+        cfg.setQueryEntities(Collections.singletonList(new QueryEntity(Integer.class, Person.class)));
 
         return cfg;
     }
