@@ -128,7 +128,7 @@ public class PageMemoryPrewarmingTest extends GridCommonAbstractTest {
      * @return Average elapsed cache reading time.
      * @throws Exception If failed.
      */
-    public long doCachePersistenceRead(boolean prewarmingEnabled, boolean prewarmingMultithreaded, IgniteLogger log) throws Exception {
+    private long doCachePersistenceRead(boolean prewarmingEnabled, boolean prewarmingMultithreaded, IgniteLogger log) throws Exception {
         assertTrue(valCnt > 0);
 
         fillPersistence();
@@ -175,23 +175,29 @@ public class PageMemoryPrewarmingTest extends GridCommonAbstractTest {
      *
      */
     @Test
-    public void testWarmingUpWithoutLoad() throws Exception{
+    public void testPrewarming() throws Exception {
         ListeningTestLogger log = new ListeningTestLogger(false, log());
 
-        LogListener throttleLsnr = throttleListener(false);
+        long prewarmedCacheReadDuration = doCachePersistenceRead(true, false, log);
 
-        log.registerListener(throttleLsnr);
+        stopAllGrids(false);
 
-        doCachePersistenceRead(true, false, log);
+        cleanPersistenceDir();
 
-        assertTrue(throttleLsnr.check());
+        long cacheReadDuration = doCachePersistenceRead(false, false, log);
+
+        log().info("Cache average reading duration with prewarming enabled: " + prewarmedCacheReadDuration);
+
+        log().info("Cache average reading duration with prewarming disabled: " + cacheReadDuration);
+
+        assertTrue(cacheReadDuration > prewarmedCacheReadDuration) ;
     }
 
     /**
      *
      */
     @Test
-    public void testMultithreadedPrewarming() throws Exception {
+    public void testPrewarmingMultithreaded() throws Exception {
         ListeningTestLogger log = new ListeningTestLogger(false, log());
 
         AtomicInteger elapsed = new AtomicInteger(0);
@@ -245,29 +251,7 @@ public class PageMemoryPrewarmingTest extends GridCommonAbstractTest {
      *
      */
     @Test
-    public void testPrewarming() throws Exception {
-        ListeningTestLogger log = new ListeningTestLogger(false, log());
-
-        long prewarmedCacheReadDuration = doCachePersistenceRead(true, false, log);
-
-        stopAllGrids(false);
-
-        cleanPersistenceDir();
-
-        long cacheReadDuration = doCachePersistenceRead(false, false, log);
-
-        log().info("Cache average reading duration with prewarming enabled: " + prewarmedCacheReadDuration);
-
-        log().info("Cache average reading duration with prewarming disabled: " + cacheReadDuration);
-
-        assertTrue(cacheReadDuration > prewarmedCacheReadDuration) ;
-    }
-
-    /**
-     *
-     */
-    @Test
-    public void testWarmingUpWithLoad() throws Exception {
+    public void testPrewarmingWithLoad() throws Exception {
         fillPersistence();
 
         AtomicBoolean stop = new AtomicBoolean(false);
@@ -315,6 +299,22 @@ public class PageMemoryPrewarmingTest extends GridCommonAbstractTest {
         finally {
             stop.set(true);
         }
+    }
+
+    /**
+     *
+     */
+    @Test
+    public void testPrewarmingWithoutLoad() throws Exception{
+        ListeningTestLogger log = new ListeningTestLogger(false, log());
+
+        LogListener throttleLsnr = throttleListener(false);
+
+        log.registerListener(throttleLsnr);
+
+        doCachePersistenceRead(true, false, log);
+
+        assertTrue(throttleLsnr.check());
     }
 
     /**
