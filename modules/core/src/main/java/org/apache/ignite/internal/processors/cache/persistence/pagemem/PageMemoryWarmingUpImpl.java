@@ -24,6 +24,11 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.regex.Pattern;
 import org.apache.ignite.DataRegionMetrics;
@@ -39,6 +44,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIO;
+import org.apache.ignite.internal.util.future.CountDownFuture;
 import org.apache.ignite.internal.util.typedef.internal.SB;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.internal.util.worker.GridWorker;
@@ -86,6 +92,15 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
 
     /** Stopping flag. */
     private volatile boolean stopping;
+
+    /** */
+    private ExecutorService asyncRunner = new ThreadPoolExecutor(
+        0,
+        Runtime.getRuntime().availableProcessors(),
+        30L,
+        TimeUnit.SECONDS,
+        new LinkedBlockingQueue<>());
+
 
     /**
      * @param dataRegCfg Data region configuration.
@@ -336,28 +351,44 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
                     seg.addPageIdx(fullId.pageId());
             }).get();
 
-            int segUpdated = 0;
+            AtomicInteger segUpdated = new AtomicInteger();
 
-            // TODO multithreaded processing of updated segments
+            CountDownFuture completeFut = new CountDownFuture(updated.size());
+
             for (Segment seg : updated.values()) {
-                if (!onStopping && stopping && seg.modified)
+                if (!onStopping && stopping && seg.modified) {
+                    completeFut.onDone();
+
                     continue;
-
-                try {
-                    updateSegment(seg);
-
-                    segUpdated++;
                 }
-                catch (IOException e) {
-                    throw new IgniteCheckedException(e);
-                }
+
+                Runnable segUpdater = () -> {
+                    try {
+                        updateSegment(seg);
+
+                        segUpdated.incrementAndGet();
+
+                        completeFut.onDone();
+                    }
+                    catch (Throwable e) {
+                        completeFut.onDone(e);
+                    }
+                };
+
+                if (dataRegCfg.getWarmingUpRuntimeDumpMultithreaded())
+                    asyncRunner.execute(segUpdater);
+                else
+                    segUpdater.run();
             }
+
+            if(!updated.isEmpty())
+                completeFut.get();
 
             long dumpTime = U.currentTimeMillis() - startTs;
 
             if (log.isInfoEnabled()) {
                 log.info("Dump of loaded pages IDs of DataRegion[name=" + dataRegCfg.getName() + "] finished in " +
-                    dumpTime + " ms, segments updated: " + segUpdated);
+                    dumpTime + " ms, segments updated: " + segUpdated.get());
             }
         }
         catch (IgniteCheckedException e) {

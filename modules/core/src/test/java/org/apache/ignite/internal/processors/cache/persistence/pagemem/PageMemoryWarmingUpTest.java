@@ -20,6 +20,10 @@ package org.apache.ignite.internal.processors.cache.persistence.pagemem;
 import java.io.File;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.configuration.DataRegionConfiguration;
@@ -29,6 +33,7 @@ import org.apache.ignite.configuration.WALMode;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIO;
+import org.apache.ignite.internal.util.future.CountDownFuture;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
@@ -60,6 +65,20 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
 
     /** Warming up runtime dump delay. */
     protected long warmingUpRuntimeDumpDelay = 30_000;
+
+    /** */
+    protected int dumpFileKBytes = 256;
+
+    /** */
+    protected int dumpFiles = 100;
+
+    /** */
+    private ExecutorService asyncRunner = new ThreadPoolExecutor(
+        0,
+        Runtime.getRuntime().availableProcessors(),
+        30L,
+        TimeUnit.SECONDS,
+        new LinkedBlockingQueue<>());
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
@@ -104,6 +123,79 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
     /** {@inheritDoc} */
     @Override protected long getTestTimeout() {
         return 600_000;
+    }
+
+    /**
+     * @param dumpFiles Dump files.
+     * @param multithreaded Multithreaded.
+     */
+    private long doDump(int dumpFiles, boolean multithreaded) throws Exception {
+        byte[] buf = new byte[4 * 1024];
+
+        Arrays.fill(buf, (byte)0xFE);
+
+        CountDownFuture completeFut = new CountDownFuture(dumpFiles);
+
+        long startTs = U.currentTimeMillis();
+        
+        for(int i = 0; i < dumpFiles; i++) {
+            String tmpPath = "dump" + i + ".tmp" ;
+
+            Runnable writer = () -> {
+                try (FileIO io = new RandomAccessFileIO(new File(tmpDir(), tmpPath),
+                    StandardOpenOption.WRITE,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING)) {
+
+                    for (int j = 0; j < dumpFileKBytes / 4; j++) {
+                        io.write(buf, 0 , buf.length);
+
+                        io.force();
+                    }
+
+                    completeFut.onDone();
+                }
+                catch (Exception e) {
+                    completeFut.onDone(e);
+                }
+            };
+
+            if (multithreaded)
+                asyncRunner.execute(writer);
+            else
+                writer.run();
+        }
+
+        if(dumpFiles != 0)
+            completeFut.get();
+
+        return U.currentTimeMillis() - startTs;
+    }
+
+    /**
+     *
+     */
+    @Test
+    public void testMultithreadedDump() throws Exception {
+        pushOutDiskCache();
+
+        log.info("Multithreaded dump is started.");
+
+        long multiThreadDumpDuration = doDump(dumpFiles, true);
+
+        log.info("Multithreaded dump is finished for: " + multiThreadDumpDuration + "ms.");
+
+        U.delete(tmpDir());
+
+        pushOutDiskCache();
+
+        log.info("Onethreaded dump is started.");
+
+        long oneThreadDumpDuration = doDump(dumpFiles, false);
+
+        log.info("Onethreaded dump is finished for: " + oneThreadDumpDuration + "ms.");
+
+        log.info("Dif %: "  + Math.abs(oneThreadDumpDuration - multiThreadDumpDuration) / (float)oneThreadDumpDuration * 100);
     }
 
     /**

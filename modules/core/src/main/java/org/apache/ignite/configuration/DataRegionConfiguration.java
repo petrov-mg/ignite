@@ -143,6 +143,9 @@ public final class DataRegionConfiguration implements Serializable {
     /** Warming up runtime dump delay. */
     private long warmingUpRuntimeDumpDelay = -1;
 
+    /** Multithreaded warming up runtime dump flag. */
+    private boolean warmingUpRuntimeDumpMultithreaded = false;
+
     /** Temporary buffer size for checkpoints in bytes. */
     private long checkpointPageBufSize;
 
@@ -441,6 +444,28 @@ public final class DataRegionConfiguration implements Serializable {
      */
     public DataRegionConfiguration setWarmingUpRuntimeDumpDelay(long warmingUpRuntimeDumpDelay) {
         this.warmingUpRuntimeDumpDelay = warmingUpRuntimeDumpDelay;
+
+        return this;
+    }
+
+    /**
+     * Shows if multithreaded dump for warming up runtime dump is enabled.
+     *
+     * @return multithreaded warming up runtime dump flag.
+     */
+    public boolean getWarmingUpRuntimeDumpMultithreaded() {
+        return warmingUpRuntimeDumpMultithreaded;
+    }
+
+
+    /**
+     * Sets multithreaded warming up runtime dump flag.
+     *
+     * @param warmingUpRuntimeDumpMultithreaded Multithreaded warming up runtime dump flag.
+     * @return {@code this} for chaining.
+     */
+    public DataRegionConfiguration setWarmingUpRuntimeDumpMultithreaded(boolean warmingUpRuntimeDumpMultithreaded) {
+        this.warmingUpRuntimeDumpMultithreaded = warmingUpRuntimeDumpMultithreaded;
 
         return this;
     }
