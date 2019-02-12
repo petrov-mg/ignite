@@ -67,7 +67,7 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
     protected long warmingUpRuntimeDumpDelay = 30_000;
 
     /** */
-    protected int dumpFileKBytes = 256;
+    protected int dumpFileKBytes = 200 * 1024;
 
     /** */
     protected int dumpFiles = 100;
@@ -147,11 +147,10 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
                     StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING)) {
 
-                    for (int j = 0; j < dumpFileKBytes / 4; j++) {
+                    for (int j = 0; j < dumpFileKBytes / 4; j++)
                         io.write(buf, 0 , buf.length);
 
-                        io.force();
-                    }
+                    io.force();
 
                     completeFut.onDone();
                 }
