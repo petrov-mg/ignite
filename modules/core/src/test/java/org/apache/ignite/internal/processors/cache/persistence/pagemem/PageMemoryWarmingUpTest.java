@@ -44,13 +44,13 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
     private static final String CACHE_NAME = "cache";
 
     /** */
-    protected long maxMemorySize = 35L * 1024 * 1024 * 1024;
+    protected int maxMemorySize = 1024 * 1024 * 1024;
 
     /** */
     protected int tmpFileMBytes = 2 * 1024;
 
     /** Size of int[] array values, x4 in bytes. */
-    protected int valSize = 300 * 1024 * 1024;
+    protected int valSize = 5 * 1024 * 1024;
 
     /** Value count. */
     protected int valCnt = 100;

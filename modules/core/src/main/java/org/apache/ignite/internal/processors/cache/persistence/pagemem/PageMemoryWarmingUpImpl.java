@@ -23,6 +23,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -257,9 +258,9 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
                 SegWarmer segWarmer = new SegWarmer(segFile);
 
                 segWarmer.setOnDoneHnd((warmer, e) -> {
-                    completeFut.onDone(e);
-
                     pagesWarmed.addAndGet(warmer.getPagesWarmed());
+
+                    completeFut.onDone(e);
                 });
 
                 if (dataRegCfg.isWarmingUpMultithreadedEnabled()) {
@@ -282,6 +283,8 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
             }
         }
         catch (IgniteCheckedException e) {
+            Thread.currentThread().interrupt();
+
             throw new IgniteException(e);
         }
         finally {
@@ -441,6 +444,8 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
         for (int i = 0; i < cnt; i++) {
             Worker worker = new Worker();
 
+            worker.setLog(log);
+
             workers.add(i, worker);
 
             Thread segWarmUpThread = new IgniteThread(
@@ -453,7 +458,7 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
             segWarmUpThread.start();
         }
 
-        return workers;
+        return Collections.unmodifiableList(workers);
     }
 
     /**
@@ -617,7 +622,18 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
         private AtomicBoolean stop = new AtomicBoolean(false);
 
         /** */
-        public void addTask(Runnable task) {
+        private IgniteLogger log;
+
+        /** */
+        public void setLog(IgniteLogger log) {
+            this.log = log;
+        }
+
+        /** */
+        public boolean addTask(Runnable task) {
+            if (stop.get())
+                return false;
+
             tasks.add(task);
 
             lock.lock();
@@ -628,6 +644,8 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
             finally {
                 lock.unlock();
             }
+
+            return true;
         }
 
         /** */
@@ -657,8 +675,11 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
                     else
                         taskAdded.await();
                 }
-                catch (InterruptedException e){
-                    throw new RuntimeException(e);
+                catch (InterruptedException e) {
+                    stop.set(true);
+                }
+                catch (Exception e) {
+                    U.error(log,"Exception while worker task execution: ", e);
                 }
                 finally {
                     lock.unlock();
@@ -702,7 +723,7 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
 
         /** */
         public void setWorkers(List<Worker> workers) {
-            this.workers = workers;
+            this.workers = Collections.unmodifiableList(workers);
         }
 
         /** */
@@ -751,8 +772,10 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
 
                         Worker worker = workers.get(segIdx);
 
-                        if (worker != null)
-                            worker.addTask(() -> warmPage(grpId, pageId));
+                        if (worker != null && !worker.addTask(() ->
+                            warmPage(grpId, pageId)))
+                            completeFut.onDone();
+
                     } else
                         warmPage(grpId, pageId);
                 }
