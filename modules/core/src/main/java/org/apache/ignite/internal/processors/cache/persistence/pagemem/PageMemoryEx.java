@@ -169,4 +169,7 @@ public interface PageMemoryEx extends PageMemory {
      * Starts page memory warming-up process.
      */
     public void startWarmingUp();
+
+    /** */
+    public int getSegments();
 }

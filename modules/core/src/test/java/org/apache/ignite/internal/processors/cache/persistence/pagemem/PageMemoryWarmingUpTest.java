@@ -44,16 +44,16 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
     private static final String CACHE_NAME = "cache";
 
     /** */
-    protected int maxMemorySize = 128 * 1024 * 1024;
+    protected long maxMemorySize = 35L * 1024 * 1024 * 1024;
 
     /** */
     protected int tmpFileMBytes = 2 * 1024;
 
     /** Size of int[] array values, x4 in bytes. */
-    protected int valSize = 5 * 1024 * 1024;
+    protected int valSize = 300 * 1024 * 1024;
 
     /** Value count. */
-    protected int valCnt = 20;
+    protected int valCnt = 100;
 
     /** Wait warming up on start. */
     protected boolean waitWarmingUpOnStart;
@@ -129,9 +129,9 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
 
         ignite.close();
 
-        ignite = startGrid(0);
-
         pushOutDiskCache();
+
+        ignite = startGrid(0);
 
         cache = ignite.getOrCreateCache(CACHE_NAME);
 

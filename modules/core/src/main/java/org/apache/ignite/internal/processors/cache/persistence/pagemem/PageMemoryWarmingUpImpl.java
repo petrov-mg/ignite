@@ -21,10 +21,22 @@ import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
 import org.apache.ignite.DataRegionMetrics;
 import org.apache.ignite.IgniteCheckedException;
@@ -39,6 +51,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.file.FileIO;
 import org.apache.ignite.internal.processors.cache.persistence.file.FilePageStoreManager;
 import org.apache.ignite.internal.processors.cache.persistence.file.RandomAccessFileIO;
+import org.apache.ignite.internal.util.future.CountDownFuture;
 import org.apache.ignite.internal.util.typedef.internal.SB;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.internal.util.worker.GridWorker;
@@ -86,6 +99,14 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
 
     /** Stopping flag. */
     private volatile boolean stopping;
+
+    /** */
+    private ExecutorService asyncRunner = new ThreadPoolExecutor(
+        0,
+        Runtime.getRuntime().availableProcessors(),
+        30L,
+        TimeUnit.SECONDS,
+        new LinkedBlockingQueue<>());
 
     /**
      * @param dataRegCfg Data region configuration.
@@ -203,10 +224,10 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
             throw new IgniteException("Could not create directory for warming-up data: " + warmUpDir);
     }
 
-    /**
-     *
-     */
+    /** */
     private void warmUp() {
+        List<Worker> workers = null;
+
         try {
             if (log.isInfoEnabled())
                 log.info("Starting warming-up of DataRegion[name=" + dataRegCfg.getName() + "]");
@@ -223,66 +244,35 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
             if (log.isInfoEnabled())
                 log.info("Saved warming-up files found: " + segFiles.length);
 
-            int pagesWarmed = 0;
-
             long startTs = U.currentTimeMillis();
 
-            // TODO multithreaded processing of segment files
+            if (dataRegCfg.isWarmingUpMultithreadedEnabled())
+                workers = startWorkers(pageMem.getSegments());
+
+            CountDownFuture completeFut = new CountDownFuture(segFiles.length);
+
+            AtomicInteger pagesWarmed = new AtomicInteger();
+
             for (File segFile : segFiles) {
-                boolean del = true;
+                SegWarmer segWarmer = new SegWarmer(segFile);
 
-                try {
-                    if (stopping || stopWarmingUp)
-                        continue;
+                segWarmer.setOnDoneHnd((warmer, e) -> {
+                    completeFut.onDone(e);
 
-                    int partId = Integer.parseInt(segFile.getName().substring(
-                        Segment.GRP_ID_PREFIX_LENGTH,
-                        Segment.FILE_NAME_LENGTH), 16);
+                    pagesWarmed.addAndGet(warmer.getPagesWarmed());
+                });
 
-                    if (dataRegCfg.isWarmingUpIndexesOnly() && partId != PageIdAllocator.INDEX_PARTITION)
-                        continue;
+                if (dataRegCfg.isWarmingUpMultithreadedEnabled()) {
+                    segWarmer.setWorkers(workers);
 
-                    int grpId = Integer.parseInt(segFile.getName().substring(0, Segment.GRP_ID_PREFIX_LENGTH), 16);
-
-                    int[] pageIdxArr = loadPageIndexes(segFile);
-
-                    Arrays.sort(pageIdxArr);
-
-                    del = false;
-
-                    for (int pageIdx : pageIdxArr) {
-                        if (stopping || stopWarmingUp) {
-                            del = true;
-
-                            break;
-                        }
-
-                        long pageId = PageIdUtils.pageId(partId, pageIdx);
-
-                        try {
-                            long page = pageMem.acquirePage(grpId, pageId);
-
-                            pageMem.releasePage(grpId, pageId, page);
-
-                            pagesWarmed++;
-                        }
-                        catch (IgniteCheckedException e) {
-                            U.error(log, "Failed to acquire page [grpId=" + grpId + ", pageId=" + pageId + "]", e);
-
-                            del = true;
-                        }
-
-                        // TODO use dataRegMetrics for heuristic throttling
-                    }
+                    asyncRunner.execute(segWarmer);
                 }
-                catch (IOException | NumberFormatException e) {
-                    U.error(log, "Failed to read warming-up file: " + segFile.getName(), e);
-                }
-                finally {
-                    if (del && !segFile.delete())
-                        U.warn(log, "Failed to delete warming-up file: " + segFile.getName());
-                }
+                else
+                    segWarmer.run();
             }
+
+            if (segFiles.length > 0)
+                completeFut.get();
 
             long warmingUpTime = U.currentTimeMillis() - startTs;
 
@@ -291,7 +281,13 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
                     warmingUpTime + " ms, pages warmed: " + pagesWarmed);
             }
         }
+        catch (IgniteCheckedException e) {
+            throw new IgniteException(e);
+        }
         finally {
+            if (workers != null)
+                workers.forEach(Worker::stop);
+
             warmUpThread = null;
         }
     }
@@ -438,6 +434,28 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
         }
     }
 
+    /** */
+    private List<Worker> startWorkers(int cnt) {
+        List<Worker> workers = new ArrayList<>(cnt);
+
+        for (int i = 0; i < cnt; i++) {
+            Worker worker = new Worker();
+
+            workers.add(i, worker);
+
+            Thread segWarmUpThread = new IgniteThread(
+                ctx.igniteInstanceName(),
+                dataRegCfg.getName() + "seg-" + i + "-warm-up",
+                worker);
+
+
+            segWarmUpThread.setDaemon(true);
+            segWarmUpThread.start();
+        }
+
+        return workers;
+    }
+
     /**
      *
      */
@@ -580,6 +598,205 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
                     break;
 
                 dumpLoadedPagesIds(false);
+            }
+        }
+    }
+
+    /** */
+    private static class Worker implements Runnable {
+        /** */
+        private LinkedBlockingQueue<Runnable> tasks = new LinkedBlockingQueue<>();
+
+        /** */
+        private Lock lock = new ReentrantLock();
+
+        /** */
+        private Condition taskAdded = lock.newCondition();
+
+        /** */
+        private AtomicBoolean stop = new AtomicBoolean(false);
+
+        /** */
+        public void addTask(Runnable task) {
+            tasks.add(task);
+
+            lock.lock();
+
+            try {
+                taskAdded.signalAll();
+            }
+            finally {
+                lock.unlock();
+            }
+        }
+
+        /** */
+        public void stop() {
+            lock.lock();
+
+            try {
+                stop.set(true);
+
+                taskAdded.signalAll();
+            }
+            finally {
+                lock.unlock();
+            }
+        }
+
+        /** {@inheritDoc} */
+        @Override public void run() {
+            while (!stop.get()) {
+                lock.lock();
+
+                try {
+                    Runnable task = tasks.poll();
+
+                    if (task != null)
+                        task.run();
+                    else
+                        taskAdded.await();
+                }
+                catch (InterruptedException e){
+                    throw new RuntimeException(e);
+                }
+                finally {
+                    lock.unlock();
+                }
+            }
+        }
+    }
+
+    /** */
+    private class SegWarmer implements Runnable {
+        /** */
+        private File segFile;
+
+        /** */
+        private List<Worker> workers;
+
+        /** */
+        private AtomicInteger pagesWarmed = new AtomicInteger();
+
+        /** */
+        private AtomicInteger pagesProcessed = new AtomicInteger();
+
+        /** */
+        private AtomicBoolean del = new AtomicBoolean(false);
+
+        /** */
+        private BiConsumer<SegWarmer, Throwable> onDoneHnd;
+
+        /** */
+        private CountDownFuture completeFut;
+
+        /** */
+        public SegWarmer(File segFile) {
+            this.segFile = segFile;
+        }
+
+        /** */
+        public int getPagesWarmed() {
+            return pagesWarmed.get();
+        }
+
+        /** */
+        public void setWorkers(List<Worker> workers) {
+            this.workers = workers;
+        }
+
+        /** */
+        public void setOnDoneHnd(BiConsumer<SegWarmer, Throwable> hnd) {
+            onDoneHnd = hnd;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void run() {
+            try {
+                if (stopping || stopWarmingUp) {
+                    onDoneHnd.accept(this, null);
+
+                    return;
+                }
+
+                int partId = Integer.parseInt(segFile.getName().substring(
+                    Segment.GRP_ID_PREFIX_LENGTH,
+                    Segment.FILE_NAME_LENGTH), 16);
+
+                if (dataRegCfg.isWarmingUpIndexesOnly() && partId != PageIdAllocator.INDEX_PARTITION) {
+                    onDoneHnd.accept(this, null);
+
+                    return;
+                }
+
+                int grpId = Integer.parseInt(segFile.getName().substring(0, Segment.GRP_ID_PREFIX_LENGTH), 16);
+
+                int[] pageIdxArr = loadPageIndexes(segFile);
+
+                completeFut = new CountDownFuture(pageIdxArr.length);
+
+                Arrays.sort(pageIdxArr);
+
+                for (int pageIdx : pageIdxArr) {
+                    if (stopping || stopWarmingUp) {
+                        del.set(true);
+
+                        break;
+                    }
+
+                    long pageId = PageIdUtils.pageId(partId, pageIdx);
+
+                    if (workers != null) {
+                        int segIdx = PageMemoryImpl.segmentIndex(grpId, pageId, workers.size());
+
+                        Worker worker = workers.get(segIdx);
+
+                        if (worker != null)
+                            worker.addTask(() -> warmPage(grpId, pageId));
+                    } else
+                        warmPage(grpId, pageId);
+                }
+
+                if (completeFut != null && pageIdxArr.length > 0)
+                    completeFut.get();
+
+                onDoneHnd.accept(this, null);
+            }
+            catch (IOException | NumberFormatException e) {
+                U.error(log, "Failed to read warming-up file: " + segFile.getName(), e);
+
+                del.set(true);
+
+                onDoneHnd.accept(this, null);
+            }
+            catch (Throwable e) {
+                onDoneHnd.accept(this, e);
+            }
+            finally {
+                if (del.get() && !segFile.delete())
+                    U.warn(log, "Failed to delete warming-up file: " + segFile.getName());
+            }
+        }
+
+        /** */
+        public void warmPage(int grpId, long pageId) {
+            try {
+                long page = pageMem.acquirePage(grpId, pageId);
+
+                pageMem.releasePage(grpId, pageId, page);
+
+                pagesWarmed.incrementAndGet();
+            }
+            catch (IgniteCheckedException e) {
+                U.error(log, "Failed to acquire page [grpId=" + grpId + ", pageId=" + pageId + ']', e);
+
+                del.set(true);
+            }
+            finally {
+                pagesProcessed.incrementAndGet();
+
+                if (completeFut != null)
+                    completeFut.onDone();
             }
         }
     }

@@ -140,6 +140,9 @@ public final class DataRegionConfiguration implements Serializable {
     /** Wait warming up on start flag. */
     private boolean waitWarmingUpOnStart = false;
 
+    /** */
+    private boolean warmingUpMultithreadedEnabled = false;
+
     /** Warming up runtime dump delay. */
     private long warmingUpRuntimeDumpDelay = -1;
 
@@ -408,6 +411,20 @@ public final class DataRegionConfiguration implements Serializable {
      */
     public boolean isWaitWarmingUpOnStart() {
         return waitWarmingUpOnStart;
+    }
+
+    /**
+     * @param warmingUpMultithreadedEnabled Warming up multithreaded.
+     */
+    public DataRegionConfiguration setWarmingUpMultithreadedEnabled(boolean warmingUpMultithreadedEnabled) {
+        this.warmingUpMultithreadedEnabled = warmingUpMultithreadedEnabled;
+
+        return this;
+    }
+
+    /** */
+    public boolean isWarmingUpMultithreadedEnabled() {
+        return warmingUpMultithreadedEnabled;
     }
 
     /**
