@@ -143,11 +143,41 @@ public final class DataRegionConfiguration implements Serializable {
     /** */
     private boolean warmingUpMultithreadedEnabled = false;
 
+    /** */
+    private int dumpProcThreads = -1;
+
+    /** */
+    private int warmingUpThreads = -1;
+
     /** Warming up runtime dump delay. */
     private long warmingUpRuntimeDumpDelay = -1;
 
     /** Temporary buffer size for checkpoints in bytes. */
     private long checkpointPageBufSize;
+
+    /** */
+    public int getDumpProcThreads() {
+        return dumpProcThreads;
+    }
+
+    /** */
+    public int getWarmingUpThreads() {
+        return warmingUpThreads;
+    }
+
+    /** */
+    public DataRegionConfiguration setDumpProcThreads(int dumpProcThreads) {
+        this.dumpProcThreads = dumpProcThreads;
+
+        return this;
+    }
+
+    /** */
+    public DataRegionConfiguration setWarmingUpThreads(int warmingUpThreads) {
+        this.warmingUpThreads = warmingUpThreads;
+
+        return this;
+    }
 
     /**
      * Gets data region name.
