@@ -93,8 +93,8 @@ public class MultithreadedPageMemoryWarmingUpTest extends PageMemoryWarmingUpTes
     @Test
     public void testMultithreadedWarmUp() throws Exception {
         for (int i = 0; i < 3; i++) {
-            for (int warmingUpThreads = 4; warmingUpThreads <= 32; warmingUpThreads *= 2) {
-                for (int dumpProcThreads = 1; dumpProcThreads <= 8; dumpProcThreads *= 2) {
+            for (int warmingUpThreads = 56; warmingUpThreads <= 56; warmingUpThreads *= 2) {
+                for (int dumpProcThreads = 2; dumpProcThreads <= 8; dumpProcThreads *= 2) {
                     beforeTest();
 
                     warmUpMultithreaded("warmingUpThread-" + warmingUpThreads +
