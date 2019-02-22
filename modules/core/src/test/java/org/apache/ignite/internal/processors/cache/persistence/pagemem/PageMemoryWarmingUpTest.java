@@ -44,7 +44,7 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
     private static final String CACHE_NAME = "cache";
 
     /** */
-    protected long maxMemorySize = 2L * 1024 * 1024 * 1024;
+    protected int maxMemorySize = 128 * 1024 * 1024;
 
     /** */
     protected int tmpFileMBytes = 2 * 1024;
@@ -53,7 +53,7 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
     protected int valSize = 5 * 1024 * 1024;
 
     /** Value count. */
-    protected int valCnt = 200;
+    protected int valCnt = 20;
 
     /** Wait warming up on start. */
     protected boolean waitWarmingUpOnStart;
@@ -103,7 +103,7 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
 
     /** {@inheritDoc} */
     @Override protected long getTestTimeout() {
-        return 600_000_000;
+        return 600_000;
     }
 
     /**
@@ -150,7 +150,7 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
     /**
      *
      */
-    protected void pushOutDiskCache() throws Exception {
+    private void pushOutDiskCache() throws Exception {
         File tmp = new File(tmpDir(), "dummy.tmp");
 
         byte[] buf = new byte[1024 * 1024]; // 1MiB
@@ -181,7 +181,7 @@ public class PageMemoryWarmingUpTest extends GridCommonAbstractTest {
     /**
      * @return Temporary directory.
      */
-    protected File tmpDir() throws IgniteCheckedException {
+    private File tmpDir() throws IgniteCheckedException {
         return U.resolveWorkDirectory(U.defaultWorkDirectory(), "tmp", false);
     }
 }

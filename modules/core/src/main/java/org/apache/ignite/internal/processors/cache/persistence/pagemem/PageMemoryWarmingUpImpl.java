@@ -99,11 +99,11 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
     /** Stopping flag. */
     private volatile boolean stopping;
 
-    /** */
-    private ExecutorService asyncRunner;
+    /** Thread pool for warm up files processing. */
+    private ExecutorService dumpReadSvc;
 
-    /** */
-    IgniteThreadFactory warmThreadFactory;
+    /** Thread factory for page loading. */
+    IgniteThreadFactory pageLoadThreadFactory;
 
     /**
      * @param dataRegCfg Data region configuration.
@@ -124,20 +124,14 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
         this.ctx = ctx;
         this.log = ctx.logger(PageMemoryWarmingUpImpl.class);
 
-        int dumpProcThreads = dataRegCfg.getDumpProcThreads();
-
-        dumpProcThreads = dumpProcThreads <= 0 ?
-            Runtime.getRuntime().availableProcessors() :
-            dumpProcThreads;
-
-        asyncRunner = new ThreadPoolExecutor(
-            dumpProcThreads,
-            dumpProcThreads,
+        dumpReadSvc = new ThreadPoolExecutor(
+            dataRegCfg.getDumpReadThreads(),
+            dataRegCfg.getDumpReadThreads(),
             60L,
             TimeUnit.SECONDS,
             new LinkedBlockingQueue<>());
 
-        warmThreadFactory = new IgniteThreadFactory(ctx.igniteInstanceName(),
+        pageLoadThreadFactory = new IgniteThreadFactory(ctx.igniteInstanceName(),
             dataRegCfg.getName() + "-seg-warm-up");
     }
 
@@ -243,7 +237,7 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
     private void warmUp() {
         List<ExecutorService> workers = null;
 
-        boolean multithreaded = dataRegCfg.isWarmingUpMultithreadedEnabled();
+        boolean multithreaded = dataRegCfg.getDumpReadThreads() > 1;
 
         try {
             if (log.isInfoEnabled())
@@ -263,14 +257,15 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
 
             long startTs = U.currentTimeMillis();
 
+            SegmentLoader segmentLdr = new SegmentLoader();
+
             if (multithreaded) {
-                int warmingUpThreads = dataRegCfg.getWarmingUpThreads();
+                workers = new ArrayList<>();
 
-                warmingUpThreads = warmingUpThreads <= 0 ?
-                    Runtime.getRuntime().availableProcessors() :
-                    warmingUpThreads;
+                for (int i = 0; i < dataRegCfg.getPageLoadThreads(); i++)
+                    workers.add(Executors.newSingleThreadExecutor(pageLoadThreadFactory));
 
-                workers = getWarmWorkers(warmingUpThreads);
+                segmentLdr.setWorkers(workers);
             }
 
             CountDownFuture completeFut = new CountDownFuture(segFiles.length);
@@ -278,28 +273,19 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
             AtomicInteger pagesWarmed = new AtomicInteger();
 
             for (File segFile : segFiles) {
-                SegWarmer segWarmer = new SegWarmer(segFile);
+                Runnable dumpReader = () -> {
+                    pagesWarmed.addAndGet(segmentLdr.load(segFile));
 
-                if (multithreaded) {
-                    segWarmer.setWorkers(workers);
+                    completeFut.onDone();
+                };
 
-                    asyncRunner.execute(() -> {
-                        segWarmer.run();
-
-                        pagesWarmed.addAndGet(segWarmer.getPagesWarmed());
-
-                        completeFut.onDone();
-
-                    });
-                }
-                else {
-                    segWarmer.run();
-
-                    pagesWarmed.addAndGet(segWarmer.getPagesWarmed());
-                }
+                if (multithreaded)
+                    dumpReadSvc.execute(dumpReader);
+                else
+                    dumpReader.run();
             }
 
-            if (multithreaded && segFiles.length > 0)
+            if (segFiles.length > 0)
                 completeFut.get();
 
             long warmingUpTime = U.currentTimeMillis() - startTs;
@@ -462,16 +448,6 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
         }
     }
 
-    /** */
-    private List<ExecutorService> getWarmWorkers(int cnt) {
-        List<ExecutorService> warmWorkers = new ArrayList<>(cnt);
-
-        for (int i = 0; i < cnt; i++)
-            warmWorkers.add(Executors.newSingleThreadExecutor(warmThreadFactory));
-
-        return Collections.unmodifiableList(warmWorkers);
-    }
-
     /**
      *
      */
@@ -619,47 +595,41 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
     }
 
     /** */
-    private class SegWarmer implements Runnable {
-        /** */
-        private File segFile;
-
-        /** */
+    private class SegmentLoader {
+        /** Workers for multithreaded page loading. */
         private List<ExecutorService> workers;
 
-        /** */
-        private AtomicInteger pagesWarmed = new AtomicInteger();
-
-        /** */
-        private AtomicBoolean del = new AtomicBoolean(false);
-
-        /** */
-        public SegWarmer(File segFile) {
-            this.segFile = segFile;
-        }
-
-        /** */
-        public int getPagesWarmed() {
-            return pagesWarmed.get();
-        }
-
-        /** */
+        /**
+         * Sets list of workers for multithreaded page loading.
+         *
+         * @param workers Workers for multithreaded page loading
+         */
         public void setWorkers(List<ExecutorService> workers) {
             this.workers = Collections.unmodifiableList(workers);
         }
 
+        /**
+         * Loads pages which pageIDs saved in dump file into memory.
+         * If workers are setted, they will be used for multithreaded loading.
+         *
+         * @param segFile Dump file to be load.
+         * @return Count of warmed pages.
+         */
+        public int load(File segFile) {
+            AtomicBoolean del = new AtomicBoolean(false);
 
-        /** {@inheritDoc} */
-        @Override public void run() {
+            AtomicInteger pagesWarmed = new AtomicInteger(0);
+
             try {
                 if (stopping || stopWarmingUp)
-                    return;
+                    return pagesWarmed.get();
 
                 int partId = Integer.parseInt(segFile.getName().substring(
                     Segment.GRP_ID_PREFIX_LENGTH,
                     Segment.FILE_NAME_LENGTH), 16);
 
                 if (dataRegCfg.isWarmingUpIndexesOnly() && partId != PageIdAllocator.INDEX_PARTITION)
-                    return;
+                    return pagesWarmed.get();
 
                 int grpId = Integer.parseInt(segFile.getName().substring(0, Segment.GRP_ID_PREFIX_LENGTH), 16);
 
@@ -680,6 +650,15 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
 
                     long pageId = PageIdUtils.pageId(partId, pageIdx);
 
+                    Runnable pageWarmer = () -> {
+                        if (loadPage(grpId, pageId))
+                            pagesWarmed.incrementAndGet();
+                        else
+                            del.set(true);
+
+                        completeFut.onDone();
+                    };
+
                     if (multithreaded) {
                         int segIdx = PageMemoryImpl.segmentIndex(grpId, pageId, pageMem.getSegments());
 
@@ -691,17 +670,13 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
                             continue;
                         }
 
-                        worker.execute(() -> {
-                            warmPage(grpId, pageId);
-
-                            completeFut.onDone();
-                        });
+                        worker.execute(pageWarmer);
 
                     } else
-                        warmPage(grpId, pageId);
+                        pageWarmer.run();
                 }
 
-                if (multithreaded && pageIdxArr.length > 0)
+                if (pageIdxArr.length > 0)
                     completeFut.get();
             }
             catch (IOException | NumberFormatException e) {
@@ -710,28 +685,38 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
                 del.set(true);
             }
             catch (Exception e) {
-                U.error(log, "Exception while " + segFile.getName() + " processing.", e);
+                U.error(log, "Failed to load warming-up file: " + segFile.getName(), e);
             }
             finally {
                 if (del.get() && !segFile.delete())
                     U.warn(log, "Failed to delete warming-up file: " + segFile.getName());
             }
+
+            return pagesWarmed.get();
         }
 
-        /** */
-        public void warmPage(int grpId, long pageId) {
+        /**
+         * Loads page with given group ID and page ID into memory.
+         *
+         * @param grpId Page group ID.
+         * @param pageId Page ID.
+         * @return Whether page was loaded successfully.
+         */
+        public boolean loadPage(int grpId, long pageId) {
+            boolean warmed = false;
+
             try {
                 long page = pageMem.acquirePage(grpId, pageId);
 
                 pageMem.releasePage(grpId, pageId, page);
 
-                pagesWarmed.incrementAndGet();
+                warmed = true;
             }
             catch (IgniteCheckedException e) {
                 U.error(log, "Failed to acquire page [grpId=" + grpId + ", pageId=" + pageId + ']', e);
-
-                del.set(true);
             }
+
+            return warmed;
         }
     }
 }

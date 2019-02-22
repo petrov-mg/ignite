@@ -170,6 +170,10 @@ public interface PageMemoryEx extends PageMemory {
      */
     public void startWarmingUp();
 
-    /** */
+    /**
+     *  Specifies count of segments.
+     *
+     * @return Count of segments.
+     */
     public int getSegments();
 }

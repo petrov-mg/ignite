@@ -1,14 +1,26 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.ignite.internal.processors.cache.persistence.pagemem;
 
-import java.util.Arrays;
-import org.apache.ignite.IgniteCache;
 import org.apache.ignite.configuration.DataRegionConfiguration;
 import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.configuration.WALMode;
-import org.apache.ignite.internal.IgniteEx;
-import org.apache.ignite.internal.util.typedef.internal.U;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
@@ -17,13 +29,15 @@ import org.junit.runners.JUnit4;
  */
 @RunWith(JUnit4.class)
 public class MultithreadedPageMemoryWarmingUpTest extends PageMemoryWarmingUpTest {
-    /** */
-    private static final String CACHE_NAME = "cache";
+    /** Count of threads which will be used for warm up pages loading into memory. */
+    protected int pageLoadThreads = 4;
 
-    /** */
-    private IgniteConfiguration getMultithreadedWarmUpCfg(String igniteInstanceName, int warmingUpThreads,
-        int dumpProcThreads) throws Exception {
-        IgniteConfiguration cfg = getConfiguration(igniteInstanceName);
+    /** Count of threads which will be used for warm up dump files reading. */
+    protected int dumpReadThreads = 2;
+
+    /** {@inheritDoc} */
+    @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
+        IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
 
         DataStorageConfiguration memCfg = new DataStorageConfiguration()
             .setPageSize(4 * 1024)
@@ -36,73 +50,12 @@ public class MultithreadedPageMemoryWarmingUpTest extends PageMemoryWarmingUpTes
                 .setWarmingUpEnabled(true)
                 .setWaitWarmingUpOnStart(waitWarmingUpOnStart)
                 .setWarmingUpRuntimeDumpDelay(warmingUpRuntimeDumpDelay)
-                .setWarmingUpMultithreadedEnabled(true)
-                .setWarmingUpThreads(warmingUpThreads)
-                .setDumpProcThreads(dumpProcThreads)
+                .setPageLoadThreads(pageLoadThreads)
+                .setDumpReadThreads(dumpReadThreads)
             );
 
         cfg.setDataStorageConfiguration(memCfg);
 
         return cfg;
-    }
-
-    /** */
-    public void warmUpMultithreaded(String igniteInstanceName, int warmingUpThreads, int dumpProcThreads)
-        throws Exception {
-        IgniteEx ignite = startGrid(
-            getMultithreadedWarmUpCfg(igniteInstanceName, warmingUpThreads, dumpProcThreads));
-
-        ignite.cluster().active(true);
-
-        IgniteCache<Integer, int[]> cache = ignite.getOrCreateCache(CACHE_NAME);
-
-        int[] val = new int[valSize];
-
-        for (int i = 0; i < valCnt; i++) {
-            Arrays.fill(val, i);
-
-            cache.put(i, val);
-        }
-
-        forceCheckpoint(ignite);
-
-        ignite.close();
-
-        pushOutDiskCache();
-
-        ignite = startGrid(
-            getMultithreadedWarmUpCfg(igniteInstanceName, warmingUpThreads, dumpProcThreads));
-
-        ignite.cluster().active(true);
-
-        cache = ignite.getOrCreateCache(CACHE_NAME);
-
-        for (int i = valCnt; i >= 0; i--) {
-            long startTs = U.currentTimeMillis();
-
-            int key = i % valCnt; // Key '0' supposed as cold.
-
-            val = cache.get(key);
-
-            System.out.println("### " + key + " get in " + (U.currentTimeMillis() - startTs) + " ms, val=" +
-                (val != null ? val.getClass().getSimpleName() + " [" + val.length + "]" : null));
-        }
-    }
-
-    /** */
-    @Test
-    public void testMultithreadedWarmUp() throws Exception {
-        for (int i = 0; i < 3; i++) {
-            for (int warmingUpThreads = 56; warmingUpThreads <= 56; warmingUpThreads *= 2) {
-                for (int dumpProcThreads = 2; dumpProcThreads <= 8; dumpProcThreads *= 2) {
-                    beforeTest();
-
-                    warmUpMultithreaded("warmingUpThread-" + warmingUpThreads +
-                        "-dumpProcThreads-" + dumpProcThreads, warmingUpThreads, dumpProcThreads);
-
-                    afterTest();
-                }
-            }
-        }
     }
 }

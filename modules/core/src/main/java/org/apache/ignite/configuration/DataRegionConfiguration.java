@@ -79,6 +79,18 @@ public final class DataRegionConfiguration implements Serializable {
     /** Default length of interval over which {@link DataRegionMetrics#getAllocationRate()} metric is calculated. */
     public static final int DFLT_RATE_TIME_INTERVAL_MILLIS = 60_000;
 
+    /**
+     * Optimal count of threads for warm up pages loading into memory.
+     * That value was obtained through testing warm up functionality on 28 cores with hyperThreading.
+     */
+    public static final int OPTIMAL_PAGE_LOAD_THREADS = 16;
+
+    /**
+     * Optimal count of threads for warm up dump files reading.
+     * That value was obtained through testing warm up functionality on 28 cores with hyperThreading.
+     */
+    public static final int OPTIMAL_DUMP_READ_THREADS = 4;
+
     /** Data region name. */
     private String name = DFLT_DATA_REG_DEFAULT_NAME;
 
@@ -140,44 +152,19 @@ public final class DataRegionConfiguration implements Serializable {
     /** Wait warming up on start flag. */
     private boolean waitWarmingUpOnStart = false;
 
-    /** */
-    private boolean warmingUpMultithreadedEnabled = false;
-
-    /** */
-    private int dumpProcThreads = -1;
-
-    /** */
-    private int warmingUpThreads = -1;
-
     /** Warming up runtime dump delay. */
     private long warmingUpRuntimeDumpDelay = -1;
 
+    /** Count of threads which are used for warm up dump files reading. */
+    private int dumpReadThreads = Math.min(
+        OPTIMAL_DUMP_READ_THREADS, Runtime.getRuntime().availableProcessors());
+
+    /** Count of threads which are used for warm up pages loading into memory. */
+    private int pageLoadThreads = Math.min(
+        OPTIMAL_PAGE_LOAD_THREADS, Runtime.getRuntime().availableProcessors());
+
     /** Temporary buffer size for checkpoints in bytes. */
     private long checkpointPageBufSize;
-
-    /** */
-    public int getDumpProcThreads() {
-        return dumpProcThreads;
-    }
-
-    /** */
-    public int getWarmingUpThreads() {
-        return warmingUpThreads;
-    }
-
-    /** */
-    public DataRegionConfiguration setDumpProcThreads(int dumpProcThreads) {
-        this.dumpProcThreads = dumpProcThreads;
-
-        return this;
-    }
-
-    /** */
-    public DataRegionConfiguration setWarmingUpThreads(int warmingUpThreads) {
-        this.warmingUpThreads = warmingUpThreads;
-
-        return this;
-    }
 
     /**
      * Gets data region name.
@@ -444,20 +431,6 @@ public final class DataRegionConfiguration implements Serializable {
     }
 
     /**
-     * @param warmingUpMultithreadedEnabled Warming up multithreaded.
-     */
-    public DataRegionConfiguration setWarmingUpMultithreadedEnabled(boolean warmingUpMultithreadedEnabled) {
-        this.warmingUpMultithreadedEnabled = warmingUpMultithreadedEnabled;
-
-        return this;
-    }
-
-    /** */
-    public boolean isWarmingUpMultithreadedEnabled() {
-        return warmingUpMultithreadedEnabled;
-    }
-
-    /**
      * Sets wait warming up on start flag.
      *
      * @param waitWarmingUpOnStart Wait warming up on start flag.
@@ -488,6 +461,54 @@ public final class DataRegionConfiguration implements Serializable {
      */
     public DataRegionConfiguration setWarmingUpRuntimeDumpDelay(long warmingUpRuntimeDumpDelay) {
         this.warmingUpRuntimeDumpDelay = warmingUpRuntimeDumpDelay;
+
+        return this;
+    }
+
+    /**
+     * Specifies count of threads which are used for warm up dump files reading.
+     *
+     * @return Count of thread which are used for warm up dump files reading.
+     */
+    public int getDumpReadThreads() {
+        return dumpReadThreads;
+    }
+
+    /**
+     * Sets count of threads which will be used for warm up dump files reading.
+     *
+     * @param dumpReadThreads Count of threads which will be used for warm up dump files reading.
+     * Must be greater than 0.
+     * @return {@code this} for chaining.
+     */
+    public DataRegionConfiguration setDumpReadThreads(int dumpReadThreads) {
+        assert dumpReadThreads > 0;
+
+        this.dumpReadThreads = dumpReadThreads;
+
+        return this;
+    }
+
+    /**
+     * Specifies count of threads which are used for warm up pages loading into memory.
+     *
+     * @return Count of threads which are used for warm up pages loading into memory.
+     */
+    public int getPageLoadThreads() {
+        return pageLoadThreads;
+    }
+
+    /**
+     * Sets count of threads which will be used for warm up pages loading into memory.
+     *
+     * @param pageLoadThreads Count of threads which will be used for warm up pages loading into memory.
+     * Must be greater than 0.
+     * @return {@code this} for chaining.
+     */
+    public DataRegionConfiguration setPageLoadThreads(int pageLoadThreads) {
+        assert pageLoadThreads > 0;
+
+        this.pageLoadThreads = pageLoadThreads;
 
         return this;
     }
