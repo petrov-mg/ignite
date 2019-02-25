@@ -275,9 +275,14 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
 
             for (File segFile : segFiles) {
                 Runnable dumpReader = () -> {
-                    pagesWarmed.addAndGet(segmentLdr.load(segFile));
+                    try {
+                        pagesWarmed.addAndGet(segmentLdr.load(segFile));
 
-                    completeFut.onDone();
+                        completeFut.onDone();
+                    }
+                    catch (Throwable e) {
+                        completeFut.onDone(e);
+                    }
                 };
 
                 if (multithreaded)
@@ -657,12 +662,17 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
                     long pageId = PageIdUtils.pageId(partId, pageIdx);
 
                     Runnable pageWarmer = () -> {
-                        if (loadPage(grpId, pageId))
-                            pagesWarmed.incrementAndGet();
-                        else
-                            del.set(true);
+                        try {
+                            if (loadPage(grpId, pageId))
+                                pagesWarmed.incrementAndGet();
+                            else
+                                del.set(true);
 
-                        completeFut.onDone();
+                            completeFut.onDone();
+                        }
+                        catch (Throwable e) {
+                            completeFut.onDone(e);
+                        }
                     };
 
                     if (multithreaded) {
@@ -691,7 +701,7 @@ public class PageMemoryWarmingUpImpl implements PageMemoryWarmingUp, LoadedPages
                 del.set(true);
             }
             catch (IgniteCheckedException e) {
-                U.error(log, "Failed to load warming-up file: " + segFile.getName(), e);
+                throw new IgniteException(e);
             }
             finally {
                 if (del.get() && !segFile.delete())
