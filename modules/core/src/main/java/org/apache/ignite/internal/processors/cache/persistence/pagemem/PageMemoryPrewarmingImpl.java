@@ -272,6 +272,13 @@ public class PageMemoryPrewarmingImpl implements PageMemoryPrewarming, LoadedPag
         if (pageLoadMultithreaded) {
             int pageLoadThreads = prewarmCfg.getPageLoadThreads();
 
+            if (pageLoadThreads > pageMem.getSegments()) {
+                log.warning("The specified number of threads for prewarm page loading is greater than " +
+                    "the number of segments. The number of segments will be used instead.");
+
+                pageLoadThreads = pageMem.getSegments();
+            }
+
             workers = new ExecutorService[pageLoadThreads];
 
             for (int i = 0; i < pageLoadThreads; i++)
