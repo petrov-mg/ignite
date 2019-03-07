@@ -79,8 +79,8 @@ public class SimplePerson implements Externalizable {
         this.married = person.getMarried();
         this.height = person.getHeight();
         this.weight = person.getWeight();
-        this.birthDate = person.getBirthDate();
-        this.phones = person.getPhones();
+        //this.birthDate = person.getBirthDate();
+        //this.phones = person.getPhones();
     }
 
     /** */

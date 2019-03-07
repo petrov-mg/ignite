@@ -28,6 +28,8 @@ import java.sql.Types;
 import java.util.Random;
 import javax.cache.integration.CacheLoaderException;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.IgniteTransactions;
+import org.apache.ignite.cache.query.SqlFieldsQuery;
 import org.apache.ignite.cache.store.jdbc.dialect.H2Dialect;
 import org.apache.ignite.cache.store.jdbc.model.Gender;
 import org.apache.ignite.cache.store.jdbc.model.Person;
@@ -40,6 +42,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.marshaller.Marshaller;
 import org.apache.ignite.testframework.MvccFeatureChecker;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
+import org.apache.ignite.transactions.Transaction;
 import org.junit.Test;
 
 import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
@@ -75,7 +78,7 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
     private static boolean noValClasses;
 
     /** Batch size to load in parallel. */
-    private static int parallelLoadThreshold;
+    protected static int parallelLoadThreshold;
 
     /**
      * @return Flag indicating that all internal SQL queries should use escaped identifiers.
@@ -233,6 +236,8 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
         cc.setReadThrough(true);
         cc.setWriteThrough(true);
         cc.setLoadPreviousValue(true);
+
+        cc.setIndexedTypes();
 
         return cc;
     }
@@ -456,6 +461,113 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
         checkCacheLoad();
     }
 
+    /** */
+    private void checkPutRemoveTx() throws Exception {
+        boolean binaryMarshaller = marshaller() instanceof BinaryMarshaller || marshaller() == null;
+
+        IgniteCache<Object, Person> c1 = grid().cache(CACHE_NAME);
+
+        Connection conn = getConnection();
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT ID, ORG_ID, BIRTHDAY, NAME, GENDER FROM PERSON WHERE ID = ?");
+
+            stmt.setInt(1, -1);
+
+            ResultSet rs = stmt.executeQuery();
+
+            assertFalse("Unexpected non empty result set", rs.next());
+
+            U.closeQuiet(rs);
+
+            Date testDate = Date.valueOf("2001-05-05");
+            Gender testGender = Gender.random();
+
+            Person val = new Person(-1, -2, testDate, "Person-to-test-put-insert", 999, testGender);
+
+            Object key = builtinKeys ? Integer.valueOf(-1) : new PersonKey(-1);
+
+            // Test put-insert.
+
+            IgniteTransactions transactions = grid().transactions();
+
+            try (Transaction tx = transactions.txStart()) {
+                c1.put(key, val);
+
+                tx.rollback();
+            }
+
+            rs = stmt.executeQuery();
+
+            assertFalse("Unexpected non empty result set", rs.next());
+
+            U.closeQuiet(rs);
+
+            assertNull(c1.get(key));
+
+            c1.put(key, val);
+
+            grid().close();
+
+            startGrid();
+
+            c1 = grid().cache(CACHE_NAME);
+
+            SqlFieldsQuery qry = new SqlFieldsQuery("SELECT * FROM person");
+
+            assertTrue(grid().context().query().querySqlFields(qry, true).getAll().isEmpty());
+
+            assertNotNull(c1.get(key));
+
+            rs = stmt.executeQuery();
+
+            assertTrue("Unexpected empty result set", rs.next());
+
+            assertEquals(-1, rs.getInt(1));
+            assertEquals(-2, rs.getInt(2));
+            assertEquals(testDate, rs.getDate(3));
+            assertEquals("Person-to-test-put-insert", rs.getString(4));
+
+            assertEquals(testGender.toString(),
+                binaryMarshaller ? Gender.values()[rs.getInt(5)].toString(): rs.getString(5));
+
+            assertFalse("Unexpected more data in result set", rs.next());
+
+            U.closeQuiet(rs);
+
+            // Test put-update.
+            testDate = Date.valueOf("2016-04-04");
+
+
+            c1.put(key, new Person(-1, -3, testDate, "Person-to-test-put-update", 999, testGender));
+
+            rs = stmt.executeQuery();
+
+            assertTrue("Unexpected empty result set", rs.next());
+
+            assertEquals(-1, rs.getInt(1));
+            assertEquals(-3, rs.getInt(2));
+            assertEquals(testDate, rs.getDate(3));
+            assertEquals("Person-to-test-put-update", rs.getString(4));
+
+            assertEquals(testGender.toString(),
+                binaryMarshaller ? Gender.values()[rs.getInt(5)].toString(): rs.getString(5));
+
+            assertFalse("Unexpected more data in result set", rs.next());
+
+            // Test remove.
+            c1.remove(key);
+
+            rs = stmt.executeQuery();
+
+            assertFalse("Unexpected non-empty result set", rs.next());
+
+            U.closeQuiet(rs);
+        }
+        finally {
+            U.closeQuiet(conn);
+        }
+    }
+
     /**
      * Check put in cache and store it in db.
      *
@@ -575,6 +687,8 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
         startTestGrid(false, false, false, true, 512);
 
         checkPutRemove();
+
+        checkPutRemoveTx();
     }
 
     /**

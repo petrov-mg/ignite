@@ -321,6 +321,7 @@ public abstract class GridAbstractCacheStoreSelfTest<T extends CacheStore<Object
         multithreaded(new Callable<Object>() {
             @Override public Object call() throws Exception {
                 for (int i = 0; i < 1000; i++) {
+                    log.info("i = " + i);
                     Transaction tx = rnd.nextBoolean() ? new DummyTx() : null;
 
                     ses.newSession(tx);

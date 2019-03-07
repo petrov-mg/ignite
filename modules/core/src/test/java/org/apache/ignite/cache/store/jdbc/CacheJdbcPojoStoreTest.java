@@ -66,10 +66,10 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
     protected static final int PERSON_CNT = 100000;
 
     /** Ignite. */
-    private Ignite ig;
+    protected Ignite ig;
 
     /** Binary enable. */
-    private boolean binaryEnable;
+    protected boolean binaryEnable;
 
     /**
      * @throws Exception If failed.
@@ -182,12 +182,8 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
         GridTestUtils.setFieldValue(store, CacheAbstractJdbcStore.class, "ses", ses);
     }
 
-    /** {@inheritDoc} */
-    @Override protected void beforeTest() throws Exception {
-        Connection conn = store.openConnection(false);
-
-        Statement stmt = conn.createStatement();
-
+    /** */
+    protected void performStatement(Statement stmt) throws Exception {
         try {
             stmt.executeUpdate("delete from String_Entries");
         }
@@ -251,6 +247,15 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
         stmt.executeUpdate("CREATE TABLE IF NOT EXISTS " +
             "Person_Complex (id integer not null, org_id integer not null, city_id integer not null, " +
             "name varchar(50), salary integer, PRIMARY KEY(id, org_id, city_id))");
+    }
+
+    /** {@inheritDoc} */
+    @Override protected void beforeTest() throws Exception {
+        Connection conn = store.openConnection(false);
+
+        Statement stmt = conn.createStatement();
+
+        performStatement(stmt);
 
         conn.commit();
 

@@ -321,7 +321,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @return Pooled connection.
      * @throws SQLException In case of error.
      */
-    protected Connection openConnection(boolean autocommit) throws SQLException {
+    protected Connection   openConnection(boolean autocommit) throws SQLException {
         Connection conn = dataSrc.getConnection();
 
         conn.setAutoCommit(autocommit);

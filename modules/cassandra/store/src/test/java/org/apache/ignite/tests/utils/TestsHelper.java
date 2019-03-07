@@ -111,12 +111,12 @@ public class TestsHelper {
             LOAD_TESTS_KEY_GENERATOR = (Generator)Class.forName(TESTS_SETTINGS.getString("load.tests.key.generator")).newInstance();
             LOAD_TESTS_VALUE_GENERATOR = (Generator)Class.forName(TESTS_SETTINGS.getString("load.tests.value.generator")).newInstance();
 
-            String[] parts = SystemHelper.HOST_IP.split("\\.");
+            /*String[] parts = SystemHelper.HOST_IP.split("\\.");
 
             String prefix = parts[3];
-            prefix = prefix.length() > 2 ? prefix.substring(prefix.length() - 2) : prefix;
+            prefix = prefix.length() > 2 ? prefix.substring(prefix.length() - 2) : prefix;*/
 
-            HOST_PREFIX = prefix;
+            HOST_PREFIX = null;
 
             Calendar cl = Calendar.getInstance();
 

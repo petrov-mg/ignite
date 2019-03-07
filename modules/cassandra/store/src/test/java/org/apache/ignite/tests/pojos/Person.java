@@ -21,13 +21,15 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.util.Date;
+import java.io.Serializable;
+import java.sql.Date;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
  * Simple POJO which could be stored as a value in Ignite cache
  */
-public class Person implements Externalizable {
+public class Person implements Serializable {
     /** */
     private long personNum;
 
@@ -56,7 +58,7 @@ public class Person implements Externalizable {
     private Date birthDate;
 
     /** */
-    private List<String> phones;
+    //private List<String> phones;
 
     /** */
     public Person() {
@@ -64,7 +66,7 @@ public class Person implements Externalizable {
 
     /** */
     public Person(long personNum, String firstName, String lastName, short age, boolean married,
-        long height, float weight, Date birthDate, List<String> phones) {
+        long height, float weight, java.util.Date birthDate, List<String> phones) {
         this.personNum = personNum;
         this.firstName = firstName;
         this.lastName = lastName;
@@ -72,13 +74,13 @@ public class Person implements Externalizable {
         this.married = married;
         this.height = height;
         this.weight = weight;
-        this.birthDate = birthDate;
-        this.phones = phones;
+        this.birthDate = Date.valueOf(LocalDate.of(birthDate.getYear(), birthDate.getMonth(), birthDate.getDay()));
+        //this.phones = phones;
     }
 
 
     /** {@inheritDoc} */
-    @Override public void writeExternal(ObjectOutput out) throws IOException {
+   public void writeExternal(ObjectOutput out) throws IOException {
         out.writeLong(personNum);
         out.writeObject(firstName);
         out.writeObject(lastName);
@@ -87,12 +89,12 @@ public class Person implements Externalizable {
         out.writeLong(height);
         out.writeFloat(weight);
         out.writeObject(birthDate);
-        out.writeObject(phones);
+        //out.writeObject(phones);
     }
 
     /** {@inheritDoc} */
     @SuppressWarnings("unchecked")
-    @Override public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+  public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         personNum = in.readLong();
         firstName = (String)in.readObject();
         lastName = (String)in.readObject();
@@ -101,7 +103,7 @@ public class Person implements Externalizable {
         height = in.readLong();
         weight = in.readFloat();
         birthDate = (Date)in.readObject();
-        phones = (List<String>)in.readObject();
+        //phones = (List<String>)in.readObject();
     }
 
     /** {@inheritDoc} */
@@ -127,9 +129,9 @@ public class Person implements Externalizable {
             (person.birthDate != null && !person.birthDate.equals(birthDate)))
             return false;
 
-        if ((phones != null && !phones.equals(person.phones)) ||
+        /*if ((phones != null && !phones.equals(person.phones)) ||
             (person.phones != null && !person.phones.equals(phones)))
-            return false;
+            return false;*/
 
         return age == person.age && married == person.married &&
             height == person.height && weight == person.weight;
@@ -249,13 +251,13 @@ public class Person implements Externalizable {
         return birthDate;
     }
 
-    /** */
+/*    *//** *//*
     public void setPhones(List<String> phones) {
         this.phones = phones;
     }
 
-    /** */
+    *//** *//*
     public List<String> getPhones() {
         return phones;
-    }
+    }*/
 }
