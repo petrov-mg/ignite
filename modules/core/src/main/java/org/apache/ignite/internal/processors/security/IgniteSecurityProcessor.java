@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.IgniteInternalFuture;
@@ -42,6 +43,8 @@ import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
+import static org.apache.ignite.internal.processors.security.SecurityLogMarker.AUTHENTICATION;
+import static org.apache.ignite.internal.processors.security.SecurityLogMarker.AUTHORIZATION;
 import static org.apache.ignite.internal.processors.security.SecurityUtils.nodeSecurityContext;
 
 /**
@@ -71,6 +74,9 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
     /** Map of security contexts. Key is node's id. */
     private final Map<UUID, SecurityContext> secCtxs = new ConcurrentHashMap<>();
 
+    /** Grid logger. */
+    private IgniteLogger log;
+
     /**
      * @param ctx Grid kernal context.
      * @param secPrc Security processor.
@@ -81,6 +87,8 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
 
         this.ctx = ctx;
         this.secPrc = secPrc;
+
+        log = ctx.log(getClass());
 
         marsh = MarshallerUtils.jdkMarshaller(ctx.igniteInstanceName());
     }
@@ -119,7 +127,11 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
     /** {@inheritDoc} */
     @Override public SecurityContext authenticateNode(ClusterNode node, SecurityCredentials cred)
         throws IgniteCheckedException {
-        return secPrc.authenticateNode(node, cred);
+        SecurityContext securityCtx = secPrc.authenticateNode(node, cred);
+
+        logNodeAuthentication(node, securityCtx);
+
+        return securityCtx;
     }
 
     /** {@inheritDoc} */
@@ -129,7 +141,11 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
 
     /** {@inheritDoc} */
     @Override public SecurityContext authenticate(AuthenticationContext ctx) throws IgniteCheckedException {
-        return secPrc.authenticate(ctx);
+        SecurityContext securityCtx = secPrc.authenticate(ctx);
+
+        logAuthentication(ctx, securityCtx);
+
+        return securityCtx;
     }
 
     /** {@inheritDoc} */
@@ -151,9 +167,21 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
     @Override public void authorize(String name, SecurityPermission perm) throws SecurityException {
         SecurityContext secCtx = curSecCtx.get();
 
+        SecurityException authorizationErr = null;
+
         assert secCtx != null;
 
-        secPrc.authorize(name, perm, secCtx);
+        try {
+            secPrc.authorize(name, perm, secCtx);
+        }
+        catch (SecurityException e) {
+            authorizationErr = e;
+        }
+
+        logAuthorization(name, perm, authorizationErr);
+
+        if (authorizationErr != null)
+            throw authorizationErr;
     }
 
     /** {@inheritDoc} */
@@ -269,5 +297,53 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
         }
 
         return null;
+    }
+
+    /**
+     * Logs authentication result.
+     *
+     * @param ctx Authentication context.
+     * @param securityCtx Authentication security context.
+     */
+    private void logAuthentication(AuthenticationContext ctx, SecurityContext securityCtx) {
+        String subj = "subject={id=" + ctx.subjectId() +
+            ", type=" + ctx.subjectType() +
+            ", login=" + ctx.credentials().getLogin() + '}';
+
+        if (securityCtx == null)
+            log.error(AUTHENTICATION, "Authentication failed [" + subj + ']', null);
+        else
+            log.info(AUTHENTICATION, "Authentication succeed [" + subj + ']');
+    }
+
+    /**
+     * Logs node authentication result.
+     *
+     * @param node Node id to authenticate.
+     * @param securityCtx Authentication security context.
+     */
+    private void logNodeAuthentication(ClusterNode node, SecurityContext securityCtx) {
+        if (securityCtx == null)
+            log.error(AUTHENTICATION, "Node authentication failed [node=" + node + ']', null);
+        else
+            log.info(AUTHENTICATION, "Node authentication succeed [node=" + node + ']');
+    }
+
+    /**
+     * Logs authorization result.
+     *
+     * @param name Cache name or task class name.
+     * @param perm Permission to authorize.
+     * @param e Authorization exception.
+     */
+    private void logAuthorization(String name, SecurityPermission perm, SecurityException e) {
+        String authInfo = "perm=" + perm +
+            ", name=" + name +
+            ", subject=" + curSecCtx.get().subject();
+
+        if (e == null)
+            log.info(AUTHORIZATION, "Authorization succeed [" + authInfo + ']');
+        else
+            log.error(AUTHORIZATION, "Authorization failed [" + authInfo + ']', e);
     }
 }
