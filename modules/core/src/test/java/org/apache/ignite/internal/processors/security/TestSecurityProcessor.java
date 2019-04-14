@@ -67,18 +67,13 @@ public class TestSecurityProcessor extends GridProcessorAdapter implements GridS
 
     /** {@inheritDoc} */
     @Override public SecurityContext authenticateNode(ClusterNode node, SecurityCredentials cred) {
-        SecurityPermissionSet perms = PERMS.get(cred);
-
-        if (perms == null)
-            return null;
-
         return new TestSecurityContext(
             new TestSecuritySubject()
                 .setType(REMOTE_NODE)
                 .setId(node.id())
                 .setAddr(new InetSocketAddress(F.first(node.addresses()), 0))
                 .setLogin(cred.getLogin())
-                .setPerms(perms)
+                .setPerms(PERMS.get(cred))
         );
     }
 
@@ -89,18 +84,13 @@ public class TestSecurityProcessor extends GridProcessorAdapter implements GridS
 
     /** {@inheritDoc} */
     @Override public SecurityContext authenticate(AuthenticationContext ctx) {
-        SecurityPermissionSet perms = PERMS.get(ctx.credentials());
-
-        if (perms == null)
-            return null;
-
         return new TestSecurityContext(
             new TestSecuritySubject()
                 .setType(ctx.subjectType())
                 .setId(ctx.subjectId())
                 .setAddr(ctx.address())
                 .setLogin(ctx.credentials().getLogin())
-                .setPerms(perms)
+                .setPerms(PERMS.get(ctx.credentials()))
         );
     }
 

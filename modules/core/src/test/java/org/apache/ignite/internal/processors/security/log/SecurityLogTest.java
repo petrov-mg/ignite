@@ -18,7 +18,11 @@
 package org.apache.ignite.internal.processors.security.log;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.concurrent.Callable;
+import org.apache.commons.io.FileUtils;
 import org.apache.ignite.Ignition;
 import org.apache.ignite.client.ClientAuthenticationException;
 import org.apache.ignite.client.ClientAuthorizationException;
@@ -29,13 +33,14 @@ import org.apache.ignite.configuration.ClientConfiguration;
 import org.apache.ignite.configuration.DataRegionConfiguration;
 import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
-import org.apache.ignite.internal.processors.security.AbstractCacheOperationPermissionCheckTest;
-import org.apache.ignite.internal.processors.security.SecurityLogMarker;
+import org.apache.ignite.internal.processors.security.AbstractSecurityTest;
 import org.apache.ignite.internal.processors.security.TestSecurityData;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.logger.log4j2.Log4J2Logger;
 import org.junit.Test;
 
+import static org.apache.ignite.internal.processors.security.SecurityLogMarker.AUTHENTICATION;
+import static org.apache.ignite.internal.processors.security.SecurityLogMarker.AUTHORIZATION;
 import static org.apache.ignite.internal.processors.security.log.SecurityLogTest.SecurityLogType.AUTHENTICATION_FAIL;
 import static org.apache.ignite.internal.processors.security.log.SecurityLogTest.SecurityLogType.AUTHENTICATION_SUCCESS;
 import static org.apache.ignite.internal.processors.security.log.SecurityLogTest.SecurityLogType.AUTHORIZATION_FAIL;
@@ -48,7 +53,13 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 
 /** */
-public class SecurityLogTest extends AbstractCacheOperationPermissionCheckTest {
+public class SecurityLogTest extends AbstractSecurityTest {
+    /** Cache. */
+    private static final String CACHE = "TEST_CACHE";
+
+    /** Forbidden cache. */
+    private static final String FORBIDDEN_CACHE = "FORBIDDEN_TEST_CACHE";
+
     /** Client. */
     private static final String CLIENT = "client";
 
@@ -76,19 +87,28 @@ public class SecurityLogTest extends AbstractCacheOperationPermissionCheckTest {
     /** */
     private static final String AUTHORIZATION_ERROR_LOG = "/authorization-error.log";
 
+    /** */
+    private static final String[] TEST_LOGS = {
+        ALL_LOG, AUTHENTICATION_ERROR_LOG, AUTHORIZATION_ERROR_LOG, AUTHENTICATION_INFO_LOG, AUTHORIZATION_INFO_LOG };
+
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {
         super.beforeTestsStarted();
+
+        clearAllLogs();
 
         startGrid(
             getConfiguration(0,
                 new TestSecurityData(
                     CLIENT,
                     builder()
-                        .appendCachePermissions(CACHE_NAME, CACHE_READ, CACHE_PUT, CACHE_REMOVE)
+                        .appendCachePermissions(CACHE, CACHE_READ, CACHE_PUT, CACHE_REMOVE)
                         .appendCachePermissions(FORBIDDEN_CACHE, EMPTY_PERMS)
                         .build()
-                ).setPwd(VALID_CLIENT_PWD)));
+                ).setPwd(VALID_CLIENT_PWD))
+        ).cluster().active(true);
+
+        checkLogs(NODE_AUTHENTICATION_SUCCESS, ALL_LOG, AUTHENTICATION_INFO_LOG);
     }
 
 
@@ -96,7 +116,7 @@ public class SecurityLogTest extends AbstractCacheOperationPermissionCheckTest {
     @Override protected void afterTest() throws Exception {
         super.afterTest();
 
-        U.delete(new File(U.getIgniteHome(), LOG_DEST));
+        U.delete(new File(logDestination()));
     }
 
     /**
@@ -104,90 +124,142 @@ public class SecurityLogTest extends AbstractCacheOperationPermissionCheckTest {
      */
     @Test
     public void testSecurityLog() throws Exception {
-        try (IgniteClient client = startClient(CLIENT, VALID_CLIENT_PWD)) {
-            client.cache(CACHE_NAME).put("key", "value");
+        try (IgniteClient client = checkOperationLog(() -> startClient(CLIENT, VALID_CLIENT_PWD),
+            AUTHENTICATION_SUCCESS, ALL_LOG, AUTHENTICATION_INFO_LOG)) {
 
-            assertForbidden(() -> client.cache(FORBIDDEN_CACHE).put("key", "value"),
-                ClientAuthorizationException.class);
+            checkOperationLog(() -> client.cache(CACHE).put("key", "value"),
+                AUTHORIZATION_SUCCESS, ALL_LOG, AUTHORIZATION_INFO_LOG);
+
+            checkOperationLog(() -> assertForbidden(() -> client.cache(FORBIDDEN_CACHE).put("key", "value"),
+                ClientAuthorizationException.class),
+                AUTHORIZATION_FAIL, ALL_LOG, AUTHORIZATION_ERROR_LOG);
         }
 
-        assertForbidden(() -> startClient(CLIENT, "invalid"), ClientAuthenticationException.class);
-
-        checkLogContainsOnly(getLog(ALL_LOG), AUTHENTICATION_FAIL, AUTHENTICATION_SUCCESS,
-            AUTHORIZATION_FAIL, AUTHORIZATION_SUCCESS, NODE_AUTHENTICATION_SUCCESS);
-
-        checkLogContainsOnly(getLog(AUTHENTICATION_INFO_LOG), AUTHENTICATION_SUCCESS, NODE_AUTHENTICATION_SUCCESS);
-        checkLogContainsOnly(getLog(AUTHENTICATION_ERROR_LOG), AUTHENTICATION_FAIL);
-        checkLogContainsOnly(getLog(AUTHORIZATION_INFO_LOG), AUTHORIZATION_SUCCESS);
-        checkLogContainsOnly(getLog(AUTHORIZATION_ERROR_LOG), AUTHORIZATION_FAIL);
-    }
-
-    /** {@inheritDoc} */
-    @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
-        return super.getConfiguration(igniteInstanceName)
-            .setGridLogger(new Log4J2Logger(CONFIG_PATH));
+        checkOperationLog(() -> assertForbidden(() -> startClient(CLIENT, "invalid"),
+            ClientAuthenticationException.class),
+            AUTHENTICATION_FAIL, ALL_LOG, AUTHENTICATION_ERROR_LOG);
     }
 
     /**
      * @param idx Index.
      * @param clientData Array of client security data.
      */
-    protected IgniteConfiguration getConfiguration(int idx,
-        TestSecurityData... clientData) throws Exception {
+    protected IgniteConfiguration getConfiguration(int idx, TestSecurityData... clientData) throws Exception {
         String instanceName = getTestIgniteInstanceName(idx);
 
         return getConfiguration(instanceName)
-            .setDataStorageConfiguration(
-                new DataStorageConfiguration()
-                    .setDefaultDataRegionConfiguration(
-                        new DataRegionConfiguration().setPersistenceEnabled(true)
-                    )
-            )
+            .setGridLogger(new Log4J2Logger(CONFIG_PATH))
             .setAuthenticationEnabled(true)
+            .setSecurityLogEnabled(true)
             .setPluginConfigurations(
                 secPluginCfg("srv_" + instanceName, null, allowAllPermissionSet(), clientData))
             .setCacheConfiguration(
-                new CacheConfiguration().setName(CACHE_NAME),
+                new CacheConfiguration().setName(CACHE),
                 new CacheConfiguration().setName(FORBIDDEN_CACHE)
+            )
+            .setDataStorageConfiguration(
+                new DataStorageConfiguration()
+                    .setDefaultDataRegionConfiguration(
+                        new DataRegionConfiguration().setPersistenceEnabled(true))
             );
     }
 
     /**
-     * Checks that log contains messages only of specified types.
-     *
      * @param logFile Log file.
      * @param types Security log types.
+     * @return {@code true} if log contains messages only of specified types, otherwise {@code false}.
      */
-    private void checkLogContainsOnly(String logFile, SecurityLogType... types) {
-        assertThat(logFile.contains('[' + SecurityLogMarker.AUTHENTICATION + "] Node authentication succeed"),
-            is(specified(NODE_AUTHENTICATION_SUCCESS, types)));
-
-        assertThat(logFile.contains('[' + SecurityLogMarker.AUTHENTICATION + "] Authentication succeed"),
-            is(specified(AUTHENTICATION_SUCCESS, types)));
-
-        assertThat(logFile.contains('[' + SecurityLogMarker.AUTHENTICATION + "] Authentication failed"),
-            is(specified(AUTHENTICATION_FAIL, types)));
-
-        assertThat(logFile.contains('[' + SecurityLogMarker.AUTHORIZATION + "] Authorization succeed"),
-            is(specified(AUTHORIZATION_SUCCESS, types)));
-
-        assertThat(logFile.contains('[' + SecurityLogMarker.AUTHORIZATION + "] Authorization failed"),
-            is(specified(AUTHORIZATION_FAIL, types)));
+    private boolean logContains(String logFile, SecurityLogType... types) {
+        return isSpecified(NODE_AUTHENTICATION_SUCCESS, types) ==
+                logFile.contains('[' + AUTHENTICATION + "] Node authentication succeed") &&
+            isSpecified(AUTHENTICATION_SUCCESS, types) ==
+                logFile.contains('[' + AUTHENTICATION + "] Authentication succeed") &&
+            isSpecified(AUTHENTICATION_FAIL, types) ==
+                logFile.contains('[' + AUTHENTICATION + "] Authentication failed") &&
+            isSpecified(AUTHORIZATION_SUCCESS, types) ==
+                logFile.contains('[' + AUTHORIZATION + "] Authorization succeed") &&
+            isSpecified(AUTHORIZATION_FAIL, types) ==
+                logFile.contains('[' + AUTHORIZATION + "] Authorization failed");
     }
 
     /** */
-    private boolean specified(SecurityLogType type, SecurityLogType... types) {
+    private boolean isSpecified(SecurityLogType type, SecurityLogType... types) {
         return Arrays.asList(types).contains(type);
     }
 
     /**
+     * Iterates over all test log files and checks
+     * if specified log message type is presented only in passed log files.
+     *
+     * @param type Security log type.
+     * @param logPaths Log paths.
+     */
+    private void checkLogs(SecurityLogType type, String... logPaths) throws Exception {
+        for (String log : TEST_LOGS)
+            assertThat(logContains(getLog(log), type), is(Arrays.asList(logPaths).contains(log)));
+    }
+
+    /**
+     * Executes operation and checks if it has produced messege of expected type in expected log files.
+     *
+     * @param c Operation to execute.
+     * @param type Security log message type.
+     * @param logPaths Log paths.
+     * @return Result of {@code c} execution.
+     */
+    private <T> T checkOperationLog(Callable<T> c, SecurityLogType type, String... logPaths) throws Exception {
+        clearAllLogs();
+
+        T res = c.call();
+
+        checkLogs(type, logPaths);
+
+        return res;
+    }
+
+    /**
+     * Executes operation and checks if it has produced messege of expected type in expected log files.
+     *
+     * @param r Operation to execute.
+     * @param type Security log message type.
+     * @param logPaths Log paths.
+     */
+    private void checkOperationLog(Runnable r, SecurityLogType type, String... logPaths) throws Exception {
+        clearAllLogs();
+
+        r.run();
+
+        checkLogs(type, logPaths);
+    }
+
+    /** Clear all test log files. */
+    private void clearAllLogs() {
+        Arrays.stream(TEST_LOGS).forEach(this::clearLog);
+    }
+
+    /** */
+    private String logDestination() {
+        return U.getIgniteHome() + LOG_DEST;
+    }
+    /**
      * @param path Log path relative to defaul test log folder destination.
      * @return String representation of log file whose path was passed.
      */
-    private String getLog(String path) throws Exception {
-        return U.readFileToString(U.getIgniteHome() + LOG_DEST + path, "UTF-8");
+    private String getLog(String path) throws IOException {
+        return U.readFileToString( logDestination() + path, Charset.defaultCharset().name());
     }
 
+    /**
+     * @param path Log path relative to defaul test log folder destination.
+     */
+    private void clearLog(String path) {
+        try {
+            FileUtils.write(new File(logDestination() + path), "", Charset.defaultCharset());
+        }
+        catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
     /**
      * @param userName User name.
      * @param pwd Password.

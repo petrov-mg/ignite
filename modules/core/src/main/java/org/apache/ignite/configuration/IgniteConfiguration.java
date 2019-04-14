@@ -530,6 +530,9 @@ public class IgniteConfiguration {
     /** SQL schemas to be created on node start. */
     private String[] sqlSchemas;
 
+    /** Security logging enabled. */
+    private boolean securityLogEnabled;
+
     /**
      * Creates valid grid configuration with all default values.
      */
@@ -625,6 +628,7 @@ public class IgniteConfiguration {
         pubPoolSize = cfg.getPublicThreadPoolSize();
         qryPoolSize = cfg.getQueryThreadPoolSize();
         rebalanceThreadPoolSize = cfg.getRebalanceThreadPoolSize();
+        securityLogEnabled = cfg.isSecurityLogEnabled();
         segChkFreq = cfg.getSegmentCheckFrequency();
         segPlc = cfg.getSegmentationPolicy();
         segResolveAttempts = cfg.getSegmentationResolveAttempts();
@@ -3194,6 +3198,28 @@ public class IgniteConfiguration {
      */
     public IgniteConfiguration setSqlSchemas(String... sqlSchemas) {
         this.sqlSchemas = sqlSchemas;
+
+        return this;
+    }
+
+    /**
+     * Returns {@code true} if security event logging is enabled for cluster. Otherwise returns {@code false}.
+     * Default value is false; logging is disabled.
+     *
+     * @return {@code true} if security event logging is enabled for cluster. Otherwise returns {@code false}.
+     */
+    public boolean isSecurityLogEnabled() {
+        return securityLogEnabled;
+    }
+
+    /**
+     * Sets flag indicating whether the security event logging is enabled for cluster.
+     *
+     * @param securityLogEnabled Security event logging enabled flag.
+     * @return {@code this} for chaining.
+     */
+    public IgniteConfiguration setSecurityLogEnabled(boolean securityLogEnabled) {
+        this.securityLogEnabled = securityLogEnabled;
 
         return this;
     }

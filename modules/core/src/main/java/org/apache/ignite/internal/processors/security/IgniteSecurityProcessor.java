@@ -77,6 +77,9 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
     /** Grid logger. */
     private IgniteLogger log;
 
+    /** Loggging enabled flag. */
+    private boolean logEnabled;
+
     /**
      * @param ctx Grid kernal context.
      * @param secPrc Security processor.
@@ -89,6 +92,8 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
         this.secPrc = secPrc;
 
         log = ctx.log(getClass());
+
+        logEnabled = log != null && ctx.config().isSecurityLogEnabled();
 
         marsh = MarshallerUtils.jdkMarshaller(ctx.igniteInstanceName());
     }
@@ -306,13 +311,16 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
      * @param securityCtx Authentication security context.
      */
     private void logAuthentication(AuthenticationContext ctx, SecurityContext securityCtx) {
+        if (!logEnabled)
+            return;
+
         String subj = "subject={id=" + ctx.subjectId() +
             ", type=" + ctx.subjectType() +
             ", login=" + ctx.credentials().getLogin() + '}';
 
         if (securityCtx == null)
             log.error(AUTHENTICATION, "Authentication failed [" + subj + ']', null);
-        else
+        else if (log.isInfoEnabled())
             log.info(AUTHENTICATION, "Authentication succeed [" + subj + ']');
     }
 
@@ -323,9 +331,12 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
      * @param securityCtx Authentication security context.
      */
     private void logNodeAuthentication(ClusterNode node, SecurityContext securityCtx) {
+        if (!logEnabled)
+            return;
+
         if (securityCtx == null)
             log.error(AUTHENTICATION, "Node authentication failed [node=" + node + ']', null);
-        else
+        else if (log.isInfoEnabled())
             log.info(AUTHENTICATION, "Node authentication succeed [node=" + node + ']');
     }
 
@@ -337,13 +348,16 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
      * @param e Authorization exception.
      */
     private void logAuthorization(String name, SecurityPermission perm, SecurityException e) {
+        if (!logEnabled)
+            return;
+
         String authInfo = "perm=" + perm +
             ", name=" + name +
             ", subject=" + curSecCtx.get().subject();
 
-        if (e == null)
-            log.info(AUTHORIZATION, "Authorization succeed [" + authInfo + ']');
-        else
+        if (e != null)
             log.error(AUTHORIZATION, "Authorization failed [" + authInfo + ']', e);
+        else if (log.isInfoEnabled())
+            log.info(AUTHORIZATION, "Authorization succeed [" + authInfo + ']');
     }
 }
