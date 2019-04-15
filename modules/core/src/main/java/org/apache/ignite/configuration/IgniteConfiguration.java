@@ -533,8 +533,8 @@ public class IgniteConfiguration {
     /** SQL schemas to be created on node start. */
     private String[] sqlSchemas;
 
-    /** Plugins information mapped to plugin names. */
-    private Map<String, IgnitePluginInfo> pluginInfos;
+    /** Plugins information. */
+    private IgnitePluginInfo[] pluginInfos;
 
     /**
      * Creates valid grid configuration with all default values.
@@ -3206,11 +3206,11 @@ public class IgniteConfiguration {
     }
 
     /**
-     * Gets plugins information mapped to plugin names.
+     * Gets plugins information.
      *
-     * @return Plugins information mapped to plugin names.
+     * @return Plugins information.
      */
-    public Map<String, IgnitePluginInfo> getPluginInfos() {
+    public IgnitePluginInfo[] getPluginInfos() {
         return pluginInfos;
     }
 
@@ -3221,11 +3221,7 @@ public class IgniteConfiguration {
      * @return {@code this} for chaining.
      */
     public IgniteConfiguration setPluginInfos(IgnitePluginInfo... pluginInfos) {
-        if (this.pluginInfos == null)
-            this.pluginInfos = new LinkedHashMap<>();
-
-        Arrays.stream(pluginInfos).forEach(pluginInfo ->
-            this.pluginInfos.put(pluginInfo.getPluginProvider().name(), pluginInfo));
+        this.pluginInfos = pluginInfos;
 
         return this;
     }

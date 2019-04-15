@@ -887,9 +887,9 @@ public class IgniteKernal implements IgniteEx, IgniteMXBean, Externalizable {
         // Ack configuration.
         ackSpis();
 
-        List<PluginProvider> plugins = cfg.getPluginInfos() == null ? U.allPluginProviders() :
-            cfg.getPluginInfos().values().stream()
-                .map(IgnitePluginInfo::getPluginProvider)
+        List<IgnitePluginInfo> plugins = cfg.getPluginInfos().length != 0 ? Arrays.asList(cfg.getPluginInfos()) :
+            U.allPluginProviders().stream()
+                .map(IgnitePluginInfo::new)
                 .collect(Collectors.toList());
 
         // Spin out SPIs & managers.
@@ -914,7 +914,9 @@ public class IgniteKernal implements IgniteEx, IgniteMXBean, Externalizable {
                 qryExecSvc,
                 schemaExecSvc,
                 customExecSvcs,
-                plugins,
+                plugins.stream()
+                    .map(IgnitePluginInfo::getPluginProvider)
+                    .collect(Collectors.toList()),
                 MarshallerUtils.classNameFilter(this.getClass().getClassLoader()),
                 workerRegistry,
                 hnd,
