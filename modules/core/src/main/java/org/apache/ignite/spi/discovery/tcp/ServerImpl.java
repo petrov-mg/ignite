@@ -68,6 +68,7 @@ import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.cluster.ClusterMetrics;
 import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.events.DiscoveryEvent;
 import org.apache.ignite.failure.FailureContext;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteFeatures;
@@ -162,6 +163,7 @@ import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.events.EventType.EVT_NODE_METRICS_UPDATED;
 import static org.apache.ignite.events.EventType.EVT_NODE_SEGMENTED;
+import static org.apache.ignite.events.EventType.EVT_NODE_VALIDATION_FAILED;
 import static org.apache.ignite.failure.FailureType.CRITICAL_ERROR;
 import static org.apache.ignite.failure.FailureType.SYSTEM_WORKER_TERMINATION;
 import static org.apache.ignite.internal.IgniteFeatures.TCP_DISCOVERY_MESSAGE_NODE_COMPACT_REPRESENTATION;
@@ -4169,6 +4171,15 @@ class ServerImpl extends TcpDiscoveryImpl {
                     utilityPool.execute(
                         new Runnable() {
                             @Override public void run() {
+                                DiscoveryEvent validationFailedEvt =
+                                    new DiscoveryEvent(locNode, err0.message(), EVT_NODE_VALIDATION_FAILED, node);
+
+                                long curTopVer = ring.topologyVersion();
+
+                                validationFailedEvt.topologySnapshot(curTopVer, topHist.get(curTopVer));
+
+                                spi.spiCtx.recordEvent(validationFailedEvt);
+
                                 boolean ping = node.id().equals(err0.nodeId()) ? pingNode(node) : pingNode(err0.nodeId());
 
                                 if (!ping) {

@@ -21,6 +21,7 @@ import java.util.List;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteEvents;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.internal.GridComponent;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.spi.eventstorage.NoopEventStorageSpi;
@@ -159,6 +160,19 @@ public interface EventType {
      * @see DiscoveryEvent
      */
     public static final int EVT_NODE_SEGMENTED = 14;
+
+    /**
+     * Built-in event type: node validation failed.
+     * <br>
+     * This event is triggered if a node join fails due to a node validation failure.
+     * <p>
+     * NOTE: all types in range <b>from 1 to 1000 are reserved</b> for
+     * internal Ignite events and should not be used by user-defined events.
+     *
+     * @see DiscoveryEvent
+     * @see GridComponent#validateNode
+     */
+    public static final int EVT_NODE_VALIDATION_FAILED = 15;
 
     /**
      * Built-in event type: client node disconnected.
@@ -989,7 +1003,8 @@ public interface EventType {
         EVT_NODE_FAILED,
         EVT_NODE_SEGMENTED,
         EVT_CLIENT_NODE_DISCONNECTED,
-        EVT_CLIENT_NODE_RECONNECTED
+        EVT_CLIENT_NODE_RECONNECTED,
+        EVT_NODE_VALIDATION_FAILED
     };
 
     /**

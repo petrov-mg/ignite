@@ -31,18 +31,25 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.events.DiscoveryEvent;
 import org.apache.ignite.events.Event;
 import org.apache.ignite.events.EventType;
+import org.apache.ignite.internal.processors.security.impl.TestSecurityPluginProvider;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteClosure;
 import org.apache.ignite.lang.IgnitePredicate;
+import org.apache.ignite.spi.IgniteSpiException;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.ignite.events.EventType.EVTS_DISCOVERY;
 import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
 import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
+import static org.apache.ignite.events.EventType.EVT_NODE_VALIDATION_FAILED;
+import static org.apache.ignite.plugin.security.SecurityPermissionSetBuilder.ALLOW_ALL;
+import static org.apache.ignite.testframework.GridTestUtils.assertThrowsWithCause;
+import static org.apache.ignite.testframework.GridTestUtils.waitForCondition;
 
 /**
  * Tests discovery event topology snapshots.
@@ -428,5 +435,41 @@ public class GridDiscoveryEventSelfTest extends GridCommonAbstractTest {
         finally {
             stopAllGrids();
         }
+    }
+
+    /** {@inheritDoc} */
+    @Override protected void afterTest() throws Exception {
+        super.afterTest();
+
+        stopAllGrids();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    @Test
+    @SuppressWarnings("ThrowableNotThrown")
+    public void testNodeValidationFailedEvent() throws Exception {
+        IgniteConfiguration cfg = getConfiguration(getTestIgniteInstanceName(0))
+            .setIncludeEventTypes(EVTS_DISCOVERY);
+
+        startGrid(cfg);
+
+        AtomicInteger nodeValidationEvtCnt = new AtomicInteger();
+
+        grid(0).events().localListen(evt -> {
+            nodeValidationEvtCnt.incrementAndGet();
+
+            return true;
+        }, EVT_NODE_VALIDATION_FAILED);
+
+        IgniteConfiguration invalidCfg = getConfiguration(getTestIgniteInstanceName(1));
+
+        invalidCfg.setPluginProviders(
+                new TestSecurityPluginProvider("login", "", ALLOW_ALL, false));
+
+        assertThrowsWithCause(() -> startGrid(invalidCfg), IgniteSpiException.class);
+
+        assertTrue(waitForCondition(() -> nodeValidationEvtCnt.get() == 1, getTestTimeout()));
     }
 }
