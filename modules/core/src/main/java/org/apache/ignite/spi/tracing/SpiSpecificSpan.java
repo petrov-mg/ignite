@@ -18,12 +18,12 @@
 package org.apache.ignite.spi.tracing;
 
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Logical piece of a trace that insulates spi specific logic.
  */
 public interface SpiSpecificSpan {
-
     /**
      * Adds tag to span with {@code String} value.
      *
@@ -66,6 +66,12 @@ public interface SpiSpecificSpan {
      * Ends span. This action sets default status if not set and mark the span as ready to be exported.
      */
     SpiSpecificSpan end();
+
+    /** */
+    SpiSpecificSpan createChildSpan(@NotNull String name, double samplingRate);
+
+    /** */
+    byte[] toByteArray();
 
     /**
      * @return {@code true} if span has already ended.

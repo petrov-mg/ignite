@@ -21,6 +21,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanStatus;
+import org.apache.ignite.spi.tracing.SpiSpecificSpan;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Logical piece of a trace that represents a single operation.
@@ -74,6 +76,12 @@ public interface Span {
      * @return Set of included scopes.
      */
     Set<Scope> includedScopes();
+
+    /** */
+    public Span createChildSpan(double samplingRate, SpanType spanTypeToCreate);
+
+    /** */
+    public byte[] toByteArray();
 
     /**
      * @param scope Chainable scope candidate.

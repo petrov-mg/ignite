@@ -18,11 +18,15 @@
 package org.apache.ignite.spi.tracing;
 
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Noop and null-safe implementation of {@link SpiSpecificSpan}.
  */
 public class NoopSpiSpecificSpan implements SpiSpecificSpan {
+    /** Noop serialized span. */
+    private static final byte[] NOOP_SPI_SPECIFIC_SERIALIZED_SPAN = new byte[0];
+
     /** Instance. */
     public static final SpiSpecificSpan INSTANCE = new NoopSpiSpecificSpan();
 
@@ -61,6 +65,16 @@ public class NoopSpiSpecificSpan implements SpiSpecificSpan {
     /** {@inheritDoc} */
     @Override public SpiSpecificSpan end() {
         return this;
+    }
+
+    /** {@inheritDoc} */
+    @Override public SpiSpecificSpan createChildSpan(@NotNull String name, double samplingRate) {
+        return INSTANCE;
+    }
+
+    /** {@inheritDoc} */
+    @Override public byte[] toByteArray() {
+        return NOOP_SPI_SPECIFIC_SERIALIZED_SPAN;
     }
 
     /** {@inheritDoc} */

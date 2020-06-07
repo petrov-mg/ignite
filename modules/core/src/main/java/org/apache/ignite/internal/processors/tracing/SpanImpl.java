@@ -17,11 +17,17 @@
 
 package org.apache.ignite.internal.processors.tracing;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanStatus;
 import org.apache.ignite.spi.tracing.SpiSpecificSpan;
+import org.jetbrains.annotations.NotNull;
+
+import static org.apache.ignite.internal.util.GridClientByteUtils.intToBytes;
+import static org.apache.ignite.internal.util.GridClientByteUtils.shortToBytes;
+import static org.apache.ignite.spi.tracing.TracingConfigurationParameters.SAMPLING_RATE_ALWAYS;
 
 /**
  * Implementation of a {@link Span}
@@ -91,6 +97,96 @@ public class SpanImpl implements Span {
     /** {@inheritDoc} */
     @Override public Set<Scope> includedScopes() {
         return includedScopes;
+    }
+
+    /** {@inheritDoc} */
+    @Override public Span createChildSpan(double samplingRate, SpanType spanTypeToCreate) {
+        if (!isChainable(spanTypeToCreate.scope()))
+            return NoopSpan.INSTANCE;
+
+        Set<Scope> mergedIncludedScopes = new HashSet<>(includedScopes());
+
+        mergedIncludedScopes.add(type().scope());
+        mergedIncludedScopes.remove(spanTypeToCreate.scope());
+
+        return new SpanImpl(
+            spiSpecificSpan.createChildSpan(spanTypeToCreate.spanName(), samplingRate),
+            spanTypeToCreate,
+            mergedIncludedScopes);
+    }
+
+    @Override public byte[] toByteArray() {
+        // Spi specific serialized span.
+        byte[] spiSpecificSerializedSpan = spiSpecificSpan.toByteArray()
+
+        int serializedSpanLen = SPI_SPECIFIC_SERIALIZED_SPAN_BODY_OFF + PARENT_SPAN_TYPE_BYTES_LENGTH +
+            INCLUDED_SCOPES_SIZE_BYTE_LENGTH + spiSpecificSerializedSpan.length + SCOPE_INDEX_BYTE_LENGTH *
+            span.includedScopes().size();
+
+        byte[] serializedSpanBytes = new byte[serializedSpanLen];
+
+        // Skip special flags bytes.
+
+        // Spi type idx.
+        serializedSpanBytes[SPI_TYPE_OFF] = getSpi().type().index();
+
+        // Major protocol version;
+        serializedSpanBytes[MAJOR_PROTOCOL_VERSION_OFF] = MAJOR_PROTOCOL_VERSION;
+
+        // Minor protocol version;
+        serializedSpanBytes[MINOR_PROTOCOL_VERSION_OFF] = MINOR_PROTOCOL_VERSION;
+
+        // Spi specific serialized span length.
+        System.arraycopy(
+            intToBytes(spiSpecificSerializedSpan.length),
+            0,
+            serializedSpanBytes,
+            SPI_SPECIFIC_SERIALIZED_SPAN_BYTES_LENGTH_OFF,
+            SPI_SPECIFIC_SERIALIZED_SPAN_BYTES_LENGTH);
+
+        // Spi specific span.
+        System.arraycopy(
+            spiSpecificSerializedSpan,
+            0,
+            serializedSpanBytes,
+            SPI_SPECIFIC_SERIALIZED_SPAN_BODY_OFF,
+            spiSpecificSerializedSpan.length);
+
+        // Span type.
+        System.arraycopy(
+            intToBytes(span.type().index()),
+            0,
+            serializedSpanBytes,
+            SPI_SPECIFIC_SERIALIZED_SPAN_BODY_OFF + spiSpecificSerializedSpan.length,
+            PARENT_SPAN_TYPE_BYTES_LENGTH );
+
+        assert span.includedScopes() != null;
+
+        // Included scope size
+        System.arraycopy(
+            intToBytes(span.includedScopes().size()),
+            0,
+            serializedSpanBytes,
+            SPI_SPECIFIC_SERIALIZED_SPAN_BODY_OFF + PARENT_SPAN_TYPE_BYTES_LENGTH +
+                spiSpecificSerializedSpan.length,
+            INCLUDED_SCOPES_SIZE_BYTE_LENGTH);
+
+        int includedScopesCnt = 0;
+
+        if (!span.includedScopes().isEmpty()) {
+            for (Scope includedScope : span.includedScopes()) {
+                System.arraycopy(
+                    shortToBytes(includedScope.idx()),
+                    0,
+                    serializedSpanBytes,
+                    SPI_SPECIFIC_SERIALIZED_SPAN_BODY_OFF + PARENT_SPAN_TYPE_BYTES_LENGTH +
+                        INCLUDED_SCOPES_SIZE_BYTE_LENGTH + spiSpecificSerializedSpan.length +
+                        SCOPE_INDEX_BYTE_LENGTH * includedScopesCnt++,
+                    SCOPE_INDEX_BYTE_LENGTH);
+            }
+        }
+
+        return serializedSpanBytes;
     }
 
     /**

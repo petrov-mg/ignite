@@ -30,18 +30,7 @@ public interface TracingSpi extends IgniteSpi {
      *
      * @param name Name of span to create.
      */
-    default SpiSpecificSpan create(@NotNull String name) {
-        return create(name, (SpiSpecificSpan)null);
-    }
-
-    /**
-     * Creates Span given name and explicit parent.
-     *
-     * @param name Name of span to create.
-     * @param parentSpan Parent span.
-     * @return Created span.
-     */
-    SpiSpecificSpan create(@NotNull String name, @Nullable SpiSpecificSpan parentSpan);
+    public SpiSpecificSpan create(@NotNull String name, double samplingRate);
 
     /**
      * Creates Span given name and explicit parent.
@@ -51,28 +40,7 @@ public interface TracingSpi extends IgniteSpi {
      * @return Created span.
      * @throws Exception If failed to deserialize patent span.
      */
-    SpiSpecificSpan create(@NotNull String name, @Nullable byte[] serializedSpan) throws Exception;
-
-    /**
-     * Creates Span given name and explicit parent.
-     *
-     * @param name Name of span to create.
-     * @param parentSpan Parent span.
-     * @param samplingRate Number between 0 and 1 that more or less reflects the probability of sampling specific trace.
-     * 0 and 1 have special meaning here, 0 means never 1 means always. Default value is 0 (never).
-     * @return Created span.
-     */
-    @NotNull SpiSpecificSpan create(
-        @NotNull String name,
-        @Nullable SpiSpecificSpan parentSpan,
-        double samplingRate);
-
-    /**
-     * Serializes span to byte array to send context over network.
-     *
-     * @param span Span.
-     */
-    byte[] serialize(@NotNull SpiSpecificSpan span);
+    SpiSpecificSpan create(@NotNull String name, double samplingRate, @Nullable byte[] serializedSpan) throws Exception;
 
     /**
      * @return type of tracing spi as {@link TracingSpiType} instance.

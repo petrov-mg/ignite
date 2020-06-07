@@ -453,7 +453,6 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
                 return new SpanImpl(
                     getSpi().create(
                         spanTypeToCreate.spanName(),
-                        null,
                         tracingConfigurationParameters.samplingRate()),
                     spanTypeToCreate,
                     tracingConfigurationParameters.includedScopes());
@@ -461,29 +460,8 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
             else
                 return NoopSpan.INSTANCE;
         }
-        else {
-            // If there's is parent span and parent span supports given scope then...
-            if (parentSpan.isChainable(spanTypeToCreate.scope())) {
-                // create new span as child span for parent span, using parents span included scopes.
-
-                Set<Scope> mergedIncludedScopes = new HashSet<>(parentSpan.includedScopes());
-
-                mergedIncludedScopes.add(parentSpan.type().scope());
-                mergedIncludedScopes.remove(spanTypeToCreate.scope());
-
-                return new SpanImpl(
-                    getSpi().create(
-                        spanTypeToCreate.spanName(),
-                        ((SpanImpl)parentSpan).spiSpecificSpan(),
-                        SAMPLING_RATE_ALWAYS),
-                    spanTypeToCreate,
-                    mergedIncludedScopes);
-            }
-            else {
-                // do nothing;
-                return NoopSpan.INSTANCE;
-            }
-        }
+        else
+           return parentSpan.createChildSpan(SAMPLING_RATE_ALWAYS, spanTypeToCreate);
     }
 
     /** {@inheritDoc} */

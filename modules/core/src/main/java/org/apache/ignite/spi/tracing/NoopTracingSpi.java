@@ -30,11 +30,7 @@ import org.jetbrains.annotations.Nullable;
 @IgniteSpiMultipleInstancesSupport(value = true)
 @IgniteSpiConsistencyChecked(optional = true)
 public class NoopTracingSpi extends IgniteSpiAdapter implements TracingSpi {
-    /** Noop serialized span. */
-    private static final byte[] NOOP_SPI_SPECIFIC_SERIALIZED_SPAN = new byte[0];
-
-    /** {@inheritDoc} */
-    @Override public SpiSpecificSpan create(@NotNull String name, @Nullable SpiSpecificSpan parentSpan) {
+    @Override public SpiSpecificSpan create(@NotNull String name) {
         return NoopSpiSpecificSpan.INSTANCE;
     }
 
@@ -43,18 +39,6 @@ public class NoopTracingSpi extends IgniteSpiAdapter implements TracingSpi {
         return NoopSpiSpecificSpan.INSTANCE;
     }
 
-    /** {@inheritDoc} */
-    @Override public @NotNull SpiSpecificSpan create(
-        @NotNull String name,
-        @Nullable SpiSpecificSpan parentSpan,
-        double samplingRate) {
-        return NoopSpiSpecificSpan.INSTANCE;
-    }
-
-    /** {@inheritDoc} */
-    @Override public byte[] serialize(@NotNull SpiSpecificSpan span) {
-        return NOOP_SPI_SPECIFIC_SERIALIZED_SPAN;
-    }
 
     /** {@inheritDoc} */
     @Override public void spiStart(String igniteInstanceName) throws IgniteSpiException {
