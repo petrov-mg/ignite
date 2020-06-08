@@ -354,7 +354,7 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
             return NoopTracing.NOOP_SERIALIZED_SPAN;
 
         // Spi specific serialized span.
-        byte[] spiSpecificSerializedSpan = getSpi().serialize(((SpanImpl)span).spiSpecificSpan());
+        byte[] spiSpecificSerializedSpan = getSpi().serialize(span.spanContext());
 
         int serializedSpanLen = SPI_SPECIFIC_SERIALIZED_SPAN_BODY_OFF + PARENT_SPAN_TYPE_BYTES_LENGTH +
             INCLUDED_SCOPES_SIZE_BYTE_LENGTH + spiSpecificSerializedSpan.length + SCOPE_INDEX_BYTE_LENGTH *
@@ -474,7 +474,7 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
                 return new SpanImpl(
                     getSpi().create(
                         spanTypeToCreate.spanName(),
-                        ((SpanImpl)parentSpan).spiSpecificSpan(),
+                        parentSpan.spanContext(),
                         SAMPLING_RATE_ALWAYS),
                     spanTypeToCreate,
                     mergedIncludedScopes);

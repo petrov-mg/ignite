@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.tracing;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
+import org.apache.ignite.spi.tracing.SpanContext;
 import org.apache.ignite.spi.tracing.SpanStatus;
 import org.apache.ignite.spi.tracing.SpiSpecificSpan;
 
@@ -93,10 +94,8 @@ public class SpanImpl implements Span {
         return includedScopes;
     }
 
-    /**
-     * @return Spi specific span delegate.
-     */
-    public SpiSpecificSpan spiSpecificSpan() {
-        return spiSpecificSpan;
+    /** {@inheritDoc} */
+    @Override public SpanContext spanContext() {
+        return spiSpecificSpan.spanContext();
     }
 }

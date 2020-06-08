@@ -71,4 +71,7 @@ public interface SpiSpecificSpan {
      * @return {@code true} if span has already ended.
      */
     boolean isEnded();
+
+    /** */
+    SpanContext spanContext();
 }

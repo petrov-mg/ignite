@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import io.opencensus.trace.Annotation;
 import io.opencensus.trace.AttributeValue;
+import org.apache.ignite.spi.tracing.SpanContext;
 import org.apache.ignite.spi.tracing.SpanStatus;
 import org.apache.ignite.spi.tracing.SpiSpecificSpan;
 
@@ -31,6 +32,9 @@ public class OpenCensusSpanAdapter implements SpiSpecificSpan {
     /** OpenCensus span delegate. */
     private final io.opencensus.trace.Span span;
 
+    /** */
+    private final OpenCensusSpanContext ctx;
+
     /** Flag indicates that span is ended. */
     private volatile boolean ended;
 
@@ -39,11 +43,8 @@ public class OpenCensusSpanAdapter implements SpiSpecificSpan {
      */
     OpenCensusSpanAdapter(io.opencensus.trace.Span span) {
         this.span = span;
-    }
 
-    /** Implementation object. */
-    public io.opencensus.trace.Span impl() {
-        return span;
+        ctx = new OpenCensusSpanContext(span);
     }
 
     /** {@inheritDoc} */
@@ -102,5 +103,10 @@ public class OpenCensusSpanAdapter implements SpiSpecificSpan {
     /** {@inheritDoc} */
     @Override public boolean isEnded() {
         return ended;
+    }
+
+    /** {@inheritDoc} */
+    @Override public SpanContext spanContext() {
+        return ctx;
     }
 }

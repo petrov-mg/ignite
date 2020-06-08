@@ -31,17 +31,17 @@ public interface TracingSpi extends IgniteSpi {
      * @param name Name of span to create.
      */
     default SpiSpecificSpan create(@NotNull String name) {
-        return create(name, (SpiSpecificSpan)null);
+        return create(name, (SpanContext)null);
     }
 
     /**
      * Creates Span given name and explicit parent.
      *
-     * @param name Name of span to create.
-     * @param parentSpan Parent span.
+     * @param name Name of span to create
+     * @param parentSpanCtx Parent span context.
      * @return Created span.
      */
-    SpiSpecificSpan create(@NotNull String name, @Nullable SpiSpecificSpan parentSpan);
+    SpiSpecificSpan create(@NotNull String name, @Nullable SpanContext parentSpanCtx);
 
     /**
      * Creates Span given name and explicit parent.
@@ -57,22 +57,22 @@ public interface TracingSpi extends IgniteSpi {
      * Creates Span given name and explicit parent.
      *
      * @param name Name of span to create.
-     * @param parentSpan Parent span.
+     * @param parentSpanCtx Parent span context.
      * @param samplingRate Number between 0 and 1 that more or less reflects the probability of sampling specific trace.
      * 0 and 1 have special meaning here, 0 means never 1 means always. Default value is 0 (never).
      * @return Created span.
      */
     @NotNull SpiSpecificSpan create(
         @NotNull String name,
-        @Nullable SpiSpecificSpan parentSpan,
+        @Nullable SpanContext parentSpanCtx,
         double samplingRate);
 
     /**
      * Serializes span to byte array to send context over network.
      *
-     * @param span Span.
+     * @param spanCtx Span context.
      */
-    byte[] serialize(@NotNull SpiSpecificSpan span);
+    byte[] serialize(@NotNull SpanContext spanCtx);
 
     /**
      * @return type of tracing spi as {@link TracingSpiType} instance.

@@ -17,23 +17,24 @@
 
 package org.apache.ignite.spi.tracing.opencensus;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
 import io.opencensus.trace.BlankSpan;
 import io.opencensus.trace.Sampler;
 import io.opencensus.trace.Tracing;
 import io.opencensus.trace.export.SpanExporter;
 import io.opencensus.trace.samplers.Samplers;
-import org.apache.ignite.spi.tracing.SpiSpecificSpan;
-import org.apache.ignite.spi.tracing.TracingSpi;
-import org.apache.ignite.spi.tracing.TracingSpiType;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.ignite.internal.util.typedef.internal.LT;
 import org.apache.ignite.opencensus.spi.tracing.OpenCensusTraceExporter;
 import org.apache.ignite.spi.IgniteSpiAdapter;
 import org.apache.ignite.spi.IgniteSpiConsistencyChecked;
 import org.apache.ignite.spi.IgniteSpiException;
 import org.apache.ignite.spi.IgniteSpiMultipleInstancesSupport;
+import org.apache.ignite.spi.tracing.SpanContext;
+import org.apache.ignite.spi.tracing.SpiSpecificSpan;
+import org.apache.ignite.spi.tracing.TracingSpi;
+import org.apache.ignite.spi.tracing.TracingSpiType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -92,12 +93,12 @@ public class OpenCensusTracingSpi extends IgniteSpiAdapter implements TracingSpi
     }
 
     /** {@inheritDoc} */
-    @Override public SpiSpecificSpan create(@NotNull String name, @Nullable SpiSpecificSpan parentSpan) {
+    @Override public SpiSpecificSpan create(@NotNull String name, @Nullable SpanContext parentSpanCtx) {
         try {
             io.opencensus.trace.Span openCensusParent = null;
 
-            if (parentSpan instanceof OpenCensusSpanAdapter)
-                openCensusParent = ((OpenCensusSpanAdapter)parentSpan).impl();
+            if (parentSpanCtx instanceof OpenCensusSpanContext)
+                openCensusParent = ((OpenCensusSpanContext)parentSpanCtx).span();
 
             return new OpenCensusSpanAdapter(
                 Tracing.getTracer().spanBuilderWithExplicitParent(
@@ -110,7 +111,7 @@ public class OpenCensusTracingSpi extends IgniteSpiAdapter implements TracingSpi
         }
         catch (Exception e) {
             LT.warn(log, "Failed to create span from parent " +
-                "[spanName=" + name + ", parentSpan=" + parentSpan + "]");
+                "[spanName=" + name + ", parentSpanCtx=" + parentSpanCtx + "]");
 
             return new OpenCensusSpanAdapter(BlankSpan.INSTANCE);
         }
@@ -131,13 +132,13 @@ public class OpenCensusTracingSpi extends IgniteSpiAdapter implements TracingSpi
     /** {@inheritDoc} */
     @Override public @NotNull SpiSpecificSpan create(
         @NotNull String name,
-        @Nullable SpiSpecificSpan parentSpan,
+        @Nullable SpanContext parentSpanCtx,
         double samplingRate) {
         try {
             io.opencensus.trace.Span openCensusParent = null;
 
-            if (parentSpan instanceof OpenCensusSpanAdapter)
-                openCensusParent = ((OpenCensusSpanAdapter)parentSpan).impl();
+            if (parentSpanCtx instanceof OpenCensusSpanContext)
+                openCensusParent = ((OpenCensusSpanContext)parentSpanCtx).span();
 
             Sampler sampler;
 
@@ -164,14 +165,14 @@ public class OpenCensusTracingSpi extends IgniteSpiAdapter implements TracingSpi
         }
         catch (Exception e) {
             throw new IgniteSpiException("Failed to create span from parent " +
-                "[spanName=" + name + ", parentSpan=" + parentSpan + "]", e);
+                "[spanName=" + name + ", parentSpanCtx=" + parentSpanCtx + "]", e);
         }
     }
 
     /** {@inheritDoc} */
-    @Override public byte[] serialize(@NotNull SpiSpecificSpan span) {
+    @Override public byte[] serialize(@NotNull SpanContext ctx) {
         return Tracing.getPropagationComponent().getBinaryFormat().
-            toByteArray(((OpenCensusSpanAdapter) span).impl().getContext());
+            toByteArray(((OpenCensusSpanContext) ctx).span().getContext());
     }
 
     /** {@inheritDoc} */

@@ -34,7 +34,7 @@ public class NoopTracingSpi extends IgniteSpiAdapter implements TracingSpi {
     private static final byte[] NOOP_SPI_SPECIFIC_SERIALIZED_SPAN = new byte[0];
 
     /** {@inheritDoc} */
-    @Override public SpiSpecificSpan create(@NotNull String name, @Nullable SpiSpecificSpan parentSpan) {
+    @Override public SpiSpecificSpan create(@NotNull String name, @Nullable SpanContext parentSpanCtx) {
         return NoopSpiSpecificSpan.INSTANCE;
     }
 
@@ -46,13 +46,13 @@ public class NoopTracingSpi extends IgniteSpiAdapter implements TracingSpi {
     /** {@inheritDoc} */
     @Override public @NotNull SpiSpecificSpan create(
         @NotNull String name,
-        @Nullable SpiSpecificSpan parentSpan,
+        @Nullable SpanContext parentSpanCtx,
         double samplingRate) {
         return NoopSpiSpecificSpan.INSTANCE;
     }
 
     /** {@inheritDoc} */
-    @Override public byte[] serialize(@NotNull SpiSpecificSpan span) {
+    @Override public byte[] serialize(@NotNull SpanContext spanCtx) {
         return NOOP_SPI_SPECIFIC_SERIALIZED_SPAN;
     }
 

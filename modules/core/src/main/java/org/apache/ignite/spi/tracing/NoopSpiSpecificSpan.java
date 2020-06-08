@@ -67,4 +67,9 @@ public class NoopSpiSpecificSpan implements SpiSpecificSpan {
     @Override public boolean isEnded() {
         return true;
     }
+
+    /** {@inheritDoc} */
+    @Override public SpanContext spanContext() {
+        return null;
+    }
 }
