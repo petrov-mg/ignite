@@ -94,4 +94,9 @@ public class DeferredSpan implements Span {
     @Override public boolean isChainable(Scope scope) {
         return false;
     }
+
+    /** {@inheritDoc} */
+    @Override public boolean isTraceable() {
+        return false;
+    }
 }

@@ -35,8 +35,8 @@ public class MTC {
     /**
      * @return Span which corresponded to current thread or null if it doesn't not set.
      */
-    @NotNull public static Span span() {
-        return span.get();
+    @NotNull public static <T extends Span> T span() {
+        return (T) span.get();
     }
 
     /**

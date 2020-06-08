@@ -77,4 +77,9 @@ public class NoopSpan implements Span {
     @Override public SpanContext spanContext() {
         return null;
     }
+
+    /** {@inheritDoc} */
+    @Override public boolean isTraceable() {
+        return false;
+    }
 }

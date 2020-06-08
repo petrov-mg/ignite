@@ -86,4 +86,7 @@ public interface Span {
     default boolean isChainable(Scope scope) {
         return type().scope() == scope || includedScopes().contains(scope);
     }
+
+    /** */
+    boolean isTraceable();
 }

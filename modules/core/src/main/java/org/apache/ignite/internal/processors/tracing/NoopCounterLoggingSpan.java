@@ -17,90 +17,80 @@
 
 package org.apache.ignite.internal.processors.tracing;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanContext;
 import org.apache.ignite.spi.tracing.SpanStatus;
-import org.apache.ignite.spi.tracing.SpiSpecificSpan;
 
-/**
- * Implementation of a {@link Span}
- */
-public class SpanImpl implements Span {
-    /** Spi specific span delegate. */
-    private final SpiSpecificSpan spiSpecificSpan;
+/** */
+public class NoopCounterLoggingSpan implements CounterLoggingSpan {
+    /** Instance. */
+    public static final CounterLoggingSpan INSTANCE = new NoopCounterLoggingSpan();
 
-    /** Span type. */
-    private final SpanType spanType;
-
-    /** Set of extra included scopes for given span in addition to span's scope that is supported by default. */
-    private final Set<Scope> includedScopes;
-
-    /**
-     * Constructor
-     *
-     * @param spiSpecificSpan Spi specific span.
-     * @param spanType Type of a span.
-     * @param includedScopes Set of included scopes.
-     */
-    public SpanImpl(
-        SpiSpecificSpan spiSpecificSpan,
-        SpanType spanType,
-        Set<Scope> includedScopes) {
-        this.spiSpecificSpan = spiSpecificSpan;
-        this.spanType = spanType;
-        this.includedScopes = includedScopes;
+    /** */
+    private NoopCounterLoggingSpan() {
+        //No-op.
     }
 
-    @Override public Span addTag(String tagName, Supplier<String> tagValSupplier) {
-        spiSpecificSpan.addTag(tagName, tagValSupplier.get());
-
-        return this;
+    /** {@inheritDoc} */
+    @Override public void incrementCounter(String name) {
+        // No-op.
     }
 
-    @Override public Span addLog(Supplier<String> logDescSupplier) {
-        spiSpecificSpan.addLog(logDescSupplier.get());
+    /** {@inheritDoc} */
+    @Override public void logCounters() {
+        // No-op.
+    }
 
+    /** {@inheritDoc} */
+    @Override public CounterLoggingSpan registerCounter(String name) {
         return this;
     }
 
     /** {@inheritDoc} */
-    @Override public Span setStatus(SpanStatus spanStatus) {
-        spiSpecificSpan.setStatus(spanStatus);
-
+    @Override public CounterLoggingSpan addTag(String tagName, Supplier<String> tagValSupplier) {
         return this;
     }
 
     /** {@inheritDoc} */
-    @Override public Span end() {
-        spiSpecificSpan.end();
+    @Override public CounterLoggingSpan addLog(Supplier<String> logDescSupplier) {
+        return this;
+    }
 
+    /** {@inheritDoc} */
+    @Override public CounterLoggingSpan setStatus(SpanStatus spanStatus) {
+        return this;
+    }
+
+    /** {@inheritDoc} */
+    @Override public CounterLoggingSpan end() {
         return this;
     }
 
     /** {@inheritDoc} */
     @Override public boolean isEnded() {
-        return spiSpecificSpan.isEnded();
+        return true;
     }
 
     /** {@inheritDoc} */
     @Override public SpanType type() {
-        return spanType;
+        return null;
     }
 
     /** {@inheritDoc} */
     @Override public Set<Scope> includedScopes() {
-        return includedScopes;
+        return Collections.emptySet();
     }
 
     /** {@inheritDoc} */
     @Override public SpanContext spanContext() {
-        return spiSpecificSpan.spanContext();
+        return null;
     }
 
     /** {@inheritDoc} */
     @Override public boolean isTraceable() {
-        return true;
+        return false;
     }
 }
