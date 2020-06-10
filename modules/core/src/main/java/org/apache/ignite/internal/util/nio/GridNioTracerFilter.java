@@ -20,6 +20,7 @@ package org.apache.ignite.internal.util.nio;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.internal.processors.tracing.CountDownSpan;
 import org.apache.ignite.internal.processors.tracing.MTC;
 import org.apache.ignite.internal.processors.tracing.NoopSpan;
 import org.apache.ignite.internal.processors.tracing.NoopTracing;
@@ -100,7 +101,7 @@ public class GridNioTracerFilter extends GridNioFilterAdapter {
         if (serializedSpan != null && serializedSpan.length != 0) {
             Span span = tracer.create(COMMUNICATION_SOCKET_READ, serializedSpan);
 
-            try (MTC.TraceSurroundings ignore = MTC.support(span)) {
+            try (MTC.TraceSurroundings ignore = MTC.support(CountDownSpan.wrap(span, 2))) {
                 proceedMessageReceived(ses, msg);
             }
         }

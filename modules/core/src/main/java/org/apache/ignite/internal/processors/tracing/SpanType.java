@@ -159,7 +159,28 @@ public enum SpanType {
     TX_NEAR_PREPARE_RESP(Scope.TX, "tx.near.process.prepare.response", 44),
 
     /** Custom job call. */
-    CUSTOM_JOB_CALL(Scope.COMMUNICATION, "job.call", 45, true);
+    CUSTOM_JOB_CALL(Scope.COMMUNICATION, "job.call", 45, true),
+
+    /** */
+    SQL_FIELDS_QUERY_REQUEST(Scope.SQL, "query.sql", 46, true),
+
+    /** */
+    SQL_PARSING(Scope.SQL, "query.sql.parsing", 47, false),
+
+    /** */
+    SQL_REDUCER_EXECUTION(Scope.SQL, "query.sql.reducer.execution", 48, false),
+
+    /** */
+    SQL_QUERY_EXECUTION(Scope.SQL, "query.sql.execution", 49, false),
+
+    /** */
+    SQL_MAP_MESSAGE_PROCESSING(Scope.SQL, "query.sql.map.message.processing", 50, false),
+
+    /** */
+    SQL_COMMAND_EXECUTION(Scope.SQL, "query.sql.command.execution", 51, false),
+
+    /** */
+    SQL_SELECT_RESULT_PROCESSING(Scope.SQL, "query.sql.dml.processing", 52, false);
 
     /** Scope */
     private Scope scope;

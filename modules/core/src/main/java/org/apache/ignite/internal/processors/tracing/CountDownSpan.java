@@ -17,38 +17,37 @@
 
 package org.apache.ignite.internal.processors.tracing;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /** */
-public class NoopCounterLoggingSpan extends AbstractSpanWrapper<CounterLoggingSpan> implements CounterLoggingSpan{
-    /** Instance. */
-    public static final CounterLoggingSpan INSTANCE = new NoopCounterLoggingSpan();
+public class CountDownSpan extends AbstractSpanWrapper<Span> {
+    /** */
+    private final AtomicInteger cntr;
 
     /** */
-    private NoopCounterLoggingSpan() {
-        super(NoopSpan.INSTANCE);
+    public CountDownSpan(Span span, int cnt) {
+        super(span);
+
+        cntr = new AtomicInteger(cnt);
     }
 
-    /** {@inheritDoc} */
-    @Override public void incrementCounter(String name) {
-        // No-op.
-    }
-
-    /** {@inheritDoc} */
-    @Override public void logCounters() {
-        // No-op.
-    }
-
-    /** {@inheritDoc} */
-    @Override public CounterLoggingSpan registerCounter(String name) {
-        return getThis();
-    }
-
-    /** {@inheritDoc} */
-    @Override protected CounterLoggingSpan getThis() {
+    /** */
+    @Override protected Span getThis() {
         return this;
     }
 
     /** {@inheritDoc} */
-    @Override public boolean isTraceable() {
-        return false;
+    @Override public Span end() {
+        cntr.decrementAndGet();
+
+        if (cntr.get() ==  0)
+            super.end();
+
+        return getThis();
+    }
+
+    /** */
+    public static Span wrap(Span span, int cnt) {
+        return span.isTraceable() ? new CountDownSpan(span, cnt) : NoopSpan.INSTANCE;
     }
 }

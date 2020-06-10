@@ -52,6 +52,8 @@ import org.apache.ignite.internal.processors.query.h2.database.io.H2RowLinkIO;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
 import org.apache.ignite.internal.processors.query.h2.opt.H2CacheRow;
 import org.apache.ignite.internal.processors.query.h2.opt.H2Row;
+import org.apache.ignite.internal.processors.tracing.CounterLoggingSpan;
+import org.apache.ignite.internal.processors.tracing.MTC;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteProductVersion;
@@ -390,6 +392,8 @@ public class H2Tree extends BPlusTree<H2Row, H2Row> {
     /** {@inheritDoc} */
     @Override public H2Row getRow(BPlusIO<H2Row> io, long pageAddr, int idx, Object ignore)
         throws IgniteCheckedException {
+        ((CounterLoggingSpan) MTC.span()).incrementCounter("rows");
+
         return io.getLookupRow(this, pageAddr, idx);
     }
 

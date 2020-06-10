@@ -17,38 +17,33 @@
 
 package org.apache.ignite.internal.processors.tracing;
 
+import java.util.Iterator;
+
 /** */
-public class NoopCounterLoggingSpan extends AbstractSpanWrapper<CounterLoggingSpan> implements CounterLoggingSpan{
-    /** Instance. */
-    public static final CounterLoggingSpan INSTANCE = new NoopCounterLoggingSpan();
+public class TraceIterator<T> implements Iterator<T> {
+    /** */
+    private Iterator<T> iter;
 
     /** */
-    private NoopCounterLoggingSpan() {
-        super(NoopSpan.INSTANCE);
+    private Span span;
+
+    /** */
+    public TraceIterator(Iterator<T> iter, Span span) {
+        this.iter = iter;
+        this.span = span;
     }
 
     /** {@inheritDoc} */
-    @Override public void incrementCounter(String name) {
-        // No-op.
+    @Override public boolean hasNext() {
+        try (MTC.TraceSurroundings ignored = MTC.support(span)){
+            return iter.hasNext();
+        }
     }
 
     /** {@inheritDoc} */
-    @Override public void logCounters() {
-        // No-op.
-    }
-
-    /** {@inheritDoc} */
-    @Override public CounterLoggingSpan registerCounter(String name) {
-        return getThis();
-    }
-
-    /** {@inheritDoc} */
-    @Override protected CounterLoggingSpan getThis() {
-        return this;
-    }
-
-    /** {@inheritDoc} */
-    @Override public boolean isTraceable() {
-        return false;
+    @Override public T next() {
+        try (MTC.TraceSurroundings ignored = MTC.support(span)){
+            return iter.next();
+        }
     }
 }

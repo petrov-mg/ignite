@@ -54,6 +54,9 @@ public abstract class TraceRunnable implements Runnable {
         try (TraceSurroundings ignore = MTC.support(span.equals(NoopSpan.INSTANCE) ? parent : span)) {
             execute();
         }
+        finally {
+            parent.end();
+        }
     }
 
     /**

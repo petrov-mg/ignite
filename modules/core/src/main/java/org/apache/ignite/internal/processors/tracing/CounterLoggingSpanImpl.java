@@ -18,46 +18,22 @@
 package org.apache.ignite.internal.processors.tracing;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Supplier;
 import org.apache.ignite.internal.util.GridStringBuilder;
-import org.apache.ignite.spi.tracing.Scope;
-import org.apache.ignite.spi.tracing.SpanContext;
-import org.apache.ignite.spi.tracing.SpanStatus;
 
 /** */
-public class CounterLoggingSpanImpl implements CounterLoggingSpan {
+public class CounterLoggingSpanImpl extends AbstractSpanWrapper<CounterLoggingSpan> implements CounterLoggingSpan {
     /** Counter storage. */
     private final Map<String, LongAdder> counters = new ConcurrentHashMap<>();
 
     /** */
-    private final Span span;
-
-    /** */
     private CounterLoggingSpanImpl(Span span) {
-        this.span = span;
+        super(span);
     }
 
     /** {@inheritDoc} */
-    @Override public CounterLoggingSpan addTag(String tagName, Supplier<String> tagValSupplier) {
-        span.addTag(tagName, tagValSupplier);
-
-        return this;
-    }
-
-    /** {@inheritDoc} */
-    @Override public CounterLoggingSpan addLog(Supplier<String> logDescSupplier) {
-        span.addLog(logDescSupplier);
-
-        return this;
-    }
-
-    /** {@inheritDoc} */
-    @Override public CounterLoggingSpan setStatus(SpanStatus spanStatus) {
-        span.setStatus(spanStatus);
-
+    @Override protected CounterLoggingSpan getThis() {
         return this;
     }
 
@@ -65,9 +41,7 @@ public class CounterLoggingSpanImpl implements CounterLoggingSpan {
     @Override public CounterLoggingSpan end() {
         logCounters();
 
-        span.end();
-
-        return this;
+        return super.end();
     }
 
     /** {@inheritDoc} */
@@ -85,32 +59,7 @@ public class CounterLoggingSpanImpl implements CounterLoggingSpan {
 
         sb.a(']');
 
-        span.addLog(sb::toString);
-    }
-
-    /** {@inheritDoc} */
-    @Override public boolean isEnded() {
-        return span.isEnded();
-    }
-
-    /** {@inheritDoc} */
-    @Override public SpanType type() {
-        return span.type();
-    }
-
-    /** {@inheritDoc} */
-    @Override public Set<Scope> includedScopes() {
-        return span.includedScopes();
-    }
-
-    /** {@inheritDoc} */
-    @Override public SpanContext spanContext() {
-        return span.spanContext();
-    }
-
-    /** {@inheritDoc} */
-    @Override public boolean isTraceable() {
-        return true;
+        addLog(sb::toString);
     }
 
     /** {@inheritDoc} */
@@ -125,11 +74,11 @@ public class CounterLoggingSpanImpl implements CounterLoggingSpan {
     @Override public CounterLoggingSpan registerCounter(String name) {
         counters.putIfAbsent(name, new LongAdder());
 
-        return this;
+        return getThis();
     }
 
     /** */
-    public static CounterLoggingSpan wrap(Span span) {
+    public static Span wrap(Span span) {
         return span.isTraceable() ? new CounterLoggingSpanImpl(span) : NoopCounterLoggingSpan.INSTANCE;
     }
 }

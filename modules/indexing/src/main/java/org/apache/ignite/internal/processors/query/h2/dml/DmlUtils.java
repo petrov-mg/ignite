@@ -44,6 +44,9 @@ import org.apache.ignite.internal.processors.query.h2.DmlStatementsProcessor;
 import org.apache.ignite.internal.processors.query.h2.H2Utils;
 import org.apache.ignite.internal.processors.query.h2.UpdateResult;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2RowDescriptor;
+import org.apache.ignite.internal.processors.tracing.CounterLoggingSpanImpl;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.SpanType;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.T3;
 import org.apache.ignite.internal.util.typedef.X;
@@ -160,22 +163,28 @@ public class DmlUtils {
      */
     public static UpdateResult processSelectResult(UpdatePlan plan, Iterable<List<?>> cursor,
         int pageSize) throws IgniteCheckedException {
-        switch (plan.mode()) {
-            case MERGE:
-                return new UpdateResult(doMerge(plan, cursor, pageSize), X.EMPTY_OBJECT_ARRAY);
+        try (MTC.TraceSurroundings ignored = MTC.support(plan.cacheContext()
+            .kernalContext()
+            .tracing()
+            .create(SpanType.SQL_SELECT_RESULT_PROCESSING, MTC.span()))
+        ) {
+            switch (plan.mode()) {
+                case MERGE:
+                    return new UpdateResult(doMerge(plan, cursor, pageSize), X.EMPTY_OBJECT_ARRAY);
 
-            case INSERT:
-                return new UpdateResult(dmlDoInsert(plan, cursor, pageSize), X.EMPTY_OBJECT_ARRAY);
+                case INSERT:
+                    return new UpdateResult(dmlDoInsert(plan, cursor, pageSize), X.EMPTY_OBJECT_ARRAY);
 
-            case UPDATE:
-                return doUpdate(plan, cursor, pageSize);
+                case UPDATE:
+                    return doUpdate(plan, cursor, pageSize);
 
-            case DELETE:
-                return doDelete(plan.cacheContext(), cursor, pageSize);
+                case DELETE:
+                    return doDelete(plan.cacheContext(), cursor, pageSize);
 
-            default:
-                throw new IgniteSQLException("Unexpected DML operation [mode=" + plan.mode() + ']',
-                    IgniteQueryErrorCode.UNEXPECTED_OPERATION);
+                default:
+                    throw new IgniteSQLException("Unexpected DML operation [mode=" + plan.mode() + ']',
+                        IgniteQueryErrorCode.UNEXPECTED_OPERATION);
+            }
         }
     }
 

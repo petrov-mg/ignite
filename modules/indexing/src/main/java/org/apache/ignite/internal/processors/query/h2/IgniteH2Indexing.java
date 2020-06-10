@@ -151,6 +151,9 @@ import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryReq
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitor;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorClosure;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorImpl;
+import org.apache.ignite.internal.processors.tracing.CounterLoggingSpanImpl;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.SpanType;
 import org.apache.ignite.internal.sql.command.SqlCommand;
 import org.apache.ignite.internal.sql.command.SqlCommitTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlRollbackTransactionCommand;
@@ -807,28 +810,31 @@ public class IgniteH2Indexing implements GridQueryIndexing {
      */
     private ResultSet executeSqlQuery(final H2PooledConnection conn, final PreparedStatement stmt,
         int timeoutMillis, @Nullable GridQueryCancel cancel) throws IgniteCheckedException {
-        if (cancel != null)
-            cancel.add(() -> cancelStatement(stmt));
+        try (MTC.TraceSurroundings ignored = MTC.support(CounterLoggingSpanImpl.wrap(ctx.tracing().create(SpanType.SQL_QUERY_EXECUTION, MTC.span())))) {
+            MTC.span().addLog(stmt::toString);
+            if (cancel != null)
+                cancel.add(() -> cancelStatement(stmt));
 
-        Session ses = session(conn);
+            Session ses = session(conn);
 
-        if (timeoutMillis > 0)
-            ses.setQueryTimeout(timeoutMillis);
-        else
-            ses.setQueryTimeout(0);
+            if (timeoutMillis > 0)
+                ses.setQueryTimeout(timeoutMillis);
+            else
+                ses.setQueryTimeout(0);
 
-        try {
-            return stmt.executeQuery();
-        }
-        catch (SQLException e) {
-            // Throw special exception.
-            if (e.getErrorCode() == ErrorCode.STATEMENT_WAS_CANCELED)
-                throw new QueryCancelledException();
+            try {
+                return stmt.executeQuery();
+            }
+            catch (SQLException e) {
+                // Throw special exception.
+                if (e.getErrorCode() == ErrorCode.STATEMENT_WAS_CANCELED)
+                    throw new QueryCancelledException();
 
-            if (e.getCause() instanceof IgniteSQLException)
-                throw (IgniteSQLException)e.getCause();
+                if (e.getCause() instanceof IgniteSQLException)
+                    throw (IgniteSQLException)e.getCause();
 
-            throw new IgniteSQLException(e);
+                throw new IgniteSQLException(e);
+            }
         }
     }
 
@@ -1062,6 +1068,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         GridQueryCancel cancel
     ) {
         try {
+            MTC.span().addLog(() -> "MAZAFAKA STARTED");
+
             List<FieldsQueryCursor<List<?>>> res = new ArrayList<>(1);
 
             SqlFieldsQuery remainingQry = qry;
