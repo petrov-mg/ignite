@@ -440,7 +440,7 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
         if (parentSpan instanceof DeferredSpan)
             return create(spanTypeToCreate, ((DeferredSpan)parentSpan).serializedSpan());
 
-        if (parentSpan == null || parentSpan == NoopSpan.INSTANCE) {
+        if (parentSpan == null || !parentSpan.isTraceable()) {
             if (spanTypeToCreate.rootSpan()) {
                 // Get tracing configuration.
                 TracingConfigurationParameters tracingConfigurationParameters = tracingConfiguration.get(
