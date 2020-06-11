@@ -151,6 +151,9 @@ import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryReq
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitor;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorClosure;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorImpl;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.SpanTags;
+import org.apache.ignite.internal.processors.tracing.SpanType;
 import org.apache.ignite.internal.sql.command.SqlCommand;
 import org.apache.ignite.internal.sql.command.SqlCommitTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlRollbackTransactionCommand;
@@ -807,28 +810,31 @@ public class IgniteH2Indexing implements GridQueryIndexing {
      */
     private ResultSet executeSqlQuery(final H2PooledConnection conn, final PreparedStatement stmt,
         int timeoutMillis, @Nullable GridQueryCancel cancel) throws IgniteCheckedException {
-        if (cancel != null)
-            cancel.add(() -> cancelStatement(stmt));
+        try (MTC.TraceSurroundings ignored = MTC.support(ctx.tracing().create(SpanType.SQL_QUERY_EXECUTION, MTC.span()))) {
+            MTC.span().addLog(stmt::toString);
+            if (cancel != null)
+                cancel.add(() -> cancelStatement(stmt));
 
-        Session ses = session(conn);
+            Session ses = session(conn);
 
-        if (timeoutMillis > 0)
-            ses.setQueryTimeout(timeoutMillis);
-        else
-            ses.setQueryTimeout(0);
+            if (timeoutMillis > 0)
+                ses.setQueryTimeout(timeoutMillis);
+            else
+                ses.setQueryTimeout(0);
 
-        try {
-            return stmt.executeQuery();
-        }
-        catch (SQLException e) {
-            // Throw special exception.
-            if (e.getErrorCode() == ErrorCode.STATEMENT_WAS_CANCELED)
-                throw new QueryCancelledException();
+            try {
+                return stmt.executeQuery();
+            }
+            catch (SQLException e) {
+                // Throw special exception.
+                if (e.getErrorCode() == ErrorCode.STATEMENT_WAS_CANCELED)
+                    throw new QueryCancelledException();
 
-            if (e.getCause() instanceof IgniteSQLException)
-                throw (IgniteSQLException)e.getCause();
+                if (e.getCause() instanceof IgniteSQLException)
+                    throw (IgniteSQLException)e.getCause();
 
-            throw new IgniteSQLException(e);
+                throw new IgniteSQLException(e);
+            }
         }
     }
 
@@ -1005,7 +1011,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         Exception failReason = null;
 
-        try {
+        try (MTC.TraceSurroundings ignored = MTC.supportContinual(runningQryMgr.runningQueryInfo(qryId).span())) {
             res = cmdProc.runCommand(qryDesc.sql(), cmdNative, cmdH2, qryParams, cliCtx, qryId);
 
             return res.cursor();
@@ -1149,6 +1155,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                 tx.setRollbackOnly();
             }
 
+            MTC.span().addTag(SpanTags.ERROR, () -> "Failed with exception.").end();
+
             throw e;
         }
     }
@@ -1174,7 +1182,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         Exception failReason = null;
 
-        try {
+        try (MTC.TraceSurroundings ignored = MTC.supportContinual(runningQryMgr.runningQueryInfo(qryId).span())) {
             if (!dml.mvccEnabled() && !updateInTxAllowed && ctx.cache().context().tm().inUserTx()) {
                 throw new IgniteSQLException("DML statements are not allowed inside a transaction over " +
                     "cache(s) with TRANSACTIONAL atomicity mode (change atomicity mode to " +
@@ -1257,7 +1265,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         // Register query.
         Long qryId = registerRunningQuery(qryDesc, cancel);
 
-        try {
+        try (MTC.TraceSurroundings ignored = MTC.supportContinual(runningQryMgr.runningQueryInfo(qryId).span())) {
             GridNearTxLocal tx = null;
             MvccQueryTracker tracker = null;
             GridCacheContext mvccCctx = null;

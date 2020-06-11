@@ -34,6 +34,9 @@ import org.apache.ignite.internal.processors.cache.query.GridCacheQueryType;
 import org.apache.ignite.internal.processors.metric.MetricRegistry;
 import org.apache.ignite.internal.processors.metric.impl.AtomicLongMetric;
 import org.apache.ignite.internal.processors.metric.impl.LongAdderMetric;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.SpanType;
+import org.apache.ignite.internal.processors.tracing.Tracing;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.spi.systemview.view.SqlQueryHistoryView;
 import org.apache.ignite.spi.systemview.view.SqlQueryView;
@@ -89,6 +92,9 @@ public class RunningQueryManager {
      */
     private final AtomicLongMetric canceledQrsCnt;
 
+    /** */
+    private final Tracing tracing;
+
     /**
      * Constructor.
      *
@@ -100,6 +106,8 @@ public class RunningQueryManager {
         histSz = ctx.config().getSqlConfiguration().getSqlQueryHistorySize();
 
         qryHistTracker = new QueryHistoryTracker(histSz);
+
+        tracing = ctx.tracing();
 
         ctx.systemView().registerView(SQL_QRY_VIEW, SQL_QRY_VIEW_DESC,
             new SqlQueryViewWalker(),
@@ -152,6 +160,8 @@ public class RunningQueryManager {
 
         assert preRun == null : "Running query already registered [prev_qry=" + preRun + ", newQry=" + run + ']';
 
+        run.span(tracing.create(SpanType.SQL_DML_EXECUTION, MTC.span()));
+
         return qryId;
     }
 
@@ -191,6 +201,8 @@ public class RunningQueryManager {
                     canceledQrsCnt.increment();
             }
         }
+
+        qry.span().addLog(() -> "Execution finished.").end();
     }
 
     /**

@@ -390,6 +390,8 @@ public class H2Tree extends BPlusTree<H2Row, H2Row> {
     /** {@inheritDoc} */
     @Override public H2Row getRow(BPlusIO<H2Row> io, long pageAddr, int idx, Object ignore)
         throws IgniteCheckedException {
+        // > I wish counters increment were here.
+
         return io.getLookupRow(this, pageAddr, idx);
     }
 
