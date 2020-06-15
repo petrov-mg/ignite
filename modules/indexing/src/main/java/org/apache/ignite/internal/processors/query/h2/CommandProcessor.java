@@ -90,6 +90,8 @@ import org.apache.ignite.internal.processors.query.h2.sql.GridSqlStatement;
 import org.apache.ignite.internal.processors.query.messages.GridQueryKillRequest;
 import org.apache.ignite.internal.processors.query.messages.GridQueryKillResponse;
 import org.apache.ignite.internal.processors.query.schema.SchemaOperationException;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
 import org.apache.ignite.internal.sql.command.SqlAlterTableCommand;
 import org.apache.ignite.internal.sql.command.SqlAlterUserCommand;
 import org.apache.ignite.internal.sql.command.SqlBeginTransactionCommand;
@@ -136,6 +138,8 @@ import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.mvccEna
 import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.tx;
 import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.txStart;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQueryParser.PARAM_WRAP_VALUE;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_COMMAND_EXECUTION;
 
 /**
  * Processor responsible for execution of all non-SELECT and non-DML commands.
@@ -401,43 +405,48 @@ public class CommandProcessor {
         assert cmdNative != null || cmdH2 != null;
 
         // Do execute.
-        FieldsQueryCursor<List<?>> res = H2Utils.zeroCursor();
-        boolean unregister = true;
+        try (TraceSurroundings ignored = MTC.support(ctx.tracing()
+            .create(SQL_COMMAND_EXECUTION, MTC.span())
+            .addTag(SQL_QRY_TEXT, () -> sql))
+        ) {
+            FieldsQueryCursor<List<?>> res = H2Utils.zeroCursor();
+            boolean unregister = true;
 
-        if (cmdNative != null) {
-            assert cmdH2 == null;
+            if (cmdNative != null) {
+                assert cmdH2 == null;
 
-            if (isDdl(cmdNative))
-                runCommandNativeDdl(sql, cmdNative);
-            else if (cmdNative instanceof SqlBulkLoadCommand) {
-                res = processBulkLoadCommand((SqlBulkLoadCommand) cmdNative, qryId);
+                if (isDdl(cmdNative))
+                    runCommandNativeDdl(sql, cmdNative);
+                else if (cmdNative instanceof SqlBulkLoadCommand) {
+                    res = processBulkLoadCommand((SqlBulkLoadCommand) cmdNative, qryId);
 
-                unregister = false;
+                    unregister = false;
+                }
+                else if (cmdNative instanceof SqlSetStreamingCommand)
+                    processSetStreamingCommand((SqlSetStreamingCommand)cmdNative, cliCtx);
+                else if (cmdNative instanceof SqlKillQueryCommand)
+                    processKillQueryCommand((SqlKillQueryCommand) cmdNative);
+                else if (cmdNative instanceof SqlKillComputeTaskCommand)
+                    processKillComputeTaskCommand((SqlKillComputeTaskCommand) cmdNative);
+                else if (cmdNative instanceof SqlKillTransactionCommand)
+                    processKillTxCommand((SqlKillTransactionCommand) cmdNative);
+                else if (cmdNative instanceof SqlKillServiceCommand)
+                    processKillServiceTaskCommand((SqlKillServiceCommand) cmdNative);
+                else if (cmdNative instanceof SqlKillScanQueryCommand)
+                    processKillScanQueryCommand((SqlKillScanQueryCommand) cmdNative);
+                else if (cmdNative instanceof SqlKillContinuousQueryCommand)
+                    processKillContinuousQueryCommand((SqlKillContinuousQueryCommand) cmdNative);
+                else
+                    processTxCommand(cmdNative, params);
             }
-            else if (cmdNative instanceof SqlSetStreamingCommand)
-                processSetStreamingCommand((SqlSetStreamingCommand)cmdNative, cliCtx);
-            else if (cmdNative instanceof SqlKillQueryCommand)
-                processKillQueryCommand((SqlKillQueryCommand) cmdNative);
-            else if (cmdNative instanceof SqlKillComputeTaskCommand)
-                processKillComputeTaskCommand((SqlKillComputeTaskCommand) cmdNative);
-            else if (cmdNative instanceof SqlKillTransactionCommand)
-                processKillTxCommand((SqlKillTransactionCommand) cmdNative);
-            else if (cmdNative instanceof SqlKillServiceCommand)
-                processKillServiceTaskCommand((SqlKillServiceCommand) cmdNative);
-            else if (cmdNative instanceof SqlKillScanQueryCommand)
-                processKillScanQueryCommand((SqlKillScanQueryCommand) cmdNative);
-            else if (cmdNative instanceof SqlKillContinuousQueryCommand)
-                processKillContinuousQueryCommand((SqlKillContinuousQueryCommand) cmdNative);
-            else
-                processTxCommand(cmdNative, params);
-        }
-        else {
-            assert cmdH2 != null;
+            else {
+                assert cmdH2 != null;
 
-            runCommandH2(sql, cmdH2);
-        }
+                runCommandH2(sql, cmdH2);
+            }
 
-        return new CommandResult(res, unregister);
+            return new CommandResult(res, unregister);
+        }
     }
 
     /**

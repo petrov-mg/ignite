@@ -22,6 +22,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.query.GridQueryCancel;
 import org.apache.ignite.internal.processors.query.h2.IgniteH2Indexing;
 import org.apache.ignite.internal.processors.query.h2.opt.QueryContext;
+import org.apache.ignite.internal.processors.tracing.Span;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -55,6 +56,9 @@ class MapQueryResults {
     /** Active queries. */
     private int active;
 
+    /** */
+    //private final Span span;
+
     /**
      * Constructor.
      *
@@ -79,7 +83,14 @@ class MapQueryResults {
 
         for (int i = 0; i < cancels.length; i++)
             cancels[i] = new GridQueryCancel();
+
+        //span = cctx.kernalContext().tracing().create();
     }
+
+    /** */
+/*    public Span span() {
+        return span;
+    }*/
 
     /**
      * @param qry Query result index.
@@ -137,6 +148,8 @@ class MapQueryResults {
         // The closing result set is synchronized by themselves.
         // Include to synchronize block may be cause deadlock on <this> and MapQueryResult#lock.
         close();
+
+        //span.end();
     }
 
     /**

@@ -24,11 +24,14 @@ import org.apache.ignite.internal.GridDirectCollection;
 import org.apache.ignite.internal.GridDirectTransient;
 import org.apache.ignite.internal.IgniteCodeGeneratingFail;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.tracing.MTC;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageCollectionItemType;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
+
+import static org.apache.ignite.internal.processors.tracing.SpanTags.NEXT_PAGE_RESPONCE_BYTES;
 
 /**
  * Next page response.
@@ -175,6 +178,8 @@ public class GridQueryNextPageResponse implements Message {
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
         writer.setBuffer(buf);
 
+        int startPos = buf.position();
+
         if (!writer.isHeaderWritten()) {
             if (!writer.writeHeader(directType(), fieldsCount()))
                 return false;
@@ -249,6 +254,8 @@ public class GridQueryNextPageResponse implements Message {
 
                 writer.incrementState();
         }
+
+        MTC.span().addTag(NEXT_PAGE_RESPONCE_BYTES, () -> Integer.toString(buf.position() - startPos));
 
         return true;
     }

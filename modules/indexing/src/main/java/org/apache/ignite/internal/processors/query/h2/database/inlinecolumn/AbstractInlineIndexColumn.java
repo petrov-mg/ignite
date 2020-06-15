@@ -20,10 +20,14 @@ package org.apache.ignite.internal.processors.query.h2.database.inlinecolumn;
 import java.util.Comparator;
 import org.apache.ignite.internal.pagemem.PageUtils;
 import org.apache.ignite.internal.processors.query.h2.database.InlineIndexColumn;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.SpanStatisticsManager;
 import org.h2.table.Column;
 import org.h2.value.Value;
 import org.h2.value.ValueNull;
 import org.jetbrains.annotations.Nullable;
+
+import static org.apache.ignite.internal.processors.tracing.SpanTags.INDEX_INLINE_READS;
 
 /**
  * Abstract inline column.
@@ -122,6 +126,11 @@ public abstract class AbstractInlineIndexColumn implements InlineIndexColumn {
 
     /** {@inheritDoc} */
     @Override public int compare(long pageAddr, int off, int maxSize, Value v, Comparator<Value> comp) {
+        MTC.span().attachment(att -> {
+            if (att instanceof SpanStatisticsManager)
+                ((SpanStatisticsManager)att).incrementCounter(INDEX_INLINE_READS);
+        });
+
         int type;
 
         if ((size > 0 && size + 1 > maxSize)

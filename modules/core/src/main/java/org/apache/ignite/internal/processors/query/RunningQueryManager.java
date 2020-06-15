@@ -34,6 +34,10 @@ import org.apache.ignite.internal.processors.cache.query.GridCacheQueryType;
 import org.apache.ignite.internal.processors.metric.MetricRegistry;
 import org.apache.ignite.internal.processors.metric.impl.AtomicLongMetric;
 import org.apache.ignite.internal.processors.metric.impl.LongAdderMetric;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.SpanTags;
+import org.apache.ignite.internal.processors.tracing.SpanType;
+import org.apache.ignite.internal.processors.tracing.Tracing;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.spi.systemview.view.SqlQueryHistoryView;
 import org.apache.ignite.spi.systemview.view.SqlQueryView;
@@ -42,6 +46,7 @@ import org.jetbrains.annotations.Nullable;
 import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.SQL;
 import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.SQL_FIELDS;
 import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metricName;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
 
 /**
  * Keep information about all running queries.
@@ -89,6 +94,9 @@ public class RunningQueryManager {
      */
     private final AtomicLongMetric canceledQrsCnt;
 
+    /** */
+    private final Tracing tracing;
+
     /**
      * Constructor.
      *
@@ -100,6 +108,8 @@ public class RunningQueryManager {
         histSz = ctx.config().getSqlConfiguration().getSqlQueryHistorySize();
 
         qryHistTracker = new QueryHistoryTracker(histSz);
+
+        tracing = ctx.tracing();
 
         ctx.systemView().registerView(SQL_QRY_VIEW, SQL_QRY_VIEW_DESC,
             new SqlQueryViewWalker(),
@@ -152,6 +162,8 @@ public class RunningQueryManager {
 
         assert preRun == null : "Running query already registered [prev_qry=" + preRun + ", newQry=" + run + ']';
 
+        run.span(tracing.create(SpanType.SQL_QRY_RUN, MTC.span()).addTag(SQL_QRY_TEXT, () -> qry));
+
         return qryId;
     }
 
@@ -191,6 +203,11 @@ public class RunningQueryManager {
                     canceledQrsCnt.increment();
             }
         }
+
+        if (failed)
+            qry.span().addTag(SpanTags.ERROR, failReason::toString);
+
+        qry.span().end();
     }
 
     /**

@@ -18,6 +18,8 @@
 package org.apache.ignite.internal.processors.tracing;
 
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanStatus;
@@ -27,6 +29,13 @@ import org.apache.ignite.spi.tracing.SpiSpecificSpan;
  * Implementation of a {@link Span}
  */
 public class SpanImpl implements Span {
+    /** */
+    private static final AtomicReferenceFieldUpdater<SpanImpl, Object> ATTACHMENT_UPDATER =
+        AtomicReferenceFieldUpdater.newUpdater(SpanImpl.class, Object.class, "attachment");
+
+    /** */
+    private volatile Object attachment;
+
     /** Spi specific span delegate. */
     private final SpiSpecificSpan spiSpecificSpan;
 
@@ -91,6 +100,16 @@ public class SpanImpl implements Span {
     /** {@inheritDoc} */
     @Override public Set<Scope> includedScopes() {
         return includedScopes;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void attach(Supplier<?> attSupplier) {
+        ATTACHMENT_UPDATER.set(this, attSupplier.get());
+    }
+
+    /** {@inheritDoc} */
+    @Override public <T> void attachment(Consumer<T> attConsumer) {
+        attConsumer.accept((T)attachment);
     }
 
     /**

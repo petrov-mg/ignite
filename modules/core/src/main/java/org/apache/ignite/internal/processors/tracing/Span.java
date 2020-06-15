@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.tracing;
 
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanStatus;
@@ -81,5 +82,24 @@ public interface Span {
      */
     default boolean isChainable(Scope scope) {
         return type().scope() == scope || includedScopes().contains(scope);
+    }
+
+    /**
+     * Attaches the given object to this span. Attached object can be accessed via {@link #attachment(Consumer)} method.
+     *
+     * @param attSupplier Supplier of the object that will be attached to the span.
+     */
+    public default void attach(Supplier<?> attSupplier) {
+        // No-op.
+    }
+
+    /**
+     * Invokes specified consumer and passes current attachment to it.
+     *
+     * @param attConsumer Consumer of the attached span.
+     * @param <T> Type of the attachment.
+     */
+    public default <T> void attachment(Consumer<T> attConsumer) {
+        // No-op.
     }
 }

@@ -66,6 +66,9 @@ import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQuery
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlRequest;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlResponse;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryRequest;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
+import org.apache.ignite.internal.processors.tracing.SpanTags;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.CU;
@@ -81,6 +84,10 @@ import static org.apache.ignite.events.EventType.EVT_CACHE_QUERY_EXECUTED;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.QUERY_POOL;
 import static org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryRequest.isDataPageScanEnabled;
 import static org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2ValueMessageFactory.toMessages;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_MAP_DML_REQ;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_MAP_NEXT_PAGE_REQ;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_MAP_QRY_CANCEL;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_MAP_QRY_REQ;
 
 /**
  * Map query executor.
@@ -146,19 +153,21 @@ public class GridMapQueryExecutor {
      * @param msg Message.
      */
     public void onCancel(ClusterNode node, GridQueryCancelRequest msg) {
-        long qryReqId = msg.queryRequestId();
+        try (TraceSurroundings ignored = MTC.support(ctx.tracing().create(SQL_MAP_QRY_CANCEL, MTC.span()))) {
+            long qryReqId = msg.queryRequestId();
 
-        MapNodeResults nodeRess = resultsForNode(node.id());
+            MapNodeResults nodeRess = resultsForNode(node.id());
 
-        boolean clear = qryCtxRegistry.clearShared(node.id(), qryReqId);
+            boolean clear = qryCtxRegistry.clearShared(node.id(), qryReqId);
 
-        if (!clear) {
-            nodeRess.onCancel(qryReqId);
+            if (!clear) {
+                nodeRess.onCancel(qryReqId);
 
-            qryCtxRegistry.clearShared(node.id(), qryReqId);
+                qryCtxRegistry.clearShared(node.id(), qryReqId);
+            }
+
+            nodeRess.cancelRequest(qryReqId);
         }
-
-        nodeRess.cancelRequest(qryReqId);
     }
 
     /**
@@ -521,10 +530,6 @@ public class GridMapQueryExecutor {
                 }
             }
         }
-        finally {
-            if (reserved != null)
-                reserved.release();
-        }
     }
 
     /**
@@ -564,7 +569,7 @@ public class GridMapQueryExecutor {
 
         MapNodeResults nodeResults = resultsForNode(node.id());
 
-        try {
+        try (TraceSurroundings ignored = MTC.support(ctx.tracing().create(SQL_MAP_DML_REQ, MTC.span()))) {
             reserved = h2.partitionReservationManager().reservePartitions(
                 cacheIds,
                 topVer,
@@ -725,78 +730,80 @@ public class GridMapQueryExecutor {
      * @param req Request.
      */
     public void onNextPageRequest(final ClusterNode node, final GridQueryNextPageRequest req) {
-        long reqId = req.queryRequestId();
+        try (TraceSurroundings ignored = MTC.support(ctx.tracing().create(SQL_MAP_NEXT_PAGE_REQ, MTC.span()))){
+            long reqId = req.queryRequestId();
 
-        final MapNodeResults nodeRess = qryRess.get(node.id());
+            final MapNodeResults nodeRess = qryRess.get(node.id());
 
-        if (nodeRess == null) {
-            sendError(node, reqId, new CacheException("No node result found for request: " + req));
+            if (nodeRess == null) {
+                sendError(node, reqId, new CacheException("No node result found for request: " + req));
 
-            return;
-        }
-        else if (nodeRess.cancelled(reqId)) {
-            sendQueryCancel(node, reqId);
+                return;
+            }
+            else if (nodeRess.cancelled(reqId)) {
+                sendQueryCancel(node, reqId);
 
-            return;
-        }
+                return;
+            }
 
-        final MapQueryResults qryResults = nodeRess.get(reqId, req.segmentId());
+            final MapQueryResults qryResults = nodeRess.get(reqId, req.segmentId());
 
-        if (qryResults == null)
-            sendError(node, reqId, new CacheException("No query result found for request: " + req));
-        else if (qryResults.cancelled())
-            sendQueryCancel(node, reqId);
-        else {
-            try {
-                MapQueryResult res = qryResults.result(req.query());
-
-                assert res != null;
-
+            if (qryResults == null)
+                sendError(node, reqId, new CacheException("No query result found for request: " + req));
+            else if (qryResults.cancelled())
+                sendQueryCancel(node, reqId);
+            else {
                 try {
-                    // Session isn't set for lazy=false queries.
-                    // Also session == null when result already closed.
-                    res.lock();
-                    res.lockTables();
-                    res.checkTablesVersions();
+                    MapQueryResult res = qryResults.result(req.query());
 
-                    Boolean dataPageScanEnabled = isDataPageScanEnabled(req.getFlags());
+                    assert res != null;
 
-                    GridQueryNextPageResponse msg = prepareNextPage(
-                        nodeRess,
-                        node,
-                        qryResults,
-                        req.query(),
-                        req.segmentId(),
-                        req.pageSize(),
-                        dataPageScanEnabled);
-
-                    if (msg != null)
-                        sendNextPage(node, msg);
-                }
-                finally {
                     try {
-                        res.unlockTables();
+                        // Session isn't set for lazy=false queries.
+                        // Also session == null when result already closed.
+                        res.lock();
+                        res.lockTables();
+                        res.checkTablesVersions();
+
+                        Boolean dataPageScanEnabled = isDataPageScanEnabled(req.getFlags());
+
+                        GridQueryNextPageResponse msg = prepareNextPage(
+                            nodeRess,
+                            node,
+                            qryResults,
+                            req.query(),
+                            req.segmentId(),
+                            req.pageSize(),
+                            dataPageScanEnabled);
+
+                        if (msg != null)
+                            sendNextPage(node, msg);
                     }
                     finally {
-                        res.unlock();
+                        try {
+                            res.unlockTables();
+                        }
+                        finally {
+                            res.unlock();
+                        }
                     }
                 }
-            }
-            catch (Exception e) {
-                QueryRetryException retryEx = X.cause(e, QueryRetryException.class);
+                catch (Exception e) {
+                    QueryRetryException retryEx = X.cause(e, QueryRetryException.class);
 
-                if (retryEx != null)
-                    sendError(node, reqId, retryEx);
-                else {
-                    SQLException sqlEx = X.cause(e, SQLException.class);
+                    if (retryEx != null)
+                        sendError(node, reqId, retryEx);
+                    else {
+                        SQLException sqlEx = X.cause(e, SQLException.class);
 
-                    if (sqlEx != null && sqlEx.getErrorCode() == ErrorCode.STATEMENT_WAS_CANCELED)
-                        sendQueryCancel(node, reqId);
-                    else
-                        sendError(node, reqId, e);
+                        if (sqlEx != null && sqlEx.getErrorCode() == ErrorCode.STATEMENT_WAS_CANCELED)
+                            sendQueryCancel(node, reqId);
+                        else
+                            sendError(node, reqId, e);
+                    }
+
+                    qryResults.cancel();
                 }
-
-                qryResults.cancel();
             }
         }
     }
@@ -853,6 +860,8 @@ public class GridMapQueryExecutor {
             loc ? null : toMessages(rows, new ArrayList<>(res.columnCount()), res.columnCount()),
             loc ? rows : null,
             last);
+
+        MTC.span().addLog(() -> "Next page responce prepared [rows= " + rows.size() + ']');
 
         return msg;
     }

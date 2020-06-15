@@ -25,6 +25,9 @@ import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.query.GridQueryCancel;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.RunningQueryManager;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.Span;
+import org.apache.ignite.internal.processors.tracing.TraceableIterator;
 
 /**
  * Query cursor for registered as running queries.
@@ -44,6 +47,9 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
     /** Exception caused query failed or {@code null} if it succeded. */
     private Exception failReason;
 
+    /** */
+    private final Span span;
+
     /**
      * @param iterExec Query executor.
      * @param cancel Cancellation closure.
@@ -60,15 +66,15 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
 
         this.runningQryMgr = runningQryMgr;
         this.qryId = qryId;
+        this.span = runningQryMgr.runningQueryInfo(qryId).span();
     }
 
     /** {@inheritDoc} */
     @Override protected Iterator<T> iter() {
-        try {
-            if (lazy())
-                return new RegisteredIterator(super.iter());
-            else
-                return super.iter();
+        try (MTC.TraceSurroundings ignored = MTC.support(span)) {
+            Iterator<T> iter = lazy() ? new RegisteredIterator(super.iter()) : super.iter();
+
+            return new TraceableIterator<>(iter);
         }
         catch (Exception e) {
             failReason = e;
