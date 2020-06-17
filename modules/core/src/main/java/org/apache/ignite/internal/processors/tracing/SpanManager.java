@@ -64,6 +64,11 @@ public interface SpanManager {
         @Nullable Span parentSpan,
         @Nullable String lb);
 
+    /** */
+    @NotNull Span createWithStatistics(
+        @NotNull SpanType spanType,
+        @Nullable Span parentSpan);
+
     /**
      * Serializes span to byte array to send context over network.
      *

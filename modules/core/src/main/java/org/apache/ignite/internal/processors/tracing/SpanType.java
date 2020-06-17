@@ -159,7 +159,61 @@ public enum SpanType {
     TX_NEAR_PREPARE_RESP(Scope.TX, "tx.near.process.prepare.response", 44),
 
     /** Custom job call. */
-    CUSTOM_JOB_CALL(Scope.COMMUNICATION, "job.call", 45, true);
+    CUSTOM_JOB_CALL(Scope.COMMUNICATION, "job.call", 45, true),
+
+    /** */
+    SQL_QRY_CURSOR_OBTAINING(Scope.SQL, "sql.cursor.obtaining", 46, true),
+
+    /** */
+    SQL_PARSING(Scope.SQL, "sql.parsing", 47, false),
+
+    /** */
+    SQL_MAP_QRY_REQ(Scope.SQL, "sql.map.query.request", 49, false),
+
+    /** */
+    SQL_MAP_NEXT_PAGE_REQ(Scope.SQL, "sql.query.next.page.request", 50, false),
+
+    /** */
+    SQL_RDC_NEXT_PAGE_RESP(Scope.SQL, "sql.reducer.next.page.response", 51, false),
+
+    /** */
+    SQL_MAP_QRY_NEXT_PAGE_PREPARE(Scope.SQL, "sql.map.query.next.page.prepare", 52, false),
+
+    /** */
+    SQL_QRY_RESULT_SET_OBTAINING(Scope.SQL, "sql.query.result.set.obtaining", 53, true),
+
+    /** */
+    SQL_COMMAND_EXECUTION(Scope.SQL, "sql.command.execution", 54, false),
+
+    /** */
+    SQL_QRY_RUN(Scope.SQL, "sql.query.run", 55, false),
+
+    /** */
+    SQL_MAP_DML_REQ(Scope.SQL, "sql.query.dml.request", 56, false),
+
+    /** */
+    SQL_MAP_DML_RESP(Scope.SQL, "sql.query.dml.response", 57, false),
+
+    /** */
+    SQL_MAP_QRY_CANCEL(Scope.SQL, "sql.map.query.map.cancel", 58, false),
+
+    /** */
+    SQL_RDC_QRY_FAIL(Scope.SQL, "sql.reducer.query.fail", 59, false),
+
+    /** */
+    SQL_RDC_QRY_RUN(Scope.SQL, "sql.reducer.query.run", 48, false),
+
+    /** */
+    SQL_RDC_DML_RUN(Scope.SQL, "sql.reducer.dml.run", 60, false),
+
+    /** */
+    SQL_MAP_QRY_RUN(Scope.SQL, "sql.map.qry.run", 61, false),
+
+    /** */
+    SQL_MAP_DML_RUN(Scope.SQL, "sql.map.dml.run", 62, false),
+
+    /** */
+    SQL_CURSOR(Scope.SQL, "sql.cursor", 63, false);
 
     /** Scope */
     private Scope scope;

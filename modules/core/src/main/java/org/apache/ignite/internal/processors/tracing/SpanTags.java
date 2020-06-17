@@ -85,6 +85,51 @@ public class SpanTags {
     public static final String MESSAGE_CLASS = "message.class";
 
     /** */
+    public static final String SQL_QRY_TEXT = "sql.query.text";
+
+    /** */
+    public static final String SQL_QRY_PAGE_SIZE = "sql.query.page.size";
+
+    /** */
+    public static final String SQL_SCHEMA = "sql.schema";
+
+    /** */
+    public static final String MAP_RESULT_PAGE_ROWS = "map.result.page.rows";
+
+    /** */
+    public static final String ROW_READS = "row.reads";
+
+    /** */
+    public static final String INDEX_LOOKUPS = "index.lookups";
+
+    /** */
+    public static final String PAGE_LOGICAL_READS = "page.logical.reads";
+
+    /** */
+    public static final String PAGE_PHYSICAL_READS = "page.physical.reads";
+
+    /** */
+    public static final String INDEX_INLINE_READS = "index.inline.reads";
+
+    /** */
+    public static final String NEXT_PAGE_RESPONCE_BYTES = "next.page.response.bytes";
+
+    /** */
+    public static final String RDC_QRY_TEXT = "reduce.query.text";
+
+    /** */
+    public static final String MAP_QRY_TEXT = "map.query.text";
+
+    /** */
+    public static final String MAP_NODES = "map.nodes";
+
+    /** */
+    public static final String MAP_QRY_ID = "map.query.id";
+
+    /** */
+    public static final String SQL_QRY_RUN_CANCELLED = "sql.query.run.cancelled";
+
+    /** */
     private SpanTags() {}
 
     /**

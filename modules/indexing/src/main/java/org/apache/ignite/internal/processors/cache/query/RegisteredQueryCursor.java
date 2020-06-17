@@ -25,6 +25,11 @@ import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.query.GridQueryCancel;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.RunningQueryManager;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
+import org.apache.ignite.internal.processors.tracing.Span;
+
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
 
 /**
  * Query cursor for registered as running queries.
@@ -44,6 +49,9 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
     /** Exception caused query failed or {@code null} if it succeded. */
     private Exception failReason;
 
+    /** */
+    private final Span span;
+
     /**
      * @param iterExec Query executor.
      * @param cancel Cancellation closure.
@@ -60,10 +68,13 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
 
         this.runningQryMgr = runningQryMgr;
         this.qryId = qryId;
+        this.span = runningQryMgr.runningQueryInfo(qryId).span();
     }
 
     /** {@inheritDoc} */
     @Override protected Iterator<T> iter() {
+        TraceSurroundings trace = MTC.supportContinual(span);
+
         try {
             if (lazy())
                 return new RegisteredIterator(super.iter());
@@ -71,18 +82,24 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
                 return super.iter();
         }
         catch (Exception e) {
+            MTC.span().addTag(ERROR, e::getMessage);
+
             failReason = e;
 
             if (QueryUtils.wasCancelled(failReason))
                 unregisterQuery();
 
             throw e;
+        } finally {
+            trace.close();
         }
     }
 
     /** {@inheritDoc} */
     @Override public void close() {
-        super.close();
+        try (TraceSurroundings ignored = MTC.supportContinual(span)) {
+            super.close();
+        }
 
         unregisterQuery();
     }

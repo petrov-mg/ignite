@@ -19,6 +19,9 @@ package org.apache.ignite.internal.processors.query;
 
 import java.util.UUID;
 import org.apache.ignite.internal.processors.cache.query.GridCacheQueryType;
+import org.apache.ignite.internal.processors.tracing.NoopSpan;
+import org.apache.ignite.internal.processors.tracing.Span;
+import org.apache.ignite.internal.processors.tracing.SpanTags;
 
 /**
  * Query descriptor.
@@ -50,6 +53,9 @@ public class GridRunningQueryInfo {
 
     /** */
     private final QueryRunningFuture fut = new QueryRunningFuture();
+
+    /** */
+    private Span span = NoopSpan.INSTANCE;
 
     /**
      * Constructor.
@@ -168,5 +174,15 @@ public class GridRunningQueryInfo {
      */
     public UUID nodeId() {
         return nodeId;
+    }
+
+    /** */
+    public Span span() {
+        return span;
+    }
+
+    /** */
+    public void span(Span span) {
+        this.span = span;
     }
 }

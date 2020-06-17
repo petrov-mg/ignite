@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanStatus;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Encapsulates concept of a deferred-initialized span. It's used to overcome OpenCensus span implementation, that starts
@@ -87,5 +88,10 @@ public class DeferredSpan implements Span {
     /** {@inheritDoc} */
     @Override public boolean isChainable(Scope scope) {
         return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override public @NotNull SpanStatistics statistics() {
+        return NoopSpanStatistics.INSTANCE;
     }
 }

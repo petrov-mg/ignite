@@ -66,6 +66,10 @@ import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQuery
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlRequest;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlResponse;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryRequest;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
+import org.apache.ignite.internal.processors.tracing.Span;
+import org.apache.ignite.internal.processors.tracing.SpanTags;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.CU;
@@ -81,6 +85,18 @@ import static org.apache.ignite.events.EventType.EVT_CACHE_QUERY_EXECUTED;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.QUERY_POOL;
 import static org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryRequest.isDataPageScanEnabled;
 import static org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2ValueMessageFactory.toMessages;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.INDEX_INLINE_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.INDEX_LOOKUPS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.MAP_QRY_ID;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.PAGE_LOGICAL_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.PAGE_PHYSICAL_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ROW_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_MAP_DML_REQ;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_MAP_NEXT_PAGE_REQ;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_MAP_QRY_CANCEL;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_MAP_QRY_REQ;
 
 /**
  * Map query executor.
@@ -146,19 +162,21 @@ public class GridMapQueryExecutor {
      * @param msg Message.
      */
     public void onCancel(ClusterNode node, GridQueryCancelRequest msg) {
-        long qryReqId = msg.queryRequestId();
+        try (TraceSurroundings ignored = MTC.support(ctx.tracing().create(SQL_MAP_QRY_CANCEL, MTC.span()))) {
+            long qryReqId = msg.queryRequestId();
 
-        MapNodeResults nodeRess = resultsForNode(node.id());
+            MapNodeResults nodeRess = resultsForNode(node.id());
 
-        boolean clear = qryCtxRegistry.clearShared(node.id(), qryReqId);
+            boolean clear = qryCtxRegistry.clearShared(node.id(), qryReqId);
 
-        if (!clear) {
-            nodeRess.onCancel(qryReqId);
+            if (!clear) {
+                nodeRess.onCancel(qryReqId);
 
-            qryCtxRegistry.clearShared(node.id(), qryReqId);
+                qryCtxRegistry.clearShared(node.id(), qryReqId);
+            }
+
+            nodeRess.cancelRequest(qryReqId);
         }
-
-        nodeRess.cancelRequest(qryReqId);
     }
 
     /**
@@ -212,28 +230,32 @@ public class GridMapQueryExecutor {
 
             final int segment = i;
 
+            Span span = MTC.span();
+
             ctx.closure().callLocal(
                 (Callable<Void>)() -> {
-                    onQueryRequest0(node,
-                        req.requestId(),
-                        segment,
-                        req.schemaName(),
-                        req.queries(),
-                        cacheIds,
-                        req.topologyVersion(),
-                        partsMap,
-                        parts,
-                        req.pageSize(),
-                        distributedJoins,
-                        enforceJoinOrder,
-                        false,
-                        req.timeout(),
-                        params,
-                        lazy,
-                        req.mvccSnapshot(),
-                        dataPageScanEnabled);
+                    try (TraceSurroundings ignored = MTC.supportContinual(span)){
+                        onQueryRequest0(node,
+                            req.requestId(),
+                            segment,
+                            req.schemaName(),
+                            req.queries(),
+                            cacheIds,
+                            req.topologyVersion(),
+                            partsMap,
+                            parts,
+                            req.pageSize(),
+                            distributedJoins,
+                            enforceJoinOrder,
+                            false,
+                            req.timeout(),
+                            params,
+                            lazy,
+                            req.mvccSnapshot(),
+                            dataPageScanEnabled);
 
-                    return null;
+                        return null;
+                    }
                 },
                 QUERY_POOL);
         }
@@ -308,6 +330,8 @@ public class GridMapQueryExecutor {
         PartitionReservation reserved = null;
 
         QueryContext qctx = null;
+
+        TraceSurroundings trace = MTC.support(ctx.tracing().create(SQL_MAP_QRY_REQ, MTC.span()));
 
         try {
             if (topVer != null) {
@@ -388,6 +412,10 @@ public class GridMapQueryExecutor {
 
                 qryResults.addResult(qryIdx, res);
 
+                int finalQryIdx = qryIdx;
+
+                res.span().addTag(MAP_QRY_ID, () -> Integer.toString(finalQryIdx));
+
                 try {
                     res.lock();
 
@@ -404,14 +432,18 @@ public class GridMapQueryExecutor {
 
                         MapH2QueryInfo qryInfo = new MapH2QueryInfo(stmt, qry.query(), node, reqId, segmentId);
 
-                        ResultSet rs = h2.executeSqlQueryWithTimer(
-                            stmt,
-                            conn,
-                            sql,
-                            timeout,
-                            qryResults.queryCancel(qryIdx),
-                            dataPageScanEnabled,
-                            qryInfo);
+                        ResultSet rs;
+
+                        try (TraceSurroundings ignored = MTC.supportContinual(res.span())) {
+                            rs = h2.executeSqlQueryWithTimer(
+                                stmt,
+                                conn,
+                                sql,
+                                timeout,
+                                qryResults.queryCancel(qryIdx),
+                                dataPageScanEnabled,
+                                qryInfo);
+                        }
 
                         if (evt) {
                             ctx.event().record(new CacheQueryExecutedEvent<>(
@@ -474,6 +506,8 @@ public class GridMapQueryExecutor {
                 qryResults.releaseQueryContext();
         }
         catch (Throwable e) {
+            MTC.span().addTag(ERROR, e::toString);
+
             if (qryResults != null) {
                 nodeRess.remove(reqId, segmentId, qryResults);
 
@@ -524,6 +558,8 @@ public class GridMapQueryExecutor {
         finally {
             if (reserved != null)
                 reserved.release();
+
+            trace.close();
         }
     }
 
@@ -563,6 +599,13 @@ public class GridMapQueryExecutor {
         PartitionReservation reserved = null;
 
         MapNodeResults nodeResults = resultsForNode(node.id());
+
+        TraceSurroundings trace = MTC.support(ctx.tracing()
+            .createWithStatistics(SQL_MAP_DML_REQ, MTC.span())
+            .addTag(SQL_QRY_TEXT, req::query));
+
+        MTC.span().statistics()
+            .registerCounters(ROW_READS, PAGE_LOGICAL_READS, PAGE_PHYSICAL_READS, INDEX_LOOKUPS, INDEX_INLINE_READS);
 
         try {
             reserved = h2.partitionReservationManager().reservePartitions(
@@ -635,6 +678,8 @@ public class GridMapQueryExecutor {
             sendUpdateResponse(node, reqId, updRes, null);
         }
         catch (Exception e) {
+            MTC.span().addTag(ERROR, e::getMessage);
+
             U.error(log, "Error processing dml request. [localNodeId=" + ctx.localNodeId() +
                 ", nodeId=" + node.id() + ", req=" + req + ']', e);
 
@@ -645,6 +690,8 @@ public class GridMapQueryExecutor {
                 reserved.release();
 
             nodeResults.removeUpdate(reqId);
+
+            trace.close();
         }
     }
 
@@ -747,8 +794,12 @@ public class GridMapQueryExecutor {
         else if (qryResults.cancelled())
             sendQueryCancel(node, reqId);
         else {
+            TraceSurroundings trace = MTC.support(ctx.tracing().create(SQL_MAP_NEXT_PAGE_REQ, MTC.span()));
+
             try {
                 MapQueryResult res = qryResults.result(req.query());
+
+                MTC.span().addTag(MAP_QRY_ID, () -> Integer.toString(req.query()));
 
                 assert res != null;
 
@@ -783,6 +834,8 @@ public class GridMapQueryExecutor {
                 }
             }
             catch (Exception e) {
+                MTC.span().addTag(ERROR, e::getMessage);
+
                 QueryRetryException retryEx = X.cause(e, QueryRetryException.class);
 
                 if (retryEx != null)
@@ -797,6 +850,9 @@ public class GridMapQueryExecutor {
                 }
 
                 qryResults.cancel();
+            }
+            finally {
+                trace.close();
             }
         }
     }
@@ -853,6 +909,8 @@ public class GridMapQueryExecutor {
             loc ? null : toMessages(rows, new ArrayList<>(res.columnCount()), res.columnCount()),
             loc ? rows : null,
             last);
+
+        MTC.span().addLog(() -> "Next page response prepared [rows=" + rows.size() + ']');
 
         return msg;
     }

@@ -30,6 +30,8 @@ import org.apache.ignite.cache.query.QueryCancelledException;
 import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2ValueCacheObject;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.Span;
 import org.apache.ignite.internal.util.lang.GridCloseableIterator;
 import org.apache.ignite.internal.util.lang.GridIteratorAdapter;
 import org.apache.ignite.internal.util.typedef.F;
@@ -100,6 +102,9 @@ public abstract class H2ResultSetIterator<T> extends GridIteratorAdapter<T> impl
     /** Fetch size interceptor. */
     final H2QueryFetchSizeInterceptor fetchSizeInterceptor;
 
+    /** */
+    private final Span span;
+
     /**
      * @param data Data array.
      * @param log Logger.
@@ -149,6 +154,8 @@ public abstract class H2ResultSetIterator<T> extends GridIteratorAdapter<T> impl
         assert qryInfo != null;
 
         fetchSizeInterceptor = new H2QueryFetchSizeInterceptor(h2, qryInfo, log);
+
+        span = MTC.span();
     }
 
     /**
@@ -158,7 +165,7 @@ public abstract class H2ResultSetIterator<T> extends GridIteratorAdapter<T> impl
     private boolean fetchPage() throws IgniteCheckedException {
         lockTables();
 
-        try {
+        try (MTC.TraceSurroundings ignored = MTC.supportContinual(span)) {
             GridH2Table.checkTablesVersions(ses);
 
             page.clear();
@@ -197,6 +204,9 @@ public abstract class H2ResultSetIterator<T> extends GridIteratorAdapter<T> impl
                     throw new IgniteSQLException(e);
                 }
             }
+
+
+            span.addLog(() -> "Next page was fetched [rows=" + page.size() + ']');
 
             if (F.isEmpty(page)) {
                 rowIter = null;

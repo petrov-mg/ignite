@@ -26,6 +26,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.cache.CacheException;
 import org.apache.ignite.internal.IgniteInterruptedCheckedException;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.tracing.NoopSpan;
+import org.apache.ignite.internal.processors.tracing.Span;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.jetbrains.annotations.Nullable;
@@ -48,6 +50,9 @@ public class ReduceQueryRun {
 
     /** */
     private final AtomicReference<State> state = new AtomicReference<>();
+
+    /** */
+    private Span span = NoopSpan.INSTANCE;
 
     /**
      * Constructor.
@@ -224,6 +229,16 @@ public class ReduceQueryRun {
     boolean mapped() {
         return latch != null && latch.getCount() == 0;
     }
+
+    /** */
+    public Span span() {
+        return span;
+    };
+
+    /** */
+    public void span(Span span) {
+        this.span = span;
+    };
 
     /**
      * Error state.

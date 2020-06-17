@@ -38,6 +38,9 @@ import org.apache.ignite.internal.processors.query.h2.MapH2QueryInfo;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2ValueCacheObject;
 import org.apache.ignite.internal.processors.query.h2.opt.QueryContext;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
+import org.apache.ignite.internal.processors.tracing.Span;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.h2.engine.Session;
@@ -49,6 +52,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.events.EventType.EVT_CACHE_QUERY_OBJECT_READ;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.INDEX_INLINE_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.INDEX_LOOKUPS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.PAGE_LOGICAL_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.PAGE_PHYSICAL_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ROW_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_MAP_QRY_RUN;
 
 /**
  * Mapper result for a single part of the query.
@@ -110,6 +120,9 @@ class MapQueryResult {
     /** */
     private final ReentrantLock lock = new ReentrantLock();
 
+    /** */
+    private final Span span;
+
     /**
      * @param h2 H2 indexing.
      * @param cctx Cache context.
@@ -129,6 +142,11 @@ class MapQueryResult {
         this.cpNeeded = F.eq(h2.kernalContext().localNodeId(), qrySrcNodeId);
         this.log = log;
         this.conn = conn;
+        this.span = cctx.kernalContext().tracing().createWithStatistics(SQL_MAP_QRY_RUN, MTC.span())
+            .addTag(SQL_QRY_TEXT, qry::query);
+
+        span.statistics()
+            .registerCounters(ROW_READS, PAGE_LOGICAL_READS, PAGE_PHYSICAL_READS, INDEX_LOOKUPS, INDEX_INLINE_READS);
 
         ses = H2Utils.session(conn.connection());
     }
@@ -192,7 +210,7 @@ class MapQueryResult {
 
         h2.enableDataPageScan(dataPageScanEnabled);
 
-        try {
+        try (TraceSurroundings ignored = MTC.supportContinual(span)){
             for (int i = 0; i < pageSize; i++) {
                 if (!res.res.next())
                     return true;
@@ -251,6 +269,9 @@ class MapQueryResult {
                 res.fetchSizeInterceptor.checkOnFetchNext();
             }
 
+
+            span.addLog(() -> "Next page was obtained [rows=" + rows.size() + ']');
+
             return !res.res.hasNext();
         }
         finally {
@@ -288,6 +309,8 @@ class MapQueryResult {
         H2Utils.resetSession(conn);
 
         conn.close();
+
+        span.end();
     }
 
     /** */
@@ -320,6 +343,11 @@ class MapQueryResult {
     public void checkTablesVersions() {
         if (ses.isLazyQueryExecution())
             GridH2Table.checkTablesVersions(ses);
+    }
+
+    /** */
+    public Span span() {
+        return span;
     }
 
     /** */

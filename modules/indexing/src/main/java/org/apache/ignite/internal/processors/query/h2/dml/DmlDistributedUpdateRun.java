@@ -25,6 +25,8 @@ import javax.cache.CacheException;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.processors.query.h2.UpdateResult;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlResponse;
+import org.apache.ignite.internal.processors.tracing.NoopSpan;
+import org.apache.ignite.internal.processors.tracing.Span;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.typedef.F;
 
@@ -46,6 +48,9 @@ public class DmlDistributedUpdateRun {
 
     /** Result future. */
     private final GridFutureAdapter<UpdateResult> fut = new GridFutureAdapter<>();
+
+    /** */
+    private Span span = NoopSpan.INSTANCE;
 
     /**
      * Constructor.
@@ -93,6 +98,8 @@ public class DmlDistributedUpdateRun {
             if (!rspNodes.add(id))
                 return; // ignore duplicated messages
 
+            span.addLog(() -> "Distributed dml response was received [sndNode=" + id + ']');
+
             String err = msg.error();
 
             if (err != null) {
@@ -113,8 +120,21 @@ public class DmlDistributedUpdateRun {
 
             updCntr += msg.updateCounter();
 
-            if (rspNodes.size() == nodeCount)
+            if (rspNodes.size() == nodeCount) {
+                span.addLog(() -> "All remote update responces was received.");
+
                 fut.onDone(new UpdateResult(updCntr, errorKeys == null ? null : errorKeys.toArray()));
+            }
         }
     }
+
+    /** */
+    public Span span() {
+        return span;
+    };
+
+    /** */
+    public void span(Span span) {
+        this.span = span;
+    };
 }

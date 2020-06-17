@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.tracing;
 
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
@@ -36,6 +37,9 @@ public class SpanImpl implements Span {
     /** Set of extra included scopes for given span in addition to span's scope that is supported by default. */
     private final Set<Scope> includedScopes;
 
+    /** */
+    private final SpanStatistics statistics;
+
     /**
      * Constructor
      *
@@ -46,10 +50,13 @@ public class SpanImpl implements Span {
     public SpanImpl(
         SpiSpecificSpan spiSpecificSpan,
         SpanType spanType,
-        Set<Scope> includedScopes) {
+        Set<Scope> includedScopes,
+        SpanStatistics statistics
+    ) {
         this.spiSpecificSpan = spiSpecificSpan;
         this.spanType = spanType;
         this.includedScopes = includedScopes;
+        this.statistics = Objects.requireNonNull(statistics);
     }
 
     @Override public Span addTag(String tagName, Supplier<String> tagValSupplier) {
@@ -73,6 +80,8 @@ public class SpanImpl implements Span {
 
     /** {@inheritDoc} */
     @Override public Span end() {
+        statistics.exportTo(this);
+
         spiSpecificSpan.end();
 
         return this;
@@ -91,6 +100,11 @@ public class SpanImpl implements Span {
     /** {@inheritDoc} */
     @Override public Set<Scope> includedScopes() {
         return includedScopes;
+    }
+
+    /** {@inheritDoc} */
+    @Override public SpanStatistics statistics() {
+        return statistics;
     }
 
     /**

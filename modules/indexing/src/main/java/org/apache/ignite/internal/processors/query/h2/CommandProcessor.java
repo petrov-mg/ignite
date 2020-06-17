@@ -90,6 +90,7 @@ import org.apache.ignite.internal.processors.query.h2.sql.GridSqlStatement;
 import org.apache.ignite.internal.processors.query.messages.GridQueryKillRequest;
 import org.apache.ignite.internal.processors.query.messages.GridQueryKillResponse;
 import org.apache.ignite.internal.processors.query.schema.SchemaOperationException;
+import org.apache.ignite.internal.processors.tracing.SpanTags;
 import org.apache.ignite.internal.sql.command.SqlAlterTableCommand;
 import org.apache.ignite.internal.sql.command.SqlAlterUserCommand;
 import org.apache.ignite.internal.sql.command.SqlBeginTransactionCommand;
@@ -105,8 +106,8 @@ import org.apache.ignite.internal.sql.command.SqlKillComputeTaskCommand;
 import org.apache.ignite.internal.sql.command.SqlKillContinuousQueryCommand;
 import org.apache.ignite.internal.sql.command.SqlKillQueryCommand;
 import org.apache.ignite.internal.sql.command.SqlKillScanQueryCommand;
-import org.apache.ignite.internal.sql.command.SqlKillTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlKillServiceCommand;
+import org.apache.ignite.internal.sql.command.SqlKillTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlRollbackTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlSetStreamingCommand;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
@@ -318,6 +319,8 @@ public class CommandProcessor {
         if (err == null) {
             try {
                 runningQryInfo.cancel();
+                
+                runningQryInfo.span().addTag(SpanTags.SQL_QRY_RUN_CANCELLED, () -> "cancel initiator=" + node.id());
             } catch (Exception e) {
                 U.warn(log, "Cancellation of query failed: [qryId=" + qryId + "]", e);
 
