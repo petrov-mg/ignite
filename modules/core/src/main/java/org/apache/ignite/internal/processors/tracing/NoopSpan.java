@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanStatus;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Noop and null-safe implementation of Span.
@@ -70,5 +71,10 @@ public class NoopSpan implements Span {
     /** {@inheritDoc} */
     @Override public Set<Scope> includedScopes() {
         return Collections.emptySet();
+    }
+
+    /** {@inheritDoc} */
+    @Override public @NotNull SpanStatistics statistics() {
+        return NoopSpanStatistics.INSTANCE;
     }
 }

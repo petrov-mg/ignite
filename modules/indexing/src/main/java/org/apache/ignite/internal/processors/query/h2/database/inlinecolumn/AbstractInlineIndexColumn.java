@@ -20,10 +20,13 @@ package org.apache.ignite.internal.processors.query.h2.database.inlinecolumn;
 import java.util.Comparator;
 import org.apache.ignite.internal.pagemem.PageUtils;
 import org.apache.ignite.internal.processors.query.h2.database.InlineIndexColumn;
+import org.apache.ignite.internal.processors.tracing.MTC;
 import org.h2.table.Column;
 import org.h2.value.Value;
 import org.h2.value.ValueNull;
 import org.jetbrains.annotations.Nullable;
+
+import static org.apache.ignite.internal.processors.tracing.SpanTags.INDEX_INLINE_READS;
 
 /**
  * Abstract inline column.
@@ -117,6 +120,8 @@ public abstract class AbstractInlineIndexColumn implements InlineIndexColumn {
 
         ensureValueType(type);
 
+        MTC.span().statistics().incrementCounter(INDEX_INLINE_READS);
+
         return get0(pageAddr, off);
     }
 
@@ -141,8 +146,11 @@ public abstract class AbstractInlineIndexColumn implements InlineIndexColumn {
 
         int c = compare0(pageAddr, off, v, type);
 
-        if (c != COMPARE_UNSUPPORTED)
+        if (c != COMPARE_UNSUPPORTED) {
+            MTC.span().statistics().incrementCounter(INDEX_INLINE_READS);
+
             return c;
+        }
 
         Value v1 = get(pageAddr, off, maxSize);
 

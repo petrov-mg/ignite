@@ -65,6 +65,11 @@ public class NoopTracing implements Tracing {
     }
 
     /** {@inheritDoc} */
+    @Override public @NotNull Span createWithStatistics(@NotNull SpanType spanType, @Nullable Span parentSpan) {
+        return NoopSpan.INSTANCE;
+    }
+
+    /** {@inheritDoc} */
     @Override public byte[] serialize(@NotNull Span span) {
         return NOOP_SERIALIZED_SPAN;
     }

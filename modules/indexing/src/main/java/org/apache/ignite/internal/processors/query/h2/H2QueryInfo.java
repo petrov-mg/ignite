@@ -138,4 +138,9 @@ public class H2QueryInfo {
         MAP,
         REDUCE
     }
+
+    /** */
+    public String sql() {
+        return sql;
+    }
 }

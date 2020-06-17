@@ -54,6 +54,8 @@ import org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuerySplitter;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlSelect;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlStatement;
 import org.apache.ignite.internal.processors.query.h2.sql.GridSqlTable;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
 import org.apache.ignite.internal.sql.SqlParseException;
 import org.apache.ignite.internal.sql.SqlParser;
 import org.apache.ignite.internal.sql.SqlStrictParseException;
@@ -82,6 +84,9 @@ import org.h2.command.Prepared;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuerySplitter.keyColumn;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_PARSING;
 
 /**
  * Parser module. Splits incoming request into a series of parsed results.
@@ -135,11 +140,25 @@ public class QueryParser {
      * @return Parsing result that contains Parsed leading query and remaining sql script.
      */
     public QueryParserResult parse(String schemaName, SqlFieldsQuery qry, boolean remainingAllowed) {
-        QueryParserResult res = parse0(schemaName, qry, remainingAllowed);
+        TraceSurroundings trace = MTC.support(idx.kernalContext().tracing().create(SQL_PARSING, MTC.span()));
 
-        checkQueryType(qry, res.isSelect());
+        try {
+            QueryParserResult res = parse0(schemaName, qry, remainingAllowed);
 
-        return res;
+            checkQueryType(qry, res.isSelect());
+
+            MTC.span().addTag(SQL_QRY_TEXT, () -> res.queryDescriptor().sql());
+
+            return res;
+        }
+        catch (Throwable e) {
+           MTC.span().addTag(ERROR, e::getMessage);
+
+           throw e;
+        }
+        finally {
+            trace.close();
+        }
     }
 
     /**

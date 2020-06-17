@@ -100,6 +100,7 @@ import org.apache.ignite.internal.processors.query.schema.operation.SchemaAlterT
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaIndexCreateOperation;
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaIndexDropOperation;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutProcessor;
+import org.apache.ignite.internal.processors.tracing.MTC;
 import org.apache.ignite.internal.util.GridBoundedConcurrentLinkedHashSet;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
@@ -136,6 +137,9 @@ import static org.apache.ignite.internal.binary.BinaryUtils.fieldTypeName;
 import static org.apache.ignite.internal.binary.BinaryUtils.typeByClass;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.SCHEMA_POOL;
 import static org.apache.ignite.internal.processors.query.schema.SchemaOperationException.CODE_COLUMN_EXISTS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_QRY_CURSOR_OBTAINING;
 
 /**
  * Indexing processor.
@@ -2552,43 +2556,57 @@ public class GridQueryProcessor extends GridProcessorAdapter {
         GridCacheQueryType qryType,
         @Nullable final GridQueryCancel cancel
     ) {
-        // Validate.
-        checkxEnabled();
+        MTC.TraceSurroundings trace = MTC.support(ctx.tracing()
+            .create(SQL_QRY_CURSOR_OBTAINING, MTC.span())
+            .addTag(SQL_QRY_TEXT, qry::getSql));
 
-        if (qry.isDistributedJoins() && qry.getPartitions() != null)
-            throw new CacheException("Using both partitions and distributed JOINs is not supported for the same query");
+        try {
+            // Validate.
+            checkxEnabled();
 
-        if (qry.isLocal() && ctx.clientNode() && (cctx == null || cctx.config().getCacheMode() != CacheMode.LOCAL))
-            throw new CacheException("Execution of local SqlFieldsQuery on client node disallowed.");
+            if (qry.isDistributedJoins() && qry.getPartitions() != null)
+                throw new CacheException("Using both partitions and distributed JOINs is not supported for the same query");
 
-        return executeQuerySafe(cctx, () -> {
-            assert idx != null;
+            if (qry.isLocal() && ctx.clientNode() && (cctx == null || cctx.config().getCacheMode() != CacheMode.LOCAL))
+                throw new CacheException("Execution of local SqlFieldsQuery on client node disallowed.");
 
-            final String schemaName = getSchemaName(cctx, qry);
+            return executeQuerySafe(cctx, () -> {
+                assert idx != null;
 
-            IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>> clo =
-                new IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>>() {
-                    @Override public List<FieldsQueryCursor<List<?>>> applyx() {
-                        GridQueryCancel cancel0 = cancel != null ? cancel : new GridQueryCancel();
+                final String schemaName = getSchemaName(cctx, qry);
 
-                        List<FieldsQueryCursor<List<?>>> res = idx.querySqlFields(
-                            schemaName,
-                            qry,
-                            cliCtx,
-                            keepBinary,
-                            failOnMultipleStmts,
-                            cancel0
-                        );
+                IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>> clo =
+                    new IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>>() {
+                        @Override public List<FieldsQueryCursor<List<?>>> applyx() {
+                            GridQueryCancel cancel0 = cancel != null ? cancel : new GridQueryCancel();
 
-                        if (cctx != null)
-                            sendQueryExecutedEvent(qry.getSql(), qry.getArgs(), cctx, qryType);
+                            List<FieldsQueryCursor<List<?>>> res = idx.querySqlFields(
+                                schemaName,
+                                qry,
+                                cliCtx,
+                                keepBinary,
+                                failOnMultipleStmts,
+                                cancel0
+                            );
 
-                        return res;
-                    }
-                };
+                            if (cctx != null)
+                                sendQueryExecutedEvent(qry.getSql(), qry.getArgs(), cctx, qryType);
 
-            return executeQuery(qryType, qry.getSql(), cctx, clo, true);
-        });
+                            return res;
+                        }
+                    };
+
+                return executeQuery(qryType, qry.getSql(), cctx, clo, true);
+            });
+        }
+        catch (Throwable e) {
+            MTC.span().addTag(ERROR, e::getMessage);
+
+            throw e;
+        }
+        finally {
+            trace.close();
+        }
     }
 
     /**

@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 import javax.cache.CacheException;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteClientDisconnectedException;
@@ -74,6 +75,10 @@ import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQuery
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlRequest;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlResponse;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryRequest;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
+import org.apache.ignite.internal.processors.tracing.SpanTags;
+import org.apache.ignite.internal.processors.tracing.SpanType;
 import org.apache.ignite.internal.transactions.IgniteTxAlreadyCompletedCheckedException;
 import org.apache.ignite.internal.util.typedef.C2;
 import org.apache.ignite.internal.util.typedef.CIX2;
@@ -99,6 +104,11 @@ import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.checkAc
 import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.tx;
 import static org.apache.ignite.internal.processors.cache.query.GridCacheSqlQuery.EMPTY_PARAMS;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuerySplitter.mergeTableIdentifier;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_MAP_DML_RESP;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_RDC_QRY_RUN;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_RDC_NEXT_PAGE_RESP;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_RDC_QRY_FAIL;
 
 /**
  * Reduce query executor.
@@ -227,6 +237,8 @@ public class GridReduceQueryExecutor {
                 e = new CacheException(mapperFailedMsg);
 
             r.setStateOnException(nodeId, e);
+
+            r.span().addTag(SpanTags.ERROR, () -> mapperFailedMsg);
         }
     }
 
@@ -262,7 +274,7 @@ public class GridReduceQueryExecutor {
                         throw new CacheException(r.retryCause());
                     }
 
-                    try {
+                    try (TraceSurroundings ignored = MTC.supportContinual(r.span())) {
                         GridQueryNextPageRequest msg0 = new GridQueryNextPageRequest(qryReqId, qry, seg, pageSize,
                             (byte)GridH2QueryRequest.setDataPageScanEnabled(0, r.isDataPageScanEnabled()));
 
@@ -289,8 +301,12 @@ public class GridReduceQueryExecutor {
 
         if (msg.retry() != null)
             r.setStateOnRetry(node.id(), msg.retry(), msg.retryCause());
-        else if (msg.page() == 0) // Count down only on each first page received.
-            r.onFirstPage();
+        else if (msg.page() == 0) {
+            r.onFirstPage(); // Count down only on each first page received.
+
+            r.span().addLog(() -> "Remote map query response was received [sndNode=" + node.id() + ']');
+        }
+
     }
 
     /**
@@ -416,7 +432,17 @@ public class GridReduceQueryExecutor {
 
                 runs.put(qryReqId, r);
 
+                TraceSurroundings trace = MTC.supportContinual(r.span());
+
                 try {
+                    MTC.span().addTag(SpanTags.RDC_QRY_TEXT, () -> qry.reduceQuery().query());
+                    MTC.span().addTag(SpanTags.MAP_QRY_TEXT, () -> mapQueries.stream()
+                        .map(GridCacheSqlQuery::query)
+                        .collect(Collectors.joining("; ")));
+                    MTC.span().addTag(SpanTags.MAP_NODES, () -> nodes.stream()
+                        .map(node -> node.consistentId().toString())
+                        .collect(Collectors.joining(", ")));
+
                     cancel.add(() -> send(nodes, new GridQueryCancelRequest(qryReqId), null, true));
 
                     GridH2QueryRequest req = new GridH2QueryRequest()
@@ -440,6 +466,8 @@ public class GridReduceQueryExecutor {
 
                     if (send(nodes, req, spec, false)) {
                         awaitAllReplies(r, nodes, cancel);
+
+                        MTC.span().addLog(() -> "All map nodes replies was received.");
 
                         if (r.hasErrorOrRetry()) {
                             CacheException err = r.exception();
@@ -467,6 +495,8 @@ public class GridReduceQueryExecutor {
                     if (retry) {
                         lastRun = runs.remove(qryReqId);
                         assert lastRun != null;
+
+                        lastRun.span().addTag(ERROR, () -> "Outdated full partition map. Will retry.").end();
 
                         continue;
                     }
@@ -561,6 +591,8 @@ public class GridReduceQueryExecutor {
                                 fakeTable(null, i).innerTable(null); // Drop all merge tables.
                         }
                     }
+
+                    trace.close();
                 }
             }
             finally {
@@ -733,6 +765,8 @@ public class GridReduceQueryExecutor {
 
         r.init( (r.reducers().size() - replicatedQrysCnt) * nodes.size() * segmentsPerIndex + replicatedQrysCnt);
 
+        r.span(ctx.tracing().create(SQL_RDC_QRY_RUN, MTC.span()));
+
         return r;
     }
 
@@ -874,16 +908,23 @@ public class GridReduceQueryExecutor {
 
         updRuns.put(reqId, r);
 
+        final Collection<ClusterNode> finalNodes = nodes;
+
+        r.span(ctx.tracing().create(SpanType.SQL_RDC_DML_RUN, MTC.span()));
+
+        r.span().addTag(SpanTags.MAP_QRY_TEXT, () -> selectQry);
+        r.span().addTag(SpanTags.MAP_NODES, () -> finalNodes.stream()
+            .map(node -> node.consistentId().toString())
+            .collect(Collectors.joining(", ")));
+
         boolean release = false;
 
-        try {
+        try (TraceSurroundings trace = MTC.supportContinual(r.span());){
             Map<ClusterNode, IntArray> partsMap = (nodesParts.queryPartitionsMap() != null) ?
                 nodesParts.queryPartitionsMap() : nodesParts.partitionsMap();
 
             ReducePartitionsSpecializer partsSpec = (parts == null) ? null :
                 new ReducePartitionsSpecializer(partsMap);
-
-            final Collection<ClusterNode> finalNodes = nodes;
 
             cancel.add(() -> {
                 r.future().onCancelled();
@@ -902,6 +943,8 @@ public class GridReduceQueryExecutor {
 
             U.error(log, "Error during update [localNodeId=" + ctx.localNodeId() + "]", e);
 
+            r.span().addTag(ERROR, e::getMessage);
+
             throw new CacheException("Failed to run SQL update query. " + e.getMessage(), e);
         }
         finally {
@@ -910,6 +953,8 @@ public class GridReduceQueryExecutor {
 
             if (!updRuns.remove(reqId, r))
                 U.warn(log, "Update run was already removed: " + reqId);
+
+            r.span().end();
         }
     }
 
@@ -970,6 +1015,11 @@ public class GridReduceQueryExecutor {
             U.warn(log, "Query run was already removed: " + qryReqId);
         else if (mvccTracker != null)
             mvccTracker.onDone();
+
+        if (r.hasErrorOrRetry())
+            r.span().addTag(ERROR, () -> r.exception().toString());
+
+        r.span().end();
     }
 
     /**

@@ -151,6 +151,9 @@ import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryReq
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitor;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorClosure;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorImpl;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
+import org.apache.ignite.internal.processors.tracing.Span;
 import org.apache.ignite.internal.sql.command.SqlCommand;
 import org.apache.ignite.internal.sql.command.SqlCommitTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlRollbackTransactionCommand;
@@ -209,6 +212,14 @@ import static org.apache.ignite.internal.processors.query.h2.H2Utils.generateFie
 import static org.apache.ignite.internal.processors.query.h2.H2Utils.session;
 import static org.apache.ignite.internal.processors.query.h2.H2Utils.validateTypeDescriptor;
 import static org.apache.ignite.internal.processors.query.h2.H2Utils.zeroCursor;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.INDEX_INLINE_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.INDEX_LOOKUPS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.PAGE_LOGICAL_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.PAGE_PHYSICAL_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ROW_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_QRY_RESULT_SET_OBTAINING;
 
 /**
  * Indexing implementation based on H2 database engine. In this implementation main query language is SQL,
@@ -487,7 +498,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         if (tbl != null && tbl.luceneIndex() != null) {
             Long qryId = runningQueryManager().register(qry, TEXT, schemaName, true, null);
 
-            try {
+            try (TraceSurroundings ignored = MTC.supportContinual(runningQryMgr.runningQueryInfo(qryId).span())) {
                 return tbl.luceneIndex().query(qry.toUpperCase(), filters, limit);
             }
             finally {
@@ -684,7 +695,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         Exception failReason = null;
 
-        try {
+        try (TraceSurroundings ignored = MTC.supportContinual(runningQryMgr.runningQueryInfo(qryId).span())){
             UpdatePlan plan = dml.plan();
 
             Iterator<List<?>> iter = new GridQueryCacheObjectsIterator(updateQueryRows(schemaName, plan, args),
@@ -1005,7 +1016,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         Exception failReason = null;
 
-        try {
+        try (TraceSurroundings ignored = MTC.supportContinual(runningQryMgr.runningQueryInfo(qryId).span())) {
             res = cmdProc.runCommand(qryDesc.sql(), cmdNative, cmdH2, qryParams, cliCtx, qryId);
 
             return res.cursor();
@@ -1174,7 +1185,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         Exception failReason = null;
 
-        try {
+        try (TraceSurroundings ignored = MTC.supportContinual(runningQryMgr.runningQueryInfo(qryId).span())) {
             if (!dml.mvccEnabled() && !updateInTxAllowed && ctx.cache().context().tm().inUserTx()) {
                 throw new IgniteSQLException("DML statements are not allowed inside a transaction over " +
                     "cache(s) with TRANSACTIONAL atomicity mode (change atomicity mode to " +
@@ -1257,7 +1268,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         // Register query.
         Long qryId = registerRunningQuery(qryDesc, cancel);
 
-        try {
+        try (TraceSurroundings ignored = MTC.supportContinual(runningQryMgr.runningQueryInfo(qryId).span())) {
             GridNearTxLocal tx = null;
             MvccQueryTracker tracker = null;
             GridCacheContext mvccCctx = null;

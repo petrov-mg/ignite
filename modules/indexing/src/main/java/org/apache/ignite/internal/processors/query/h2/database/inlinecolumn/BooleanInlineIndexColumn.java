@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.query.h2.database.inlinecolumn;
 
 import org.apache.ignite.internal.pagemem.PageUtils;
+import org.apache.ignite.internal.processors.tracing.MTC;
 import org.h2.table.Column;
 import org.h2.value.Value;
 import org.h2.value.ValueBoolean;

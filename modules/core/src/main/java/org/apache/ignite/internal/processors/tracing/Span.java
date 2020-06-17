@@ -18,9 +18,11 @@
 package org.apache.ignite.internal.processors.tracing;
 
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanStatus;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Logical piece of a trace that represents a single operation.
@@ -82,4 +84,7 @@ public interface Span {
     default boolean isChainable(Scope scope) {
         return type().scope() == scope || includedScopes().contains(scope);
     }
+
+    /** */
+    @NotNull SpanStatistics statistics();
 }

@@ -22,10 +22,13 @@ import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIO;
 import org.apache.ignite.internal.processors.metric.GridMetricManager;
 import org.apache.ignite.internal.processors.metric.MetricRegistry;
 import org.apache.ignite.internal.processors.metric.impl.LongAdderMetric;
+import org.apache.ignite.internal.processors.tracing.MTC;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
 import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metricName;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.PAGE_LOGICAL_READS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.PAGE_PHYSICAL_READS;
 
 /**
  * Index statistics holder to gather statistics related to concrete index.
@@ -106,12 +109,16 @@ public class IoStatisticsHolderIndex implements IoStatisticsHolder {
 
                 IoStatisticsQueryHelper.trackLogicalReadQuery(pageAddr);
 
+                MTC.span().statistics().incrementCounter(PAGE_LOGICAL_READS);
+
                 break;
 
             case LEAF:
                 logicalReadLeafCtr.increment();
 
                 IoStatisticsQueryHelper.trackLogicalReadQuery(pageAddr);
+
+                MTC.span().statistics().incrementCounter(PAGE_LOGICAL_READS);
 
                 break;
         }
@@ -129,6 +136,8 @@ public class IoStatisticsHolderIndex implements IoStatisticsHolder {
 
                 IoStatisticsQueryHelper.trackPhysicalAndLogicalReadQuery(pageAddr);
 
+                MTC.span().statistics().incrementCounter(PAGE_PHYSICAL_READS);
+
                 break;
 
             case LEAF:
@@ -136,6 +145,8 @@ public class IoStatisticsHolderIndex implements IoStatisticsHolder {
                 physicalReadLeafCtr.increment();
 
                 IoStatisticsQueryHelper.trackPhysicalAndLogicalReadQuery(pageAddr);
+
+                MTC.span().statistics().incrementCounter(PAGE_PHYSICAL_READS);
 
                 break;
         }

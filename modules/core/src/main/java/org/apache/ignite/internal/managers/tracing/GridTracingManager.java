@@ -25,8 +25,11 @@ import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.managers.GridManagerAdapter;
 import org.apache.ignite.internal.processors.tracing.DeferredSpan;
+import org.apache.ignite.internal.processors.tracing.NoopSpanStatistics;
 import org.apache.ignite.internal.processors.tracing.NoopTracing;
 import org.apache.ignite.internal.processors.tracing.SpanImpl;
+import org.apache.ignite.internal.processors.tracing.SpanStatistics;
+import org.apache.ignite.internal.processors.tracing.SpanStatisticsImpl;
 import org.apache.ignite.internal.processors.tracing.configuration.GridTracingConfigurationManager;
 import org.apache.ignite.internal.processors.tracing.NoopSpan;
 import org.apache.ignite.spi.tracing.NoopTracingSpi;
@@ -185,7 +188,8 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
             generateSpan(
                 parentSpan,
                 spanType,
-                null));
+                null,
+                NoopSpanStatistics.INSTANCE));
     }
 
     /** {@inheritDoc} */
@@ -296,7 +300,8 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
                             SPI_SPECIFIC_SERIALIZED_SPAN_BODY_OFF,
                             SPI_SPECIFIC_SERIALIZED_SPAN_BODY_OFF + spiSpecificSpanSize)),
                     spanType,
-                    mergedIncludedScopes);
+                    mergedIncludedScopes,
+                    NoopSpanStatistics.INSTANCE);
             }
             else {
                 // do nothing;
@@ -316,6 +321,23 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
     }
 
     /** {@inheritDoc} */
+    @Override public @NotNull Span createWithStatistics(
+        @NotNull SpanType spanType,
+        @Nullable Span parentSpan
+    ) {
+        if (noop)
+            return NoopSpan.INSTANCE;
+
+        return enrichWithLocalNodeParameters(
+            generateSpan(
+                parentSpan,
+                spanType,
+                null,
+                new SpanStatisticsImpl()));
+    }
+
+
+    /** {@inheritDoc} */
     @Override public @NotNull Span create(
         @NotNull SpanType spanType,
         @Nullable Span parentSpan,
@@ -328,7 +350,8 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
             generateSpan(
                 parentSpan,
                 spanType,
-                lb));
+                lb,
+                NoopSpanStatistics.INSTANCE));
     }
 
     /** {@inheritDoc} */
@@ -435,7 +458,8 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
     private @NotNull Span generateSpan(
         @Nullable Span parentSpan,
         @NotNull SpanType spanTypeToCreate,
-        @Nullable String lb
+        @Nullable String lb,
+        @Nullable SpanStatistics statistics
     ) {
         if (parentSpan instanceof DeferredSpan)
             return create(spanTypeToCreate, ((DeferredSpan)parentSpan).serializedSpan());
@@ -456,7 +480,8 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
                         null,
                         tracingConfigurationParameters.samplingRate()),
                     spanTypeToCreate,
-                    tracingConfigurationParameters.includedScopes());
+                    tracingConfigurationParameters.includedScopes(),
+                    statistics == null ? NoopSpanStatistics.INSTANCE : statistics);
             }
             else
                 return NoopSpan.INSTANCE;
@@ -477,7 +502,8 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
                         ((SpanImpl)parentSpan).spiSpecificSpan(),
                         SAMPLING_RATE_ALWAYS),
                     spanTypeToCreate,
-                    mergedIncludedScopes);
+                    mergedIncludedScopes,
+                    statistics == null ? NoopSpanStatistics.INSTANCE : statistics);
             }
             else {
                 // do nothing;
