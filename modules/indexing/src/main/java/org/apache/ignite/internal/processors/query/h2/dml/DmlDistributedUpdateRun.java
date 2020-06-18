@@ -121,7 +121,7 @@ public class DmlDistributedUpdateRun {
             updCntr += msg.updateCounter();
 
             if (rspNodes.size() == nodeCount) {
-                span.addLog(() -> "All remote update responces was received.");
+                span.addLog(() -> "All remote update responses was received.");
 
                 fut.onDone(new UpdateResult(updCntr, errorKeys == null ? null : errorKeys.toArray()));
             }
