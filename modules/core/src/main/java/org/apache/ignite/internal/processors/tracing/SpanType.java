@@ -159,7 +159,65 @@ public enum SpanType {
     TX_NEAR_PREPARE_RESP(Scope.TX, "tx.near.process.prepare.response", 44),
 
     /** Custom job call. */
-    CUSTOM_JOB_CALL(Scope.COMMUNICATION, "job.call", 45, true);
+    CUSTOM_JOB_CALL(Scope.COMMUNICATION, "job.call", 45, true),
+
+    /**
+     * Represents sql query from the moment it is received until all corresponding traceable cursors are closed.
+     *
+     * @see TraceableCursor
+     */
+    SQL_QUERY(Scope.SQL, "sql.query", 46, true),
+
+    /** Obtaining of the query cursor. */
+    SQL_QRY_CURSOR_OBTAIN(Scope.SQL, "sql.query.cursor.obtain", 47, false),
+
+    /** Parsing of the SQL query. */
+    SQL_QUERY_PARSE(Scope.SQL, "sql.query.parse", 48, false),
+
+    /** Processing of the SQL request on a mapped node. */
+    SQL_MAP_QRY_REQ(Scope.SQL, "sql.map.query.request", 49, false),
+
+    /** Processing of the SQL next page request on a mapped node. */
+    SQL_MAP_NEXT_PAGE_REQ(Scope.SQL, "sql.map.next.page.request", 50, false),
+
+    /** Execution of the SQL query. */
+    SQL_QRY_EXECUTE(Scope.SQL, "sql.query.execute", 51, false),
+
+    /** Reading rows from the cursor and creating a result page. */
+    SQL_QRY_RESULT_PAGE_PREPARE(Scope.SQL, "sql.query.result.page.prepare", 52, false),
+
+    /** Processing of the response with requested rows form the mapped node. */
+    SQL_MAP_RESULT_PAGE_RESP(Scope.SQL, "sql.map.result.page.response", 53, false),
+
+    /** Processing of the fail response from a mapped node. */
+    SQL_MAP_FAIL(Scope.SQL, "sql.map.fail", 54, false),
+
+    /** Processing of the distributed dml request on a mapped node. */
+    SQL_MAP_DML_REQ(Scope.SQL, "sql.query.dml.request", 55, false),
+
+    /** Processing of the distributed dml execution response from the mapped node. */
+    SQL_MAP_DML_RESP(Scope.SQL, "sql.map.dml.response", 56, false),
+
+    /** Processing of the query cancellation request on a mapped node. */
+    SQL_MAP_QRY_CANCEL(Scope.SQL, "sql.map.query.cancel", 57, false),
+
+    /** Obraining of the cursor iterator. */
+    SQL_CURSOR_ITERATOR_CALL(Scope.SQL, "sql.cursor.iterator.call", 58, false),
+
+    /** Fetching of page with result rows. */
+    SQL_RESULT_PAGE_FETCH(Scope.SQL, "sql.result.page.fetch", 59, false),
+
+    /** Waiting for a receiving of result page from a mapped node. */
+    SQL_MAP_RESULT_PAGE_WAIT(Scope.SQL, "sql.map.result.page.wait", 60, false),
+
+    /** Closing of the cursor. */
+    SQL_CURSOR_CLOSE_CALL(Scope.SQL, "sql.cursor.close.call", 61, false),
+
+    /** Processing of the distributed lookup request. */
+    SQL_DISTR_LOOKUP_REQ(Scope.SQL, "sql.distributed.lookup.request", 62, false),
+
+    /** Processing of the distributed lookup response from the remote node. */
+    SQL_DISTR_LOOKUP_RESP(Scope.SQL, "sql.distributed.lookup.response", 63, false);
 
     /** Scope */
     private Scope scope;

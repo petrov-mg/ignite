@@ -84,6 +84,24 @@ public class SpanTags {
     /** */
     public static final String MESSAGE_CLASS = "message.class";
 
+    /** Text of the SQL query or queries in case of a map request. */
+    public static final String SQL_QRY_TEXT = "sql.query.text";
+
+    /** Schema of the sql query. */
+    public static final String SQL_QRY_SCHEMA = "sql.query.schema";
+
+    /** Number of rows that current result page contains. */
+    public static final String SQL_RESULT_PAGE_ROWS = "sql.result.page.rows";
+
+    /** Result page response from the mapped node in bytes. */
+    public static final String SQL_MAP_RESULT_PAGE_BYTES = "sql.map.result.page.bytes";
+
+    /** Number of rows that was obtained by distributed lookup. */
+    public static final String SQL_DISTR_LOOKUP_RESULT_ROWS = "sql.distributed.lookup.result.rows";
+
+    /** Distributed lookup responce in bytes. */
+    public static final String SQL_DISTR_LOOKUP_RESULT_BYTES = "sql.distributed.lookup.result.bytes";
+
     /** */
     private SpanTags() {}
 

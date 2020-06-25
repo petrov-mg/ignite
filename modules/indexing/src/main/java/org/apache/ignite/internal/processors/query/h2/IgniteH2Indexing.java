@@ -151,6 +151,8 @@ import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryReq
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitor;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorClosure;
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorImpl;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
 import org.apache.ignite.internal.sql.command.SqlCommand;
 import org.apache.ignite.internal.sql.command.SqlCommitTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlRollbackTransactionCommand;
@@ -209,6 +211,9 @@ import static org.apache.ignite.internal.processors.query.h2.H2Utils.generateFie
 import static org.apache.ignite.internal.processors.query.h2.H2Utils.session;
 import static org.apache.ignite.internal.processors.query.h2.H2Utils.validateTypeDescriptor;
 import static org.apache.ignite.internal.processors.query.h2.H2Utils.zeroCursor;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_QRY_EXECUTE;
 
 /**
  * Indexing implementation based on H2 database engine. In this implementation main query language is SQL,
@@ -580,7 +585,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                         );
 
                         return new H2FieldsIterator(rs, mvccTracker, conn, qryParams.pageSize(),
-                            log, IgniteH2Indexing.this, qryInfo);
+                            log, IgniteH2Indexing.this, qryInfo, ctx.tracing());
                     }
                     catch (IgniteCheckedException | RuntimeException | Error e) {
                         conn.close();
@@ -910,6 +915,10 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         enableDataPageScan(dataPageScanEnabled);
 
+        TraceSurroundings trace = MTC.support(ctx.tracing()
+            .create(SQL_QRY_EXECUTE, MTC.span())
+            .addTag(SQL_QRY_TEXT, () -> sql));
+
         try {
             ResultSet rs = executeSqlQuery(conn, stmt, timeoutMillis, cancel);
 
@@ -919,6 +928,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             return rs;
         }
         catch (Throwable e) {
+            MTC.span().addTag(ERROR, e::getMessage);
+
             if (qryInfo != null && qryInfo.time() > longRunningQryMgr.getTimeout()) {
                 qryInfo.printLogMessage(log, "Long running query is finished with error: "
                     + e.getMessage(), null);
@@ -931,6 +942,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
             if (qryInfo != null)
                 longRunningQryMgr.unregisterQuery(qryInfo);
+
+            trace.close();
         }
     }
 
@@ -1303,7 +1316,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                 iter = lockSelectedRows(iter, mvccCctx, timeout, qryParams.pageSize());
 
             RegisteredQueryCursor<List<?>> cursor =
-                new RegisteredQueryCursor<>(iter, cancel, runningQueryManager(), qryParams.lazy(), qryId);
+                new RegisteredQueryCursor<>(iter, cancel, runningQueryManager(), qryParams.lazy(), qryId, ctx.tracing());
 
             cancel.add(cursor::cancel);
 
