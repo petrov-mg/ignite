@@ -25,13 +25,23 @@ import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.query.GridQueryCancel;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.RunningQueryManager;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
+import org.apache.ignite.internal.processors.tracing.NoopSpan;
+import org.apache.ignite.internal.processors.tracing.Span;
+import org.apache.ignite.internal.processors.tracing.SpanType;
+import org.apache.ignite.internal.processors.tracing.TraceableCursor;
+import org.apache.ignite.internal.processors.tracing.TraceableIterator;
+import org.apache.ignite.internal.processors.tracing.Tracing;
+
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
 
 /**
  * Query cursor for registered as running queries.
  *
  * Running query will be unregistered during close of cursor.
  */
-public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
+public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> implements TraceableCursor {
     /** */
     private final AtomicBoolean unregistered = new AtomicBoolean(false);
 
@@ -44,6 +54,15 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
     /** Exception caused query failed or {@code null} if it succeded. */
     private Exception failReason;
 
+    /** Tracing. */
+    private final Tracing tracing;
+
+    /** Span which represents query to which current cursor belongs to. */
+    private Span qrySpan = NoopSpan.INSTANCE;
+
+    /** Cursor close listener. */
+    private volatile Runnable closeLsnr;
+
     /**
      * @param iterExec Query executor.
      * @param cancel Cancellation closure.
@@ -52,7 +71,7 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
      * @param qryId Registered running query id.
      */
     public RegisteredQueryCursor(Iterable<T> iterExec, GridQueryCancel cancel, RunningQueryManager runningQryMgr,
-        boolean lazy, Long qryId) {
+        boolean lazy, Long qryId, Tracing tracing) {
         super(iterExec, cancel, true, lazy);
 
         assert runningQryMgr != null;
@@ -60,18 +79,20 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
 
         this.runningQryMgr = runningQryMgr;
         this.qryId = qryId;
+        this.tracing = tracing;
     }
 
     /** {@inheritDoc} */
     @Override protected Iterator<T> iter() {
-        try {
-            if (lazy())
-                return new RegisteredIterator(super.iter());
-            else
-                return super.iter();
+        try (TraceSurroundings ignored = MTC.support(tracing.create(SpanType.SQL_ITER_OPEN, qrySpan))) {
+            Iterator<T> iter = lazy() ? new RegisteredIterator(super.iter()) : super.iter();
+
+            return new TraceableIterator<>(iter, qrySpan);
         }
         catch (Exception e) {
             failReason = e;
+
+            qrySpan.addTag(ERROR, e::getMessage);
 
             if (QueryUtils.wasCancelled(failReason))
                 unregisterQuery();
@@ -82,9 +103,19 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
 
     /** {@inheritDoc} */
     @Override public void close() {
-        super.close();
+        try (TraceSurroundings ignored = MTC.support(tracing.create(SpanType.SQL_CURSOR_CLOSE, qrySpan))) {
+            super.close();
 
-        unregisterQuery();
+            unregisterQuery();
+
+            Runnable lsnr = closeLsnr;
+
+            if (lsnr != null)
+                lsnr.run();
+        }
+        catch (Throwable e) {
+            qrySpan.addTag(ERROR, e::getMessage);
+        }
     }
 
     /**
@@ -93,6 +124,8 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
     public void cancel() {
         if (failReason == null)
             failReason = new QueryCancelledException();
+
+        qrySpan.addTag(ERROR, failReason::getMessage);
 
         close();
     }
@@ -103,6 +136,16 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
     private void unregisterQuery() {
         if (unregistered.compareAndSet(false, true))
             runningQryMgr.unregister(qryId, failReason);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void span(Span span) {
+        qrySpan = span;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void onCloseListener(Runnable lsnr) {
+        closeLsnr = lsnr;
     }
 
     /**

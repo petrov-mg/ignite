@@ -22,11 +22,14 @@ import java.util.List;
 import java.util.UUID;
 import org.apache.ignite.internal.GridDirectCollection;
 import org.apache.ignite.internal.IgniteCodeGeneratingFail;
+import org.apache.ignite.internal.processors.tracing.MTC;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageCollectionItemType;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
+
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_DISTR_LOOKUP_RESULT_BYTES;
 
 /**
  * Range response message.
@@ -183,6 +186,8 @@ public class GridH2IndexRangeResponse implements Message {
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
         writer.setBuffer(buf);
 
+        int startPos = buf.position();
+
         if (!writer.isHeaderWritten()) {
             if (!writer.writeHeader(directType(), fieldsCount()))
                 return false;
@@ -239,6 +244,8 @@ public class GridH2IndexRangeResponse implements Message {
 
                 writer.incrementState();
         }
+
+        MTC.span().addTag(SQL_DISTR_LOOKUP_RESULT_BYTES, () -> Integer.toString(buf.position() - startPos));
 
         return true;
     }

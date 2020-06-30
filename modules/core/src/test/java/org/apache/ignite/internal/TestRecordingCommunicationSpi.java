@@ -30,6 +30,9 @@ import org.apache.ignite.IgniteException;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.GridIoMessage;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.NoopSpan;
+import org.apache.ignite.internal.processors.tracing.Tracing;
 import org.apache.ignite.internal.util.typedef.G;
 import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -94,6 +97,8 @@ public class TestRecordingCommunicationSpi extends TcpCommunicationSpi {
             if (c != null)
                 c.apply(node, msg0);
 
+            Tracing finalTracing = tracing;
+
             synchronized (this) {
                 boolean record = (recordClasses != null && recordClasses.contains(msg0.getClass())) ||
                     (recordP != null && recordP.apply(node, msg0));
@@ -118,6 +123,9 @@ public class TestRecordingCommunicationSpi extends TcpCommunicationSpi {
                 if (block) {
                     ignite.log().info("Block message [node=" + node.id() + ", order=" + node.order() +
                         ", msg=" + ioMsg.message() + ']');
+
+                    if (MTC.span() != NoopSpan.INSTANCE)
+                        ioMsg.span(finalTracing.serialize(MTC.span()));
 
                     blockedMsgs.add(new T2<>(node, ioMsg));
 
