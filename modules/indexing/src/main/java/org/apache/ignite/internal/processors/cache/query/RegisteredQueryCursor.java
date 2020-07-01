@@ -41,7 +41,7 @@ import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
  *
  * Running query will be unregistered during close of cursor.
  */
-public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> implements TraceableCursor {
+public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
     /** */
     private final AtomicBoolean unregistered = new AtomicBoolean(false);
 
@@ -58,10 +58,7 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> implements Trac
     private final Tracing tracing;
 
     /** Span which represents query to which current cursor belongs to. */
-    private Span qrySpan = NoopSpan.INSTANCE;
-
-    /** Cursor close listener. */
-    private volatile Runnable closeLsnr;
+    private final Span qrySpan;
 
     /**
      * @param iterExec Query executor.
@@ -80,6 +77,8 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> implements Trac
         this.runningQryMgr = runningQryMgr;
         this.qryId = qryId;
         this.tracing = tracing;
+
+        qrySpan = runningQryMgr.runningQueryInfo(qryId).span();
     }
 
     /** {@inheritDoc} */
@@ -107,11 +106,6 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> implements Trac
             super.close();
 
             unregisterQuery();
-
-            Runnable lsnr = closeLsnr;
-
-            if (lsnr != null)
-                lsnr.run();
         }
         catch (Throwable e) {
             qrySpan.addTag(ERROR, e::getMessage);
@@ -138,14 +132,9 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> implements Trac
             runningQryMgr.unregister(qryId, failReason);
     }
 
-    /** {@inheritDoc} */
-    @Override public void span(Span span) {
+    /** */
+    public void span(Span span) {
         qrySpan = span;
-    }
-
-    /** {@inheritDoc} */
-    @Override public void onCloseListener(Runnable lsnr) {
-        closeLsnr = lsnr;
     }
 
     /**

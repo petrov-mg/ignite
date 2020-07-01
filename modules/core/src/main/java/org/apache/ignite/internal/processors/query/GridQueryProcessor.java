@@ -105,12 +105,6 @@ import org.apache.ignite.internal.processors.query.schema.operation.SchemaAlterT
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaIndexCreateOperation;
 import org.apache.ignite.internal.processors.query.schema.operation.SchemaIndexDropOperation;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutProcessor;
-import org.apache.ignite.internal.processors.tracing.MTC;
-import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
-import org.apache.ignite.internal.processors.tracing.NoopSpan;
-import org.apache.ignite.internal.processors.tracing.Span;
-import org.apache.ignite.internal.processors.tracing.SpanTags;
-import org.apache.ignite.internal.processors.tracing.TraceableCursor;
 import org.apache.ignite.internal.util.GridBoundedConcurrentLinkedHashSet;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
@@ -148,10 +142,6 @@ import static org.apache.ignite.internal.binary.BinaryUtils.fieldTypeName;
 import static org.apache.ignite.internal.binary.BinaryUtils.typeByClass;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.SCHEMA_POOL;
 import static org.apache.ignite.internal.processors.query.schema.SchemaOperationException.CODE_COLUMN_EXISTS;
-import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
-import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
-import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_QRY;
-import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_CURSOR_OPEN;
 
 /**
  * Indexing processor.
@@ -2768,58 +2758,43 @@ public class GridQueryProcessor extends GridProcessorAdapter {
         GridCacheQueryType qryType,
         @Nullable final GridQueryCancel cancel
     ) {
-        Span qrySpan = ctx.tracing().create(SQL_QRY, MTC.span())
-            .addTag(SQL_QRY_TEXT, qry::getSql);
+        // Validate.
+        checkxEnabled();
 
-        try (TraceSurroundings ignored = MTC.support(ctx.tracing().create(SQL_CURSOR_OPEN, qrySpan))) {
-            // Validate.
-            checkxEnabled();
+        if (qry.isDistributedJoins() && qry.getPartitions() != null)
+            throw new CacheException("Using both partitions and distributed JOINs is not supported for the same query");
 
-            if (qry.isDistributedJoins() && qry.getPartitions() != null)
-                throw new CacheException("Using both partitions and distributed JOINs is not supported for the same query");
+        if (qry.isLocal() && ctx.clientNode() && (cctx == null || cctx.config().getCacheMode() != CacheMode.LOCAL))
+            throw new CacheException("Execution of local SqlFieldsQuery on client node disallowed.");
 
-            if (qry.isLocal() && ctx.clientNode() && (cctx == null || cctx.config().getCacheMode() != CacheMode.LOCAL))
-                throw new CacheException("Execution of local SqlFieldsQuery on client node disallowed.");
+        return executeQuerySafe(cctx, () -> {
+            assert idx != null;
 
-            return executeQuerySafe(cctx, () -> {
-                assert idx != null;
+            final String schemaName = getSchemaName(cctx, qry);
 
-                final String schemaName = getSchemaName(cctx, qry);
+            IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>> clo =
+                new IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>>() {
+                    @Override public List<FieldsQueryCursor<List<?>>> applyx() {
+                        GridQueryCancel cancel0 = cancel != null ? cancel : new GridQueryCancel();
 
-                qrySpan.addTag(SpanTags.SQL_QRY_SCHEMA, () -> schemaName);
+                        List<FieldsQueryCursor<List<?>>> res = idx.querySqlFields(
+                            schemaName,
+                            qry,
+                            cliCtx,
+                            keepBinary,
+                            failOnMultipleStmts,
+                            cancel0
+                        );
 
-                IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>> clo =
-                    new IgniteOutClosureX<List<FieldsQueryCursor<List<?>>>>() {
-                        @Override public List<FieldsQueryCursor<List<?>>> applyx() {
-                            GridQueryCancel cancel0 = cancel != null ? cancel : new GridQueryCancel();
+                        if (cctx != null)
+                            sendQueryExecutedEvent(qry.getSql(), qry.getArgs(), cctx, qryType);
 
-                            List<FieldsQueryCursor<List<?>>> res = idx.querySqlFields(
-                                schemaName,
-                                qry,
-                                cliCtx,
-                                keepBinary,
-                                failOnMultipleStmts,
-                                cancel0
-                            );
+                        return res;
+                    }
+                };
 
-                            if (cctx != null)
-                                sendQueryExecutedEvent(qry.getSql(), qry.getArgs(), cctx, qryType);
-
-                            if (qrySpan != NoopSpan.INSTANCE)
-                                passQueryTracingToCursors(qrySpan, res);
-
-                            return res;
-                        }
-                    };
-
-                return executeQuery(qryType, qry.getSql(), cctx, clo, true);
-            });
-        }
-        catch (Throwable e) {
-            qrySpan.addTag(ERROR, e::getMessage).end();
-
-            throw e;
-        }
+            return executeQuery(qryType, qry.getSql(), cctx, clo, true);
+        });
     }
 
     /**
@@ -3604,35 +3579,6 @@ public class GridQueryProcessor extends GridProcessorAdapter {
         long cacheIdShifted = ((long)cacheId << 32);
 
         return (key & cacheIdShifted) == cacheIdShifted;
-    }
-
-    /**
-     * Passes the trace of the current SQL fields query execution to the traceable cursors. Query tracing ends when
-     * all traceable cursors are closed. If there are no traceable cursors, query tracing will immediately end.
-     *
-     * @param cursors Query result cursors.
-     * @param qrySpan Span which is the root trace of an SQL query.
-     */
-    private void passQueryTracingToCursors(Span qrySpan, List<FieldsQueryCursor<List<?>>> cursors) {
-        AtomicInteger openTraceableCursors = new AtomicInteger();
-
-        for (FieldsQueryCursor<List<?>> cursor : cursors) {
-            if (cursor instanceof TraceableCursor) {
-                TraceableCursor traceableCursor = (TraceableCursor)cursor;
-
-                traceableCursor.span(qrySpan);
-
-                openTraceableCursors.incrementAndGet();
-
-                traceableCursor.onCloseListener(() -> {
-                    if (openTraceableCursors.decrementAndGet() == 0)
-                        qrySpan.end();
-                });
-            }
-        }
-
-        if (openTraceableCursors.get() == 0)
-            qrySpan.end();
     }
 
     /**

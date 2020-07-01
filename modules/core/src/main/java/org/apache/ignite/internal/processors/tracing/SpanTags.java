@@ -88,7 +88,7 @@ public class SpanTags {
     public static final String SQL_QRY_TEXT = "sql.query.text";
 
     /** Schema of the sql query. */
-    public static final String SQL_QRY_SCHEMA = "sql.query.schema";
+    public static final String SQL_SCHEMA = "sql.query.schema";
 
     /** Number of rows that current result page contains. */
     public static final String SQL_RESULT_PAGE_ROWS = "sql.result.page.rows";

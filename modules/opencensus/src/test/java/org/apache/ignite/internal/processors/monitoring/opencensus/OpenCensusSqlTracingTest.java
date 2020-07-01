@@ -55,7 +55,7 @@ import static org.apache.ignite.internal.processors.tracing.SpanTags.NODE_ID;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_DISTR_LOOKUP_RESULT_BYTES;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_DISTR_LOOKUP_RESULT_ROWS;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_MAP_RESULT_PAGE_BYTES;
-import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_SCHEMA;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_SCHEMA;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_RESULT_PAGE_ROWS;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.tag;
@@ -492,7 +492,7 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
                 .put(tag(NODE, CONSISTENT_ID), ignite.localNode().consistentId().toString())
                 .put(tag(NODE, NAME), ignite.name())
                 .put(SQL_QRY_TEXT, qry.getSql())
-                .put(SQL_QRY_SCHEMA, DFLT_SCHEMA)
+                .put(SQL_SCHEMA, DFLT_SCHEMA)
                 .build()
         ).get(0);
     }
