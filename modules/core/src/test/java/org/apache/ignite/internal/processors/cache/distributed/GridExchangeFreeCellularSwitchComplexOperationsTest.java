@@ -324,7 +324,7 @@ public class GridExchangeFreeCellularSwitchComplexOperationsTest extends GridExc
             TestRecordingCommunicationSpi spi =
                 (TestRecordingCommunicationSpi)ignite.configuration().getCommunicationSpi();
 
-            spi.stopBlock(true, (t) -> true);
+            spi.stopBlock(true, msgInfo -> true);
         }
 
         commitLatch.countDown();
