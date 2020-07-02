@@ -171,7 +171,7 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
         String table = createTableAndPopulate(Person.class, PARTITIONED, DFLT_SCHEMA, 1);
 
         SpanId rootSpan = executeAndCheckRootSpan(
-            new SqlFieldsQueryEx("UPDATE " + table + " SET name=19229 WHERE id < ?;", false)
+            new SqlFieldsQueryEx("UPDATE " + table + " SET name=19229 WHERE id < ?", false)
                 .setSkipReducerOnUpdate(true)
                 .setArgs(CACHE_ENTRIES_CNT),
             startClientGrid(GRID_CNT));

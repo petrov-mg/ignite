@@ -144,8 +144,6 @@ public class QueryParser {
 
             checkQueryType(qry, res.isSelect());
 
-            MTC.span().addTag(SQL_QRY_TEXT, () -> res.queryDescriptor().sql());
-
             return res;
         }
     }

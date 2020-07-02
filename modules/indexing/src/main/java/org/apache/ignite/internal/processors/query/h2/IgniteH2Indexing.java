@@ -1091,12 +1091,13 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
             while (remainingQry != null) {
                 Span qrySpan = ctx.tracing().create(SQL_QRY, MTC.span())
-                    .addTag(SQL_QRY_TEXT, qry::getSql)
                     .addTag(SQL_SCHEMA, () -> schemaName);
 
                 try (TraceSurroundings ignored = MTC.supportContinual(qrySpan)) {
                     // Parse.
                     QueryParserResult parseRes = parser.parse(schemaName, remainingQry, !failOnMultipleStmts);
+
+                    qrySpan.addTag(SQL_QRY_TEXT, () -> parseRes.queryDescriptor().sql());
 
                     remainingQry = parseRes.remainingQuery();
 
