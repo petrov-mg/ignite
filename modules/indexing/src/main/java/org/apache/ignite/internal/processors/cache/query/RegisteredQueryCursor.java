@@ -25,6 +25,15 @@ import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.query.GridQueryCancel;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.RunningQueryManager;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
+import org.apache.ignite.internal.processors.tracing.Span;
+import org.apache.ignite.internal.processors.tracing.TraceableIterator;
+import org.apache.ignite.internal.processors.tracing.Tracing;
+
+import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_CURSOR_CANCEL;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_CURSOR_CLOSE;
 
 /**
  * Query cursor for registered as running queries.
@@ -44,6 +53,12 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
     /** Exception caused query failed or {@code null} if it succeded. */
     private Exception failReason;
 
+    /** Tracing. */
+    private final Tracing tracing;
+
+    /** Trace of query to which current cursor belongs to. */
+    private final Span qrySpan;
+
     /**
      * @param iterExec Query executor.
      * @param cancel Cancellation closure.
@@ -52,7 +67,7 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
      * @param qryId Registered running query id.
      */
     public RegisteredQueryCursor(Iterable<T> iterExec, GridQueryCancel cancel, RunningQueryManager runningQryMgr,
-        boolean lazy, Long qryId) {
+        boolean lazy, Long qryId, Tracing tracing) {
         super(iterExec, cancel, true, lazy);
 
         assert runningQryMgr != null;
@@ -60,18 +75,21 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
 
         this.runningQryMgr = runningQryMgr;
         this.qryId = qryId;
+        this.tracing = tracing;
+        this.qrySpan = runningQryMgr.runningQueryInfo(qryId).span();
     }
 
     /** {@inheritDoc} */
     @Override protected Iterator<T> iter() {
-        try {
-            if (lazy())
-                return new RegisteredIterator(super.iter());
-            else
-                return super.iter();
+        try (TraceSurroundings ignored = MTC.supportContinual(qrySpan)) {
+            Iterator<T> iter = lazy() ? new RegisteredIterator(super.iter()) : super.iter();
+
+            return new TraceableIterator<>(iter, qrySpan);
         }
         catch (Exception e) {
             failReason = e;
+
+            qrySpan.addTag(ERROR, e::getMessage);
 
             if (QueryUtils.wasCancelled(failReason))
                 unregisterQuery();
@@ -82,19 +100,34 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
 
     /** {@inheritDoc} */
     @Override public void close() {
-        super.close();
+        try (
+            TraceSurroundings ignored = MTC.support(tracing.create(
+                SQL_CURSOR_CLOSE,
+                MTC.span().type() == SQL_CURSOR_CANCEL ? MTC.span() : qrySpan))
+        ) {
+            super.close();
 
-        unregisterQuery();
+            unregisterQuery();
+        }
+        catch (Throwable e) {
+            qrySpan.addTag(ERROR, e::getMessage);
+
+            throw e;
+        }
     }
 
     /**
      * Cancels query.
      */
     public void cancel() {
-        if (failReason == null)
-            failReason = new QueryCancelledException();
+        try (TraceSurroundings ignored = MTC.support(tracing.create(SQL_CURSOR_CANCEL, qrySpan))) {
+            if (failReason == null)
+                failReason = new QueryCancelledException();
 
-        close();
+            qrySpan.addTag(ERROR, failReason::getMessage);
+
+            close();
+        }
     }
 
     /**

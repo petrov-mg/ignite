@@ -159,7 +159,79 @@ public enum SpanType {
     TX_NEAR_PREPARE_RESP(Scope.TX, "tx.near.process.prepare.response", 44),
 
     /** Custom job call. */
-    CUSTOM_JOB_CALL(Scope.COMMUNICATION, "job.call", 45, true);
+    CUSTOM_JOB_CALL(Scope.COMMUNICATION, "job.call", 45, true),
+
+    /** The overall execution of the SQL query. */
+    SQL_QRY(Scope.SQL, "sql.query", 46, true),
+
+    /** Opening the SQL query cursor. */
+    SQL_CURSOR_OPEN(Scope.SQL, "sql.cursor.open", 47, false),
+
+    /** Closing the SQL query cursor. */
+    SQL_CURSOR_CLOSE(Scope.SQL, "sql.cursor.close", 48, false),
+
+    /** Cancellation of the SQL query cursor. */
+    SQL_CURSOR_CANCEL(Scope.SQL, "sql.cursor.cancel", 49, false),
+
+    /** Parsing the SQL query. */
+    SQL_QRY_PARSE(Scope.SQL, "sql.query.parse", 50, false),
+
+    /** Execution the SQL query request on a node. */
+    SQL_QRY_EXEC_REQ(Scope.SQL, "sql.query.execute.request", 51, false),
+
+    /** Processing the SQL next result page request. */
+    SQL_NEXT_PAGE_REQ(Scope.SQL, "sql.next.page.request", 52, false),
+
+    /** Processing of the response with requested SQL result page. */
+    SQL_PAGE_RESP(Scope.SQL, "sql.page.response", 53, false),
+
+    /** Execution of the SQL query. */
+    SQL_QRY_EXECUTE(Scope.SQL, "sql.query.execute", 54, false),
+
+    /** Reading rows from the cursor and preparing the result page. */
+    SQL_PAGE_PREPARE(Scope.SQL, "sql.page.prepare", 55, false),
+
+    /** Processing the SQL query fail response. */
+    SQL_FAIL(Scope.SQL, "sql.fail.response", 56, false),
+
+    /** Processing the DML query request. */
+    SQL_DML_QRY_EXEC_REQ(Scope.SQL, "sql.dml.query.execute.request", 57, false),
+
+    /** Processing the DML query response. */
+    SQL_DML_QRY_RESP(Scope.SQL, "sql.dml.query.response", 58, false),
+
+    /** Processing the query cancellation request. */
+    SQL_QRY_CANCEL_REQ(Scope.SQL, "sql.query.cancel.request", 59, false),
+
+    /** Opening the cursor iterator. */
+    SQL_ITER_OPEN(Scope.SQL, "sql.iterator.open", 60, false),
+
+    /** Opening the cursor iterator. */
+    SQL_ITER_CLOSE(Scope.SQL, "sql.iterator.close", 61, false),
+
+    /** Fetching SQL query result page. */
+    SQL_PAGE_FETCH(Scope.SQL, "sql.page.fetch", 62, false),
+
+    /** Waiting for the SQL query results page to be received. */
+    SQL_PAGE_WAIT(Scope.SQL, "sql.page.wait", 63, false),
+
+    /** Processing the SQL index range request. */
+    SQL_IDX_RANGE_REQ(Scope.SQL, "sql.index.range.request", 64, false),
+
+    /** Processing the SQL index range response. */
+    SQL_IDX_RANGE_RESP(Scope.SQL, "sql.index.range.response", 65, false),
+
+    /** Execution of the SQL DML query. */
+    SQL_DML_QRY_EXECUTE(Scope.SQL, "sql.dml.query.execute", 66, false),
+
+    /** Execution of the SQL command query which ither DDL SQL queries or Ignite native SQL commands. */
+    SQL_COMMAND_QRY_EXECUTE(Scope.SQL, "sql.command.query.execute", 67, false),
+
+    /** SQL query partitions reservation. */
+    SQL_PARTITIONS_RESERVE(Scope.SQL, "sql.partitions.reserve", 68, false),
+
+    /** Update of the cache as a result of the SQL DML query. */
+    SQL_CACHE_UPDATE(Scope.SQL, "sql.cache.update", 69, false);
 
     /** Scope */
     private Scope scope;

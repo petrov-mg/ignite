@@ -355,8 +355,8 @@ public class GridExchangeFreeCellularSwitchIsolationTest extends GridExchangeFre
             TestRecordingCommunicationSpi spi =
                 (TestRecordingCommunicationSpi)ignite.configuration().getCommunicationSpi();
 
-            spi.stopBlock(true, t -> {
-                Message msg = t.get2().message();
+            spi.stopBlock(true, msgInfo -> {
+                Message msg = msgInfo.message().message();
 
                 return ((GridCacheTxRecoveryRequest)msg).nearXidVersion().equals(replTxVer.get());
             });
@@ -400,7 +400,7 @@ public class GridExchangeFreeCellularSwitchIsolationTest extends GridExchangeFre
             TestRecordingCommunicationSpi spi =
                 (TestRecordingCommunicationSpi)ignite.configuration().getCommunicationSpi();
 
-            spi.stopBlock(true, (t) -> true);
+            spi.stopBlock(true, msgInfo -> true);
         }
 
         partCommitLatch.countDown();
