@@ -165,73 +165,73 @@ public enum SpanType {
     SQL_QRY(Scope.SQL, "sql.query", 46, true),
 
     /** Opening the SQL query cursor. */
-    SQL_CURSOR_OPEN(Scope.SQL, "sql.cursor.open", 47, false),
+    SQL_CURSOR_OPEN(Scope.SQL, "sql.cursor.open", 47),
 
     /** Closing the SQL query cursor. */
-    SQL_CURSOR_CLOSE(Scope.SQL, "sql.cursor.close", 48, false),
+    SQL_CURSOR_CLOSE(Scope.SQL, "sql.cursor.close", 48),
 
     /** Cancellation of the SQL query cursor. */
-    SQL_CURSOR_CANCEL(Scope.SQL, "sql.cursor.cancel", 49, false),
+    SQL_CURSOR_CANCEL(Scope.SQL, "sql.cursor.cancel", 49),
 
     /** Parsing the SQL query. */
-    SQL_QRY_PARSE(Scope.SQL, "sql.query.parse", 50, false),
+    SQL_QRY_PARSE(Scope.SQL, "sql.query.parse", 50),
 
     /** Execution the SQL query request on a node. */
-    SQL_QRY_EXEC_REQ(Scope.SQL, "sql.query.execute.request", 51, false),
+    SQL_QRY_EXEC_REQ(Scope.SQL, "sql.query.execute.request", 51),
 
     /** Processing the SQL next result page request. */
-    SQL_NEXT_PAGE_REQ(Scope.SQL, "sql.next.page.request", 52, false),
+    SQL_NEXT_PAGE_REQ(Scope.SQL, "sql.next.page.request", 52),
 
     /** Processing of the response with requested SQL result page. */
-    SQL_PAGE_RESP(Scope.SQL, "sql.page.response", 53, false),
+    SQL_PAGE_RESP(Scope.SQL, "sql.page.response", 53),
 
     /** Execution of the SQL query. */
-    SQL_QRY_EXECUTE(Scope.SQL, "sql.query.execute", 54, false),
+    SQL_QRY_EXECUTE(Scope.SQL, "sql.query.execute", 54),
 
     /** Reading rows from the cursor and preparing the result page. */
-    SQL_PAGE_PREPARE(Scope.SQL, "sql.page.prepare", 55, false),
+    SQL_PAGE_PREPARE(Scope.SQL, "sql.page.prepare", 55),
 
     /** Processing the SQL query fail response. */
-    SQL_FAIL(Scope.SQL, "sql.fail.response", 56, false),
+    SQL_FAIL(Scope.SQL, "sql.fail.response", 56),
 
     /** Processing the DML query request. */
-    SQL_DML_QRY_EXEC_REQ(Scope.SQL, "sql.dml.query.execute.request", 57, false),
+    SQL_DML_QRY_EXEC_REQ(Scope.SQL, "sql.dml.query.execute.request", 57),
 
     /** Processing the DML query response. */
-    SQL_DML_QRY_RESP(Scope.SQL, "sql.dml.query.response", 58, false),
+    SQL_DML_QRY_RESP(Scope.SQL, "sql.dml.query.response", 58),
 
     /** Processing the query cancellation request. */
-    SQL_QRY_CANCEL_REQ(Scope.SQL, "sql.query.cancel.request", 59, false),
+    SQL_QRY_CANCEL_REQ(Scope.SQL, "sql.query.cancel.request", 59),
 
     /** Opening the cursor iterator. */
-    SQL_ITER_OPEN(Scope.SQL, "sql.iterator.open", 60, false),
+    SQL_ITER_OPEN(Scope.SQL, "sql.iterator.open", 60),
 
     /** Opening the cursor iterator. */
-    SQL_ITER_CLOSE(Scope.SQL, "sql.iterator.close", 61, false),
+    SQL_ITER_CLOSE(Scope.SQL, "sql.iterator.close", 61),
 
     /** Fetching SQL query result page. */
-    SQL_PAGE_FETCH(Scope.SQL, "sql.page.fetch", 62, false),
+    SQL_PAGE_FETCH(Scope.SQL, "sql.page.fetch", 62),
 
     /** Waiting for the SQL query results page to be received. */
-    SQL_PAGE_WAIT(Scope.SQL, "sql.page.wait", 63, false),
+    SQL_PAGE_WAIT(Scope.SQL, "sql.page.wait", 63),
 
     /** Processing the SQL index range request. */
-    SQL_IDX_RANGE_REQ(Scope.SQL, "sql.index.range.request", 64, false),
+    SQL_IDX_RANGE_REQ(Scope.SQL, "sql.index.range.request", 64),
 
     /** Processing the SQL index range response. */
-    SQL_IDX_RANGE_RESP(Scope.SQL, "sql.index.range.response", 65, false),
+    SQL_IDX_RANGE_RESP(Scope.SQL, "sql.index.range.response", 65),
 
     /** Execution of the SQL DML query. */
-    SQL_DML_QRY_EXECUTE(Scope.SQL, "sql.dml.query.execute", 66, false),
+    SQL_DML_QRY_EXECUTE(Scope.SQL, "sql.dml.query.execute", 66),
 
     /** Execution of the SQL command query which ither DDL SQL queries or Ignite native SQL commands. */
-    SQL_COMMAND_QRY_EXECUTE(Scope.SQL, "sql.command.query.execute", 67, false),
+    SQL_COMMAND_QRY_EXECUTE(Scope.SQL, "sql.command.query.execute", 67),
 
     /** SQL query partitions reservation. */
-    SQL_PARTITIONS_RESERVE(Scope.SQL, "sql.partitions.reserve", 68, false),
+    SQL_PARTITIONS_RESERVE(Scope.SQL, "sql.partitions.reserve", 68),
 
     /** Update of the cache as a result of the SQL DML query. */
-    SQL_CACHE_UPDATE(Scope.SQL, "sql.cache.update", 69, false);
+    SQL_CACHE_UPDATE(Scope.SQL, "sql.cache.update", 69);
 
     /** Scope */
     private Scope scope;

@@ -21,7 +21,11 @@ import java.util.List;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.IgniteIllegalStateException;
+import org.apache.ignite.internal.processors.query.GridRunningQueryInfo;
 import org.apache.ignite.internal.processors.query.RunningQueryManager;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.NoopSpan;
+import org.apache.ignite.internal.processors.tracing.Span;
 import org.apache.ignite.internal.util.lang.IgniteClosureX;
 import org.apache.ignite.lang.IgniteBiTuple;
 
@@ -54,6 +58,9 @@ public class BulkLoadProcessor implements AutoCloseable {
     /** Exception, current load process ended with, or {@code null} if in progress or if succeded. */
     private Exception failReason;
 
+    /** Trace of query to which current processor belongs to. */
+    private final Span qrySpan;
+
     /**
      * Creates bulk load processor.
      *
@@ -71,6 +78,11 @@ public class BulkLoadProcessor implements AutoCloseable {
         this.outputStreamer = outputStreamer;
         this.runningQryMgr = runningQryMgr;
         this.qryId = qryId;
+
+        GridRunningQueryInfo qryInfo = runningQryMgr.runningQueryInfo(qryId);
+
+        qrySpan = qryInfo == null ? NoopSpan.INSTANCE : qryInfo.span();
+
         isClosed = false;
     }
 
@@ -91,15 +103,17 @@ public class BulkLoadProcessor implements AutoCloseable {
      * @throws IgniteIllegalStateException when called after {@link #close()}.
      */
     public void processBatch(byte[] batchData, boolean isLastBatch) throws IgniteCheckedException {
-        if (isClosed)
-            throw new IgniteIllegalStateException("Attempt to process a batch on a closed BulkLoadProcessor");
+        try (MTC.TraceSurroundings ignored = MTC.supportContinual(qrySpan)) {
+            if (isClosed)
+                throw new IgniteIllegalStateException("Attempt to process a batch on a closed BulkLoadProcessor");
 
-        Iterable<List<Object>> inputRecords = inputParser.parseBatch(batchData, isLastBatch);
+            Iterable<List<Object>> inputRecords = inputParser.parseBatch(batchData, isLastBatch);
 
-        for (List<Object> record : inputRecords) {
-            IgniteBiTuple<?, ?> kv = dataConverter.apply(record);
+            for (List<Object> record : inputRecords) {
+                IgniteBiTuple<?, ?> kv = dataConverter.apply(record);
 
-            outputStreamer.apply(kv);
+                outputStreamer.apply(kv);
+            }
         }
     }
 
@@ -120,7 +134,7 @@ public class BulkLoadProcessor implements AutoCloseable {
         if (isClosed)
             return;
 
-        try {
+        try (MTC.TraceSurroundings ignored = MTC.supportContinual(qrySpan)) {
             isClosed = true;
 
             outputStreamer.close();

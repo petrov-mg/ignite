@@ -23,10 +23,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.cache.query.QueryCancelledException;
 import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.query.GridQueryCancel;
+import org.apache.ignite.internal.processors.query.GridRunningQueryInfo;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.RunningQueryManager;
 import org.apache.ignite.internal.processors.tracing.MTC;
 import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
+import org.apache.ignite.internal.processors.tracing.NoopSpan;
 import org.apache.ignite.internal.processors.tracing.Span;
 import org.apache.ignite.internal.processors.tracing.TraceableIterator;
 import org.apache.ignite.internal.processors.tracing.Tracing;
@@ -76,7 +78,10 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
         this.runningQryMgr = runningQryMgr;
         this.qryId = qryId;
         this.tracing = tracing;
-        this.qrySpan = runningQryMgr.runningQueryInfo(qryId).span();
+
+        GridRunningQueryInfo qryInfo = runningQryMgr.runningQueryInfo(qryId);
+
+        qrySpan = qryInfo == null ? NoopSpan.INSTANCE : qryInfo.span();
     }
 
     /** {@inheritDoc} */

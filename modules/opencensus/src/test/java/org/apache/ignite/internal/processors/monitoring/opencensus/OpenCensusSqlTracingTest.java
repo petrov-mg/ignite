@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.monitoring.opencensus;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.opencensus.trace.SpanId;
+import io.opencensus.trace.Tracing;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,6 +39,7 @@ import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.internal.processors.cache.query.SqlFieldsQueryEx;
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryNextPageRequest;
 import org.apache.ignite.internal.processors.tracing.SpanType;
+import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.tracing.TracingConfigurationCoordinates;
 import org.apache.ignite.spi.tracing.TracingConfigurationParameters;
 import org.apache.ignite.spi.tracing.TracingSpi;
@@ -97,10 +99,10 @@ import static org.apache.ignite.spi.tracing.TracingConfigurationParameters.SAMPL
  */
 public class OpenCensusSqlTracingTest extends AbstractTracingTest {
     /** Number of entries in all test caches. */
-    private static final int CACHE_ENTRIES_CNT = 50;
+    private static final int CACHE_ENTRIES_CNT = 100;
 
     /** Page size for all queries. */
-    private static final int PAGE_SIZE = 10;
+    private static final int PAGE_SIZE = 20;
 
     /** Key counter. */
     private final AtomicInteger keyCntr = new AtomicInteger();
@@ -138,8 +140,7 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
         String table = createTableAndPopulate(Organization.class, REPLICATED, schema, 1);
 
         SpanId rootSpan = executeAndCheckRootSpan(
-            new SqlFieldsQuery("SELECT addr FROM " + table + " WHERE id < ?")
-                .setArgs(CACHE_ENTRIES_CNT)
+            new SqlFieldsQuery("SELECT addr FROM " + table)
                 .setSchema(schema),
             ignite(GRID_CNT - 1));
 
@@ -162,7 +163,7 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
     }
 
     /**
-     * Tests tracing of update query with skuipped reducer.
+     * Tests tracing of update query with skipped reducer.
      *
      * @throws Exception If failed.
      */
@@ -171,9 +172,8 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
         String table = createTableAndPopulate(Person.class, PARTITIONED, DFLT_SCHEMA, 1);
 
         SpanId rootSpan = executeAndCheckRootSpan(
-            new SqlFieldsQueryEx("UPDATE " + table + " SET name=19229 WHERE id < ?", false)
-                .setSkipReducerOnUpdate(true)
-                .setArgs(CACHE_ENTRIES_CNT),
+            new SqlFieldsQueryEx("UPDATE " + table + " SET name=19229", false)
+                .setSkipReducerOnUpdate(true),
             startClientGrid(GRID_CNT));
 
         checkSpan(SQL_QRY_PARSE, rootSpan);
@@ -222,8 +222,76 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
     }
 
     /**
+     * Tests tracing of merge query.
+     *
+     * @throws Exception If failed.
+     */
+    @Test
+    public void testMerge() throws Exception {
+        String table = createTableAndPopulate(Person.class, PARTITIONED, DFLT_SCHEMA, 1);
+
+        checkDml("MERGE INTO " + table + "(_key, name) SELECT _key, 0 FROM " + table);
+    }
+
+    /**
+     * Tests tracing of update query.
+     *
+     * @throws Exception If failed.
+     */
+    @Test
+    public void testUpdate() throws Exception {
+        String table = createTableAndPopulate(Person.class, PARTITIONED, DFLT_SCHEMA, 1);
+
+        checkDml("UPDATE " + table + " SET name=19229");
+    }
+
+    /**
+     * Tests tracing of delete query.
+     *
+     * @throws Exception If failed.
+     */
+    @Test
+    public void testDelete() throws Exception {
+        String table = createTableAndPopulate(Person.class, PARTITIONED, DFLT_SCHEMA, 1);
+
+        checkDml("DELETE FROM " + table + " WHERE id >= 0");
+    }
+
+    /**
+     * Tests tracing of insert query.
+     *
+     * @throws Exception If failed.
+     */
+    @Test
+    public void testInsert() throws Exception {
+        grid(0).createCache(
+            new CacheConfiguration<Integer, Object>("test-cache")
+                .setIndexedTypes(Integer.class, Person.class)
+                .setSqlSchema(DFLT_SCHEMA)
+        );
+
+        String table =  DFLT_SCHEMA + '.' + Person.class.getSimpleName();
+
+        SpanId rootSpan = executeAndCheckRootSpan(
+            new SqlFieldsQuery("INSERT INTO " + table + "(_key, id, name) VALUES(0, 0, 0), (1, 1, 1)"),
+            startClientGrid(GRID_CNT));
+
+        checkSpan(SQL_QRY_PARSE, rootSpan);
+
+        SpanId dmlExecSpan = checkSpan(SQL_DML_QRY_EXECUTE, rootSpan);
+
+        int cacheUpdates = 0;
+
+        cacheUpdates += findSpans(SQL_CACHE_UPDATE, dmlExecSpan).stream()
+            .mapToInt(span -> integerAttribute(span, SQL_CACHE_UPDATES))
+            .sum();
+
+        assertEquals(2, cacheUpdates);
+    }
+
+    /**
      * Tests tracing of distributed join query which includes all communications between reducer and mapped nodes and
-     * distributed lookups.
+     * index range requests during execution.
      *
      * @throws Exception If failed.
      */
@@ -371,6 +439,8 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
 
         handler().flush();
 
+        checkDroppedSpans();
+
         SpanId rootSpan = checkSpan(SQL_QRY, null);
 
         SpanId cursorCancelSpan = checkSpan(SQL_CURSOR_CANCEL, rootSpan);
@@ -442,7 +512,35 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
     }
 
     /**
-     * Checks that a span of the specified type exists and has a socket write child span with specified attribute.
+     * Executes DML query and checks tracing.
+     */
+    private void checkDml(String qry) throws Exception {
+        SpanId rootSpan = executeAndCheckRootSpan(new SqlFieldsQuery(qry), startClientGrid(GRID_CNT));
+
+        checkSpan(SQL_QRY_PARSE, rootSpan);
+
+        SpanId dmlExecSpan = checkSpan(SQL_DML_QRY_EXECUTE, rootSpan);
+
+        checkSpan(SQL_ITER_OPEN, dmlExecSpan);
+
+        int fetchedRows = 0;
+
+        int cacheUpdates = 0;
+
+        fetchedRows += findSpans(SQL_PAGE_FETCH, null).stream()
+            .mapToInt(span -> integerAttribute(span, SQL_PAGE_ROWS))
+            .sum();
+
+        cacheUpdates += findSpans(SQL_CACHE_UPDATE, dmlExecSpan).stream()
+            .mapToInt(span -> integerAttribute(span, SQL_CACHE_UPDATES))
+            .sum();
+
+        assertEquals(CACHE_ENTRIES_CNT, fetchedRows);
+        assertEquals(CACHE_ENTRIES_CNT, cacheUpdates);
+    }
+
+    /**
+     * Checks that all spans of the specified type have a socket write child span with specified attribute.
      *
      * @param type Type of the span.
      * @param attr Attribute to check.
@@ -517,6 +615,8 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
 
         handler().flush();
 
+        checkDroppedSpans();
+
         return checkSpan(
             SQL_QRY,
             null,
@@ -547,6 +647,16 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
             cache.put(keyCntr.getAndIncrement(), cls == Organization.class ? new Organization(i, i) : new Person(i, i));
 
         return schema + '.' + cls.getSimpleName();
+    }
+
+    /** */
+    private void checkDroppedSpans() {
+        Object worker = U.field(Tracing.getExportComponent().getSpanExporter(), "worker");
+
+        long droppedSpans = U.field(worker, "droppedSpans");
+
+        assertEquals("Some traces were dropped by OpencenCensus due to exporter buffer overflow.",
+            0, droppedSpans);
     }
 
     /** */
