@@ -30,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
 @IgniteExperimental
 public interface TracingConfigurationManager {
     /** Default SQL tracing configuration. */
-    public static final TracingConfigurationParameters DEFAULT_SQL_CONFIGURATION =
+    static final TracingConfigurationParameters DEFAULT_SQL_CONFIGURATION =
         new TracingConfigurationParameters.Builder().
             withSamplingRate(0d).
             withIncludedScopes(Collections.emptySet()).

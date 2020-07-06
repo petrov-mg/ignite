@@ -413,7 +413,7 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
      */
     @Test
     @SuppressWarnings("Convert2MethodRef")
-    public void testQueryRequestFailure() throws Exception {
+    public void testNextPageRequestFailure() throws Exception {
         String table = createTableAndPopulate(Person.class, PARTITIONED, DFLT_SCHEMA, 1);
 
         IgniteEx cli = startClientGrid(GRID_CNT);
@@ -649,13 +649,15 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
         return schema + '.' + cls.getSimpleName();
     }
 
-    /** */
+    /**
+     * Checks that no spans were dropped by OpencenCensus due to exporter buffer overflow.
+     */
     private void checkDroppedSpans() {
         Object worker = U.field(Tracing.getExportComponent().getSpanExporter(), "worker");
 
         long droppedSpans = U.field(worker, "droppedSpans");
 
-        assertEquals("Some traces were dropped by OpencenCensus due to exporter buffer overflow.",
+        assertEquals("Some spans were dropped by OpencenCensus due to exporter buffer overflow.",
             0, droppedSpans);
     }
 
