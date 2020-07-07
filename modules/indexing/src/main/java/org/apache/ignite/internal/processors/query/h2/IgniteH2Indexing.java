@@ -215,7 +215,7 @@ import static org.apache.ignite.internal.processors.query.h2.H2Utils.zeroCursor;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.ERROR;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_SCHEMA;
-import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_COMMAND_QRY_EXECUTE;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_CMD_QRY_EXECUTE;
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_CURSOR_OPEN;
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_DML_QRY_EXECUTE;
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_ITER_OPEN;
@@ -930,9 +930,10 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         enableDataPageScan(dataPageScanEnabled);
 
-        try (TraceSurroundings ignored = MTC.support(ctx.tracing()
-            .create(SQL_QRY_EXECUTE, MTC.span())
-            .addTag(SQL_QRY_TEXT, () -> sql))
+        try (
+            TraceSurroundings ignored = MTC.support(ctx.tracing()
+                .create(SQL_QRY_EXECUTE, MTC.span())
+                .addTag(SQL_QRY_TEXT, () -> sql))
         ) {
             ResultSet rs = executeSqlQuery(conn, stmt, timeoutMillis, cancel);
 
@@ -1028,7 +1029,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
         Exception failReason = null;
 
-        try (TraceSurroundings ignored = MTC.support(ctx.tracing().create(SQL_COMMAND_QRY_EXECUTE, MTC.span()))) {
+        try (TraceSurroundings ignored = MTC.support(ctx.tracing().create(SQL_CMD_QRY_EXECUTE, MTC.span()))) {
             res = cmdProc.runCommand(qryDesc.sql(), cmdNative, cmdH2, qryParams, cliCtx, qryId);
 
             return res.cursor();

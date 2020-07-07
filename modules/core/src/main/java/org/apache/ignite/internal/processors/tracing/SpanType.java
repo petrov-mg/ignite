@@ -225,13 +225,16 @@ public enum SpanType {
     SQL_DML_QRY_EXECUTE(Scope.SQL, "sql.dml.query.execute", 66),
 
     /** Execution of the SQL command query which ither DDL SQL queries or Ignite native SQL commands. */
-    SQL_COMMAND_QRY_EXECUTE(Scope.SQL, "sql.command.query.execute", 67),
+    SQL_CMD_QRY_EXECUTE(Scope.SQL, "sql.command.query.execute", 67),
 
     /** SQL query partitions reservation. */
     SQL_PARTITIONS_RESERVE(Scope.SQL, "sql.partitions.reserve", 68),
 
     /** Update of the cache as a result of the SQL DML query. */
-    SQL_CACHE_UPDATE(Scope.SQL, "sql.cache.update", 69);
+    SQL_CACHE_UPDATE(Scope.SQL, "sql.cache.update", 69),
+
+    /** Proceccing of incoming batch. */
+    SQL_BATCH_PROCESS(Scope.SQL, "sql.batch.process", 70);
 
     /** Scope */
     private Scope scope;

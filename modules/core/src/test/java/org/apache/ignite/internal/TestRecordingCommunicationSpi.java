@@ -353,14 +353,10 @@ public class TestRecordingCommunicationSpi extends TcpCommunicationSpi {
                     continue;
 
                 if (sndMsgs) {
-                    try {
-                        ignite.log().info("Send blocked message [node=" + msgInfo.destinationNode().id() +
-                            ", order=" + msgInfo.destinationNode().order() +
-                            ", msg=" + msgInfo.message().message() + ']');
+                    try (TraceSurroundings ignored = MTC.supportContinual(msgInfo.span())) {
+                        ignite.log().info("Send blocked message " + msgInfo);
 
-                        try (TraceSurroundings ignored = MTC.supportContinual(msgInfo.span())) {
-                            super.sendMessage(msgInfo.destinationNode(), msgInfo.message());
-                        }
+                        super.sendMessage(msgInfo.destinationNode(), msgInfo.message());
                     }
                     catch (Throwable e) {
                         U.error(ignite.log(), "Failed to send blocked message: " + msgInfo, e);
@@ -422,6 +418,11 @@ public class TestRecordingCommunicationSpi extends TcpCommunicationSpi {
          */
         public Span span() {
             return span;
+        }
+
+        /** {@inheritDoc} */
+        @Override public String toString() {
+            return "[node=" + destNode.id() + ", order=" + destNode.order() + ", msg=" + msg.message() + ']';
         }
     }
 }

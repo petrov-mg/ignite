@@ -108,7 +108,7 @@ public class RegisteredQueryCursor<T> extends QueryCursorImpl<T> {
         try (
             TraceSurroundings ignored = MTC.support(tracing.create(
                 SQL_CURSOR_CLOSE,
-                MTC.span().type() == SQL_CURSOR_CANCEL ? MTC.span() : qrySpan))
+                MTC.span() != NoopSpan.INSTANCE ? MTC.span() : qrySpan))
         ) {
             super.close();
 

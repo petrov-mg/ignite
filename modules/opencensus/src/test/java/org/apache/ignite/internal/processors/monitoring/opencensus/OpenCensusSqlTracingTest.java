@@ -21,8 +21,11 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.opencensus.trace.SpanId;
 import io.opencensus.trace.Tracing;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.ignite.IgniteCache;
@@ -31,6 +34,7 @@ import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
 import org.apache.ignite.cache.query.annotations.QuerySqlField;
+import org.apache.ignite.client.Config;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
@@ -48,6 +52,7 @@ import org.apache.ignite.testframework.GridTestUtils;
 import org.junit.Test;
 
 import static java.lang.Integer.parseInt;
+import static java.sql.DriverManager.getConnection;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
 import static org.apache.ignite.internal.TestRecordingCommunicationSpi.spi;
@@ -66,8 +71,9 @@ import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEX
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_SCHEMA;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.tag;
 import static org.apache.ignite.internal.processors.tracing.SpanType.COMMUNICATION_SOCKET_WRITE;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_BATCH_PROCESS;
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_CACHE_UPDATE;
-import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_COMMAND_QRY_EXECUTE;
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_CMD_QRY_EXECUTE;
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_CURSOR_CANCEL;
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_CURSOR_CLOSE;
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_CURSOR_OPEN;
@@ -90,6 +96,7 @@ import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_QRY_CAN
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_QRY_EXECUTE;
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_QRY_EXEC_REQ;
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_QRY_PARSE;
+import static org.apache.ignite.internal.util.IgniteUtils.resolveIgnitePath;
 import static org.apache.ignite.spi.tracing.Scope.COMMUNICATION;
 import static org.apache.ignite.spi.tracing.Scope.SQL;
 import static org.apache.ignite.spi.tracing.TracingConfigurationParameters.SAMPLING_RATE_ALWAYS;
@@ -103,6 +110,16 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
 
     /** Page size for all queries. */
     private static final int PAGE_SIZE = 20;
+
+    /** JDBC URL prefix. */
+    private static final String JDBC_URL_PREFIX = "jdbc:ignite:thin://";
+
+    /** CSV file for bulk-load testing. */
+    private static final String BULKLOAD_CSV_FILE = Objects.requireNonNull(resolveIgnitePath(
+        "/modules/clients/src/test/resources/bulkload2.csv")).getAbsolutePath();
+
+    /** Number of bulk-load entries. */
+    private static final int BULKLOAD_ENTRIES = 2;
 
     /** Key counter. */
     private final AtomicInteger keyCntr = new AtomicInteger();
@@ -508,7 +525,63 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
             startClientGrid(GRID_CNT));
 
         checkSpan(SQL_QRY_PARSE, rootSpan);
-        checkSpan(SQL_COMMAND_QRY_EXECUTE, rootSpan);
+        checkSpan(SQL_CMD_QRY_EXECUTE, rootSpan);
+    }
+
+    /**
+     * Test SQL bulk load query tracing.
+     */
+    @Test
+    public void testCopy() throws Exception {
+        String table = "test_table";
+
+        executeJdbc(
+            "CREATE TABLE " + table + "(id LONG PRIMARY KEY, first_name VARCHAR, last_name VARCHAR, age LONG)");
+
+        handler().flush();
+
+        handler().clearCollectedSpans();
+
+        String sql = "COPY FROM '" + BULKLOAD_CSV_FILE + "' INTO " + table +
+            "(id, age, first_name, last_name) FORMAT csv";
+
+        executeJdbc(sql);
+
+        handler().flush();
+
+        checkDroppedSpans();
+
+        IgniteEx jdbcConnNode = ignite(0);
+
+        SpanId rootSpan = checkSpan(
+            SQL_QRY,
+            null,
+            1,
+            ImmutableMap.<String, String>builder()
+                .put(NODE_ID, ignite(0).localNode().id().toString())
+                .put(tag(NODE, CONSISTENT_ID), jdbcConnNode.localNode().consistentId().toString())
+                .put(tag(NODE, NAME), jdbcConnNode.name())
+                .put(SQL_QRY_TEXT, sql)
+                .put(SQL_SCHEMA, DFLT_SCHEMA)
+                .build()
+        ).get(0);
+
+        checkSpan(SQL_QRY_PARSE, rootSpan);
+        checkSpan(SQL_CMD_QRY_EXECUTE, rootSpan);
+        checkSpan(SQL_BATCH_PROCESS, rootSpan, BULKLOAD_ENTRIES, null);
+    }
+
+    /**
+     * Executes an SQL query via JDBC.
+     *
+     * @param sql SQL query to execute.
+     */
+    private void executeJdbc(String sql) throws Exception {
+        try (Connection conn = getConnection(JDBC_URL_PREFIX + Config.SERVER)) {
+            PreparedStatement stmt = conn.prepareStatement(sql);
+
+            stmt.execute();
+        }
     }
 
     /**

@@ -199,9 +199,10 @@ public class DmlBatchSender {
      * @param batch Batch.
      */
     private void sendBatch(Batch batch) {
-        try (TraceSurroundings ignored = MTC.support(cctx.kernalContext().tracing()
-            .create(SQL_CACHE_UPDATE, MTC.span())
-            .addTag(SQL_CACHE_UPDATES, () -> Integer.toString(batch.size())))
+        try (
+            TraceSurroundings ignored = MTC.support(cctx.kernalContext().tracing()
+                .create(SQL_CACHE_UPDATE, MTC.span())
+                .addTag(SQL_CACHE_UPDATES, () -> Integer.toString(batch.size())))
         ) {
             DmlPageProcessingResult pageRes = processPage(cctx, batch);
 

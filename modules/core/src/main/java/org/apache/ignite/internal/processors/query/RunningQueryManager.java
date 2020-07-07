@@ -175,31 +175,34 @@ public class RunningQueryManager {
         if (qry == null)
             return;
 
-        //We need to collect query history and metrics only for SQL queries.
-        if (isSqlQuery(qry)) {
-            qry.runningFuture().onDone();
-
-            qryHistTracker.collectHistory(qry, failed);
-
-            if (!failed)
-                successQrsCnt.increment();
-            else {
-                failedQrsCnt.increment();
-
-                // We measure cancel metric as "number of times user's queries ended up with query cancelled exception",
-                // not "how many user's KILL QUERY command succeeded". These may be not the same if cancel was issued
-                // right when query failed due to some other reason.
-                if (QueryUtils.wasCancelled(failReason))
-                    canceledQrsCnt.increment();
-            }
-        }
-
         Span qrySpan = qry.span();
 
-        if (failed)
-            qrySpan.addTag(ERROR, failReason::getMessage);
+        try {
+            //We need to collect query history and metrics only for SQL queries.
+            if (isSqlQuery(qry)) {
+                qry.runningFuture().onDone();
 
-        qrySpan.end();
+                qryHistTracker.collectHistory(qry, failed);
+
+                if (!failed)
+                    successQrsCnt.increment();
+                else {
+                    failedQrsCnt.increment();
+
+                    // We measure cancel metric as "number of times user's queries ended up with query cancelled exception",
+                    // not "how many user's KILL QUERY command succeeded". These may be not the same if cancel was issued
+                    // right when query failed due to some other reason.
+                    if (QueryUtils.wasCancelled(failReason))
+                        canceledQrsCnt.increment();
+                }
+            }
+
+            if (failed)
+                qrySpan.addTag(ERROR, failReason::getMessage);
+        }
+        finally {
+            qrySpan.end();
+        }
     }
 
     /**

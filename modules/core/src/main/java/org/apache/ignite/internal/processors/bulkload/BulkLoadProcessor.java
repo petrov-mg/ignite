@@ -24,10 +24,14 @@ import org.apache.ignite.IgniteIllegalStateException;
 import org.apache.ignite.internal.processors.query.GridRunningQueryInfo;
 import org.apache.ignite.internal.processors.query.RunningQueryManager;
 import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
 import org.apache.ignite.internal.processors.tracing.NoopSpan;
 import org.apache.ignite.internal.processors.tracing.Span;
+import org.apache.ignite.internal.processors.tracing.Tracing;
 import org.apache.ignite.internal.util.lang.IgniteClosureX;
 import org.apache.ignite.lang.IgniteBiTuple;
+
+import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_BATCH_PROCESS;
 
 /**
  * Bulk load (COPY) command processor used on server to keep various context data and process portions of input
@@ -58,6 +62,9 @@ public class BulkLoadProcessor implements AutoCloseable {
     /** Exception, current load process ended with, or {@code null} if in progress or if succeded. */
     private Exception failReason;
 
+    /** Tracing. */
+    private Tracing tracing;
+
     /** Trace of query to which current processor belongs to. */
     private final Span qrySpan;
 
@@ -72,12 +79,13 @@ public class BulkLoadProcessor implements AutoCloseable {
      * @param qryId Running query id.
      */
     public BulkLoadProcessor(BulkLoadParser inputParser, IgniteClosureX<List<?>, IgniteBiTuple<?, ?>> dataConverter,
-        BulkLoadCacheWriter outputStreamer, RunningQueryManager runningQryMgr, Long qryId) {
+        BulkLoadCacheWriter outputStreamer, RunningQueryManager runningQryMgr, Long qryId, Tracing tracing) {
         this.inputParser = inputParser;
         this.dataConverter = dataConverter;
         this.outputStreamer = outputStreamer;
         this.runningQryMgr = runningQryMgr;
         this.qryId = qryId;
+        this.tracing = tracing;
 
         GridRunningQueryInfo qryInfo = runningQryMgr.runningQueryInfo(qryId);
 
@@ -103,7 +111,7 @@ public class BulkLoadProcessor implements AutoCloseable {
      * @throws IgniteIllegalStateException when called after {@link #close()}.
      */
     public void processBatch(byte[] batchData, boolean isLastBatch) throws IgniteCheckedException {
-        try (MTC.TraceSurroundings ignored = MTC.supportContinual(qrySpan)) {
+        try (TraceSurroundings ignored = MTC.support(tracing.create(SQL_BATCH_PROCESS, qrySpan))) {
             if (isClosed)
                 throw new IgniteIllegalStateException("Attempt to process a batch on a closed BulkLoadProcessor");
 
@@ -134,7 +142,7 @@ public class BulkLoadProcessor implements AutoCloseable {
         if (isClosed)
             return;
 
-        try (MTC.TraceSurroundings ignored = MTC.supportContinual(qrySpan)) {
+        try (TraceSurroundings ignored = MTC.supportContinual(qrySpan)) {
             isClosed = true;
 
             outputStreamer.close();

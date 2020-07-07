@@ -351,6 +351,15 @@ public abstract class AbstractTracingTest extends GridCommonAbstractTest {
         }
 
         /**
+         * Removes all collected spans.
+         */
+        void clearCollectedSpans() {
+            collectedSpans.clear();
+
+            collectedSpansByParents.clear();
+        }
+
+        /**
          * Forces to flush ended spans that not passed to exporter yet.
          */
         void flush() throws IgniteInterruptedCheckedException {

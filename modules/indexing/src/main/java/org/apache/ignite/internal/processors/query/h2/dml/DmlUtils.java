@@ -197,9 +197,10 @@ public class DmlUtils {
         if (plan.rowCount() == 1) {
             IgniteBiTuple t = plan.processRow(cursor.iterator().next());
 
-            try (MTC.TraceSurroundings ignored = MTC.support(cctx.kernalContext().tracing()
-                .create(SQL_CACHE_UPDATE, MTC.span())
-                .addTag(SQL_CACHE_UPDATES, () -> Integer.toString(1)))
+            try (
+                MTC.TraceSurroundings ignored = MTC.support(cctx.kernalContext().tracing()
+                    .create(SQL_CACHE_UPDATE, MTC.span())
+                    .addTag(SQL_CACHE_UPDATES, () -> Integer.toString(1)))
             ) {
                 if (cctx.cache().putIfAbsent(t.getKey(), t.getValue()))
                     return 1;
@@ -307,9 +308,10 @@ public class DmlUtils {
         if (plan.rowCount() == 1) {
             IgniteBiTuple t = plan.processRow(cursor.iterator().next());
 
-            try (MTC.TraceSurroundings ignored = MTC.support(cctx.kernalContext().tracing()
-                .create(SQL_CACHE_UPDATE, MTC.span())
-                .addTag(SQL_CACHE_UPDATES, () -> Integer.toString(1)))
+            try (
+                MTC.TraceSurroundings ignored = MTC.support(cctx.kernalContext().tracing()
+                    .create(SQL_CACHE_UPDATE, MTC.span())
+                    .addTag(SQL_CACHE_UPDATES, () -> Integer.toString(1)))
             ) {
                 cctx.cache().put(t.getKey(), t.getValue());
             }
@@ -329,9 +331,10 @@ public class DmlUtils {
                 rows.put(t.getKey(), t.getValue());
 
                 if ((pageSize > 0 && rows.size() == pageSize) || !it.hasNext()) {
-                    try (MTC.TraceSurroundings ignored = MTC.support(cctx.kernalContext().tracing()
-                        .create(SQL_CACHE_UPDATE, MTC.span())
-                        .addTag(SQL_CACHE_UPDATES, () -> Integer.toString(rows.size())))
+                    try (
+                        MTC.TraceSurroundings ignored = MTC.support(cctx.kernalContext().tracing()
+                            .create(SQL_CACHE_UPDATE, MTC.span())
+                            .addTag(SQL_CACHE_UPDATES, () -> Integer.toString(rows.size())))
                     ) {
                         cctx.cache().putAll(rows);
 
