@@ -199,7 +199,7 @@ public class RunningQueryManager {
         if (failed)
             qrySpan.addTag(ERROR, failReason::getMessage);
 
-        qry.span().end();
+        qrySpan.end();
     }
 
     /**
