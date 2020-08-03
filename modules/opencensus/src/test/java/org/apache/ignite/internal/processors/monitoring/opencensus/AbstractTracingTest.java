@@ -109,6 +109,10 @@ public abstract class AbstractTracingTest extends GridCommonAbstractTest {
         DFLT_CONFIG_MAP.put(
             new TracingConfigurationCoordinates.Builder(Scope.DISCOVERY).build(),
             TracingConfigurationManager.DEFAULT_DISCOVERY_CONFIGURATION);
+
+        DFLT_CONFIG_MAP.put(
+            new TracingConfigurationCoordinates.Builder(Scope.SQL).build(),
+            TracingConfigurationManager.DEFAULT_SQL_CONFIGURATION);
     }
 
     /** Test trace exporter handler. */
@@ -347,6 +351,15 @@ public abstract class AbstractTracingTest extends GridCommonAbstractTest {
             return collectedSpans.values().stream()
                 .filter(spanData -> stringAttributeValue(igniteInstanceName)
                     .equals(spanData.getAttributes().getAttributeMap().get("node.name")));
+        }
+
+        /**
+         * Removes all collected spans.
+         */
+        void clearCollectedSpans() {
+            collectedSpans.clear();
+
+            collectedSpansByParents.clear();
         }
 
         /**

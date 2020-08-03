@@ -84,6 +84,44 @@ public class SpanTags {
     /** */
     public static final String MESSAGE_CLASS = "message.class";
 
+    /** Text of the SQL query. */
+    public static final String SQL_QRY_TEXT = "sql.query.text";
+
+    /** SQL schema. */
+    public static final String SQL_SCHEMA = "sql.schema";
+
+    /** Number of rows that the current result page contains. */
+    public static final String SQL_PAGE_ROWS = "sql.page.rows";
+
+    /**
+     * Number of bytes that the response with SQL result page takes up.
+     * Note that this tag will be attached to {@link SpanType#COMMUNICATION_SOCKET_WRITE} span that represents sending
+     * of the corresponding response message.
+     */
+    public static final String SQL_PAGE_RESP_BYTES = "sql.page.response.bytes";
+
+    /** Number of rows that the index range request contains. */
+    public static final String SQL_IDX_RANGE_ROWS = "sql.index.range.rows";
+
+    /**
+     * Number of bytes that the response for the index range request takes up.
+     * Note that this tag will be attached to {@link SpanType#COMMUNICATION_SOCKET_WRITE} span that represents sending
+     * of the corresponding response message.
+     */
+    public static final String SQL_IDX_RANGE_RESP_BYTES = "sql.index.range.response.bytes";
+
+    /** Name of the SQL table. */
+    public static final String SQL_TABLE = "sql.table";
+
+    /** Name of the SQL index. */
+    public static final String SQL_IDX = "sql.index";
+
+    /** Number of cache entries to be updated as a result of DML query. */
+    public static final String SQL_CACHE_UPDATES = "sql.cache.updates";
+
+    /** Number of cache entries that failed to be updated as a result of DML query. */
+    public static final String SQL_CACHE_UPDATE_FAILURES = "sql.cache.update.failures";
+
     /** */
     private SpanTags() {}
 

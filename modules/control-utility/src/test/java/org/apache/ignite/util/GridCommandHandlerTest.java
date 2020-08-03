@@ -1270,9 +1270,8 @@ public class GridCommandHandlerTest extends GridCommandHandlerClusterPerMethodAb
         primSpi.waitForBlocked(clients.length);
 
         // Unblock only finish messages from clients from 2 to 4.
-        primSpi.stopBlock(true, new IgnitePredicate<T2<ClusterNode, GridIoMessage>>() {
-            @Override public boolean apply(T2<ClusterNode, GridIoMessage> objects) {
-                GridIoMessage iom = objects.get2();
+        primSpi.stopBlock(true, msgInfo -> {
+                GridIoMessage iom = msgInfo.message();
 
                 Message m = iom.message();
 
@@ -1284,7 +1283,7 @@ public class GridCommandHandlerTest extends GridCommandHandlerClusterPerMethodAb
 
                 return true;
             }
-        });
+        );
 
         // Wait until queue is stable
         for (Ignite ignite : G.allGrids()) {
