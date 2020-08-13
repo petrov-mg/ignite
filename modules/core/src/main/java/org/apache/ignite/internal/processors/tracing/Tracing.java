@@ -17,6 +17,9 @@
 
 package org.apache.ignite.internal.processors.tracing;
 
+import org.apache.commons.collections.Buffer;
+import org.apache.commons.collections.BufferUtils;
+import org.apache.commons.collections.buffer.CircularFifoBuffer;
 import org.apache.ignite.internal.processors.tracing.messages.TraceableMessagesHandler;
 import org.apache.ignite.spi.tracing.TracingConfigurationManager;
 import org.jetbrains.annotations.NotNull;
@@ -25,6 +28,41 @@ import org.jetbrains.annotations.NotNull;
  * Tracing sub-system interface.
  */
 public interface Tracing extends SpanManager {
+    /** */
+    public static final Buffer SERVER_1_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer());
+
+    /** */
+    public static final Buffer SERVER_2_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer());
+
+    /** */
+    public static final Buffer CLIENT_SERVER_1_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer());
+
+    /** */
+    public static final Buffer CLIENT_SERVER_2_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer());
+
+    public static void log(boolean isClient, Object id, String msg) {
+        if (isClient) {
+            if ("0".equals(id))
+                CLIENT_SERVER_1_LOG.add(msg);
+            else if ("1".equals(id))
+                CLIENT_SERVER_2_LOG.add(msg);
+            else {
+                CLIENT_SERVER_2_LOG.add(id + " ----> " + msg);
+                CLIENT_SERVER_1_LOG.add(id + " ----> " + msg);
+            }
+        }
+        else {
+            if ("0".equals(id))
+                SERVER_1_LOG.add(msg);
+            else if ("1".equals(id))
+                SERVER_2_LOG.add(msg);
+            else {
+                CLIENT_SERVER_2_LOG.add(id + " ----> " + msg);
+                CLIENT_SERVER_1_LOG.add(id + " ----> " + msg);
+            }
+        }
+    }
+
     /**
      * @return Helper to handle traceable messages.
      */

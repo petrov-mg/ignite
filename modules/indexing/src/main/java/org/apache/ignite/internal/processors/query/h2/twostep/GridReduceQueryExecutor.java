@@ -74,6 +74,8 @@ import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQuery
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlRequest;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlResponse;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryRequest;
+import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.Tracing;
 import org.apache.ignite.internal.transactions.IgniteTxAlreadyCompletedCheckedException;
 import org.apache.ignite.internal.util.typedef.C2;
 import org.apache.ignite.internal.util.typedef.CIX2;
@@ -99,6 +101,8 @@ import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.checkAc
 import static org.apache.ignite.internal.processors.cache.mvcc.MvccUtils.tx;
 import static org.apache.ignite.internal.processors.cache.query.GridCacheSqlQuery.EMPTY_PARAMS;
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuerySplitter.mergeTableIdentifier;
+import static org.apache.ignite.internal.processors.tracing.Tracing.CLIENT_SERVER_1_LOG;
+import static org.apache.ignite.internal.processors.tracing.Tracing.CLIENT_SERVER_2_LOG;
 
 /**
  * Reduce query executor.
@@ -235,6 +239,11 @@ public class GridReduceQueryExecutor {
      * @param msg Message.
      */
     public void onNextPage(final ClusterNode node, final GridQueryNextPageResponse msg) {
+        Tracing.log(
+            true,
+            node.consistentId(),
+            System.nanoTime() + " " + ctx.localNodeId() + " received next page from " + node.id().toString() + " isLast= " + msg.last());
+
         final long qryReqId = msg.queryRequestId();
         final int qry = msg.query();
         final int seg = msg.segmentId();
@@ -266,10 +275,17 @@ public class GridReduceQueryExecutor {
                         GridQueryNextPageRequest msg0 = new GridQueryNextPageRequest(qryReqId, qry, seg, pageSize,
                             (byte)GridH2QueryRequest.setDataPageScanEnabled(0, r.isDataPageScanEnabled()));
 
+                        MTC.destinationNode.set(node.consistentId());
+
                         if (node.isLocal())
                             h2.mapQueryExecutor().onNextPageRequest(node, msg0);
                         else
                             ctx.io().sendToGridTopic(node, GridTopic.TOPIC_QUERY, msg0, GridIoPolicy.QUERY_POOL);
+
+                        Tracing.log(
+                            true,
+                            node.consistentId(),
+                            System.nanoTime() + " " + ctx.localNodeId() + " sent next page request to node " + node.id().toString());
                     }
                     catch (IgniteCheckedException e) {
                         throw new CacheException("Failed to fetch data from node: " + node.id(), e);

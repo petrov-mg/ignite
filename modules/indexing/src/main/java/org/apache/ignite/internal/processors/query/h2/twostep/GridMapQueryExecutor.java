@@ -66,6 +66,7 @@ import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQuery
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlRequest;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2DmlResponse;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryRequest;
+import org.apache.ignite.internal.processors.tracing.Tracing;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.CU;
@@ -81,6 +82,8 @@ import static org.apache.ignite.events.EventType.EVT_CACHE_QUERY_EXECUTED;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.QUERY_POOL;
 import static org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryRequest.isDataPageScanEnabled;
 import static org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2ValueMessageFactory.toMessages;
+import static org.apache.ignite.internal.processors.tracing.Tracing.SERVER_1_LOG;
+import static org.apache.ignite.internal.processors.tracing.Tracing.SERVER_2_LOG;
 
 /**
  * Map query executor.
@@ -727,6 +730,11 @@ public class GridMapQueryExecutor {
     public void onNextPageRequest(final ClusterNode node, final GridQueryNextPageRequest req) {
         long reqId = req.queryRequestId();
 
+        Tracing.log(
+            false,
+            ctx.discovery().localNode().consistentId(),
+            System.nanoTime() + " " + ctx.localNodeId() + " received next page request from " + node.id().toString());
+
         final MapNodeResults nodeRess = qryRess.get(node.id());
 
         if (nodeRess == null) {
@@ -772,6 +780,11 @@ public class GridMapQueryExecutor {
 
                     if (msg != null)
                         sendNextPage(node, msg);
+
+                    Tracing.log(
+                        false,
+                        ctx.discovery().localNode().consistentId(),
+                        System.nanoTime() + " " + ctx.localNodeId() + " sent next page to " + node.id().toString() + " isLast=" + msg.last());
                 }
                 finally {
                     try {

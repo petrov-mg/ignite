@@ -57,6 +57,7 @@ import org.apache.ignite.internal.IgniteInterruptedCheckedException;
 import org.apache.ignite.internal.managers.communication.GridIoMessage;
 import org.apache.ignite.internal.processors.metric.MetricRegistry;
 import org.apache.ignite.internal.processors.metric.impl.LongAdderMetric;
+import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryNextPageRequest;
 import org.apache.ignite.internal.processors.tracing.MTC;
 import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
 import org.apache.ignite.internal.processors.tracing.NoopSpan;
@@ -1757,6 +1758,14 @@ public class GridNioServer<T> {
                 if (finished) {
                     onMessageWritten(ses, msg);
 
+                    if (req instanceof WriteRequestImpl) {
+                        WriteRequestImpl writeReq = ((WriteRequestImpl)req);
+
+                        if (writeReq.message() instanceof GridIoMessage && ((GridIoMessage)writeReq.message()).message() instanceof GridQueryNextPageRequest)
+                            Tracing.log(true, writeReq.id, "we have written next page request to socket.");
+
+                    }
+
                     if (writer != null)
                         writer.reset();
                 }
@@ -1965,6 +1974,19 @@ public class GridNioServer<T> {
         @Override public void offer(SessionChangeRequest req) {
             changeReqs.offer(req);
 
+            if (req instanceof WriteRequestImpl) {
+                WriteRequestImpl writeReq = (WriteRequestImpl)req;
+
+                writeReq.id = MTC.destinationNode.get();
+
+                if (writeReq.message() instanceof GridIoMessage && ((GridIoMessage)writeReq.message()).message() instanceof GridQueryNextPageRequest) {
+                    Tracing.log(
+                        true,
+                        writeReq.id,
+                        "Offered next page request to the queue.");
+                }
+            }
+
             if (select)
                 selector.wakeup();
         }
@@ -2014,6 +2036,17 @@ public class GridNioServer<T> {
                     updateHeartbeat();
 
                     while ((req0 = changeReqs.poll()) != null) {
+                        if (req0 instanceof WriteRequestImpl) {
+                            WriteRequestImpl writeReq = ((WriteRequestImpl)req0);
+
+                            if (writeReq.message() instanceof GridIoMessage && ((GridIoMessage)writeReq.message()).message() instanceof GridQueryNextPageRequest) {
+                                Tracing.log(
+                                    true,
+                                    writeReq.id,
+                                    "Client node polled next page request from the queue.");
+                            }
+                        }
+
                         updateHeartbeat();
 
                         switch (req0.operation()) {
@@ -3274,6 +3307,9 @@ public class GridNioServer<T> {
 
         /** Span for tracing. */
         private Span span;
+
+        /** */
+        public Object id;
 
         /**
          * @param ses Session.

@@ -45,6 +45,10 @@ import static java.util.Objects.requireNonNull;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_SQL_MERGE_TABLE_MAX_SIZE;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_SQL_MERGE_TABLE_PREFETCH_SIZE;
 import static org.apache.ignite.IgniteSystemProperties.getInteger;
+import static org.apache.ignite.internal.processors.tracing.Tracing.CLIENT_SERVER_1_LOG;
+import static org.apache.ignite.internal.processors.tracing.Tracing.CLIENT_SERVER_2_LOG;
+import static org.apache.ignite.internal.processors.tracing.Tracing.SERVER_1_LOG;
+import static org.apache.ignite.internal.processors.tracing.Tracing.SERVER_2_LOG;
 
 /**
  * Base class for reducer of remote index lookup results.
@@ -346,6 +350,32 @@ public abstract class AbstractReducer implements Reducer {
 
             if (page != null)
                 break;
+
+            ctx.log(AbstractReducer.class).info(">>> WAITING FOR THE NEXT PAGE!!!");
+
+            ctx.log(AbstractReducer.class).info("SERVER_1");
+
+            ctx.log(AbstractReducer.class).info(String.join("\n",  SERVER_1_LOG));
+
+            SERVER_1_LOG.clear();
+
+            ctx.log(AbstractReducer.class).info("SERVER_2");
+
+            ctx.log(AbstractReducer.class).info(String.join("\n",  SERVER_2_LOG));
+
+            SERVER_2_LOG.clear();
+
+            ctx.log(AbstractReducer.class).info("CLIENT_SERVER_1");
+
+            ctx.log(AbstractReducer.class).info(String.join("\n", CLIENT_SERVER_1_LOG));
+
+            CLIENT_SERVER_1_LOG.clear();
+
+            ctx.log(AbstractReducer.class).info("CLIENT_SERVER_2");
+
+            ctx.log(AbstractReducer.class).info(String.join("\n", CLIENT_SERVER_2_LOG));
+
+            CLIENT_SERVER_2_LOG.clear();
 
             checkSourceNodesAlive();
         }

@@ -32,6 +32,9 @@ public class MTC {
     /** Thread local span holder. */
     private static ThreadLocal<Span> span = ThreadLocal.withInitial(() -> NOOP_SPAN);
 
+    /** */
+    public static ThreadLocal<Object> destinationNode = ThreadLocal.withInitial(() -> null);
+
     /**
      * @return Span which corresponded to current thread or null if it doesn't not set.
      */

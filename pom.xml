@@ -92,6 +92,7 @@
         <module>modules/ml/h2o-model-parser</module>
         <module>modules/opencensus</module>
         <module>modules/control-utility</module>
+        <module>modules/tracing-benchmarks</module>
     </modules>
 
     <profiles>
