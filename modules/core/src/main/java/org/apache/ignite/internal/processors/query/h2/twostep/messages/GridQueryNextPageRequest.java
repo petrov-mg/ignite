@@ -18,15 +18,24 @@
 package org.apache.ignite.internal.processors.query.h2.twostep.messages;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.ignite.internal.util.IgniteUtils;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
+
+import static org.apache.ignite.lang.IgniteUuid.randomUuid;
 
 /**
  * Request to fetch next page.
  */
 public class GridQueryNextPageRequest implements Message {
+    public static AtomicInteger ID_GENERATOR = new AtomicInteger(0);
+
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -40,10 +49,13 @@ public class GridQueryNextPageRequest implements Message {
     private int qry;
 
     /** */
-    private int pageSize;
+    public int pageSize;
 
     /** */
     private byte flags;
+
+    /** */
+    public Object nodeId;
 
     /**
      * Default constructor.

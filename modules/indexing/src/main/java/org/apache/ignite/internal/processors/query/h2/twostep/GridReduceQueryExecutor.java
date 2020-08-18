@@ -242,7 +242,7 @@ public class GridReduceQueryExecutor {
         Tracing.log(
             true,
             node.consistentId(),
-            System.nanoTime() + " " + ctx.localNodeId() + " received next page from " + node.id().toString() + " isLast= " + msg.last());
+            "received next page isLast= " + msg.last());
 
         final long qryReqId = msg.queryRequestId();
         final int qry = msg.query();
@@ -272,10 +272,10 @@ public class GridReduceQueryExecutor {
                     }
 
                     try {
-                        GridQueryNextPageRequest msg0 = new GridQueryNextPageRequest(qryReqId, qry, seg, pageSize,
+                        GridQueryNextPageRequest msg0 = new GridQueryNextPageRequest(qryReqId, qry, seg, GridQueryNextPageRequest.ID_GENERATOR.getAndIncrement(),
                             (byte)GridH2QueryRequest.setDataPageScanEnabled(0, r.isDataPageScanEnabled()));
 
-                        MTC.destinationNode.set(node.consistentId());
+                        msg0.nodeId = node.consistentId();
 
                         if (node.isLocal())
                             h2.mapQueryExecutor().onNextPageRequest(node, msg0);
@@ -285,7 +285,7 @@ public class GridReduceQueryExecutor {
                         Tracing.log(
                             true,
                             node.consistentId(),
-                            System.nanoTime() + " " + ctx.localNodeId() + " sent next page request to node " + node.id().toString());
+                            "Sent next page request with id = " + msg0.pageSize());
                     }
                     catch (IgniteCheckedException e) {
                         throw new CacheException("Failed to fetch data from node: " + node.id(), e);

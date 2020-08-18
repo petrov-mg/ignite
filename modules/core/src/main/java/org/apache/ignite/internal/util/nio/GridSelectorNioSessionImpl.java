@@ -28,9 +28,12 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.internal.managers.communication.GridIoMessage;
 import org.apache.ignite.internal.processors.metric.MetricRegistry;
 import org.apache.ignite.internal.processors.metric.impl.LongAdderMetric;
+import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryNextPageRequest;
 import org.apache.ignite.internal.processors.tracing.MTC;
+import org.apache.ignite.internal.processors.tracing.Tracing;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.LT;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -368,6 +371,15 @@ public class GridSelectorNioSessionImpl extends GridNioSessionImpl implements Gr
      */
     @Nullable SessionWriteRequest pollFuture() {
         SessionWriteRequest last = queue.poll();
+
+        if (last instanceof GridNioServer.WriteRequestImpl) {
+            GridNioServer.WriteRequestImpl writeReq = ((GridNioServer.WriteRequestImpl)last);
+
+            if (writeReq.message() instanceof GridIoMessage && ((GridIoMessage)writeReq.message()).message() instanceof GridQueryNextPageRequest)
+                Tracing.log(true, ((GridQueryNextPageRequest)((GridIoMessage)writeReq.message()).message()).nodeId, "poll future id=" + ((GridQueryNextPageRequest)((GridIoMessage)writeReq.message()).message()).pageSize());
+
+        }
+
 
         if (last != null) {
             if (outboundMessagesQueueSizeMetric != null)

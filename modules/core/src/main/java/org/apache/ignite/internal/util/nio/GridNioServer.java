@@ -1661,6 +1661,8 @@ public class GridNioServer<T> {
                 }
             }
 
+            SessionWriteRequest req1;
+
             if (req == null) {
                 req = systemMessage(ses);
 
@@ -1674,6 +1676,8 @@ public class GridNioServer<T> {
                     }
                 }
             }
+
+            req1 = req;
 
             boolean finished = false;
 
@@ -1692,6 +1696,8 @@ public class GridNioServer<T> {
                 if (req == null)
                     break;
 
+                req1 = req;
+
                 finished = writeToBuffer(ses, buf, req, writer);
             }
 
@@ -1701,6 +1707,14 @@ public class GridNioServer<T> {
 
             if (!skipWrite) {
                 int cnt = sockCh.write(buf);
+
+                if (req1 instanceof WriteRequestImpl) {
+                    WriteRequestImpl writeReq = ((WriteRequestImpl)req1);
+
+                    if (writeReq.message() instanceof GridIoMessage && ((GridIoMessage)writeReq.message()).message() instanceof GridQueryNextPageRequest)
+                        Tracing.log(true,  ((GridQueryNextPageRequest)((GridIoMessage)writeReq.message()).message()).nodeId, "real socket." + " id = " + ((GridQueryNextPageRequest)((GridIoMessage)writeReq.message()).message()).pageSize() + "  ---> " + buf.hasRemaining());
+
+                }
 
                 if (log.isTraceEnabled())
                     log.trace("Bytes sent [sockCh=" + sockCh + ", cnt=" + cnt + ']');
@@ -1762,7 +1776,7 @@ public class GridNioServer<T> {
                         WriteRequestImpl writeReq = ((WriteRequestImpl)req);
 
                         if (writeReq.message() instanceof GridIoMessage && ((GridIoMessage)writeReq.message()).message() instanceof GridQueryNextPageRequest)
-                            Tracing.log(true, writeReq.id, "we have written next page request to socket.");
+                            Tracing.log(true,  ((GridQueryNextPageRequest)((GridIoMessage)writeReq.message()).message()).nodeId, "we have written next page request to socket." + " id = " + ((GridQueryNextPageRequest)((GridIoMessage)writeReq.message()).message()).pageSize());
 
                     }
 
@@ -1977,12 +1991,10 @@ public class GridNioServer<T> {
             if (req instanceof WriteRequestImpl) {
                 WriteRequestImpl writeReq = (WriteRequestImpl)req;
 
-                writeReq.id = MTC.destinationNode.get();
-
                 if (writeReq.message() instanceof GridIoMessage && ((GridIoMessage)writeReq.message()).message() instanceof GridQueryNextPageRequest) {
                     Tracing.log(
                         true,
-                        writeReq.id,
+                        ((GridQueryNextPageRequest)((GridIoMessage)writeReq.message()).message()).nodeId,
                         "Offered next page request to the queue.");
                 }
             }
@@ -2042,7 +2054,7 @@ public class GridNioServer<T> {
                             if (writeReq.message() instanceof GridIoMessage && ((GridIoMessage)writeReq.message()).message() instanceof GridQueryNextPageRequest) {
                                 Tracing.log(
                                     true,
-                                    writeReq.id,
+                                    ((GridQueryNextPageRequest)((GridIoMessage)writeReq.message()).message()).nodeId,
                                     "Client node polled next page request from the queue.");
                             }
                         }
@@ -3289,7 +3301,7 @@ public class GridNioServer<T> {
     /**
      *
      */
-    private static final class WriteRequestImpl implements SessionWriteRequest, SessionChangeRequest {
+    public static final class WriteRequestImpl implements SessionWriteRequest, SessionChangeRequest {
         /** */
         private GridNioSession ses;
 
@@ -3317,7 +3329,7 @@ public class GridNioServer<T> {
          * @param skipRecovery Skip recovery flag.
          * @param ackC Closure invoked when message ACK is received.
          */
-        WriteRequestImpl(GridNioSession ses,
+        public WriteRequestImpl(GridNioSession ses,
             Object msg,
             boolean skipRecovery,
             IgniteInClosure<IgniteException> ackC) {

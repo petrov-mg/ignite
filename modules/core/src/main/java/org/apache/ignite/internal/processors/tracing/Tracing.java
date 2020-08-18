@@ -29,16 +29,16 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface Tracing extends SpanManager {
     /** */
-    public static final Buffer SERVER_1_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer());
+    public static final Buffer SERVER_1_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer(100));
 
     /** */
-    public static final Buffer SERVER_2_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer());
+    public static final Buffer SERVER_2_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer(100));
 
     /** */
-    public static final Buffer CLIENT_SERVER_1_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer());
+    public static final Buffer CLIENT_SERVER_1_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer(100));
 
     /** */
-    public static final Buffer CLIENT_SERVER_2_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer());
+    public static final Buffer CLIENT_SERVER_2_LOG = BufferUtils.synchronizedBuffer(new CircularFifoBuffer(100));
 
     public static void log(boolean isClient, Object id, String msg) {
         if (isClient) {

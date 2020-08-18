@@ -730,10 +730,14 @@ public class GridMapQueryExecutor {
     public void onNextPageRequest(final ClusterNode node, final GridQueryNextPageRequest req) {
         long reqId = req.queryRequestId();
 
+        int id = req.pageSize();
+
         Tracing.log(
             false,
             ctx.discovery().localNode().consistentId(),
-            System.nanoTime() + " " + ctx.localNodeId() + " received next page request from " + node.id().toString());
+            "received next page request id= " + id);
+
+        req.pageSize = 5;
 
         final MapNodeResults nodeRess = qryRess.get(node.id());
 
@@ -784,7 +788,7 @@ public class GridMapQueryExecutor {
                     Tracing.log(
                         false,
                         ctx.discovery().localNode().consistentId(),
-                        System.nanoTime() + " " + ctx.localNodeId() + " sent next page to " + node.id().toString() + " isLast=" + msg.last());
+                        "sent next page id = " + id + " isLast=" + msg.last());
                 }
                 finally {
                     try {
