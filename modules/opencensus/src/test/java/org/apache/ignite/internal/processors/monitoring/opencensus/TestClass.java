@@ -23,25 +23,27 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.ignite.Ignition;
-import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.client.ClientCache;
+import org.apache.ignite.client.IgniteClient;
+import org.apache.ignite.configuration.ClientConfiguration;
 import org.apache.ignite.internal.GridTopic;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.managers.communication.GridMessageListener;
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryNextPageRequest;
-import org.apache.ignite.logger.log4j.Log4JLogger;
+import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.testframework.GridTestUtils;
+import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
 
-import static org.junit.Assert.fail;
-
 /** */
-public class TestClass {
+public class TestClass extends GridCommonAbstractTest {
     /** */
     @Test
     public void test() throws Exception {
-        IgniteEx srv = startGrid(0, false);
+        IgniteEx srv = startGrid(0);
 
-        IgniteEx cli = startGrid(1, true);
+        IgniteEx cli = startClientGrid(1);
 
         GridQueryNextPageRequest msg = new GridQueryNextPageRequest(0, 0, 0, 0, (byte)0);
 
@@ -54,7 +56,7 @@ public class TestClass {
                         barrier.await();
                 }
                 catch (InterruptedException | BrokenBarrierException e) {
-                    e.printStackTrace();
+                    throw new RuntimeException(e);
                 }
             }
         });
@@ -74,10 +76,18 @@ public class TestClass {
     }
 
     /** */
-    private IgniteEx startGrid(int idx, boolean clientMode) throws Exception {
-        return (IgniteEx) Ignition.start(new IgniteConfiguration()
-            .setIgniteInstanceName("node-" + idx)
-            .setGridLogger(new Log4JLogger("modules/core/src/test/config/log4j-test.xml"))
-            .setClientMode(clientMode));
+    @Test
+    public void testConcurrentLoad() throws Exception {
+        startGrid(0);
+
+        try (IgniteClient client = Ignition.startClient(new ClientConfiguration().setAddresses("127.0.0.1:10800"))) {
+            ClientCache<Integer, Integer> cache = client.getOrCreateCache(DEFAULT_CACHE_NAME);
+
+            GridTestUtils.runMultiThreaded(
+                () -> {
+                    for (int i = 0; i < 1000; i++)
+                        cache.put(i, i);
+                }, 5, "run-async");
+        }
     }
 }

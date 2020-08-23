@@ -646,6 +646,8 @@ public class GridNioServer<T> {
         else if (!ses.procWrite.get() && ses.procWrite.compareAndSet(false, true)) {
             AbstractNioClientWorker worker = (AbstractNioClientWorker)ses.worker();
 
+            U.sleep(1);
+
             if (worker != null)
                 worker.offer((SessionChangeRequest)req);
         }
@@ -1087,11 +1089,22 @@ public class GridNioServer<T> {
      * Stop polling for write availability if write queue is empty.
      */
     private void stopPollingForWrite(SelectionKey key, GridSelectorNioSessionImpl ses) {
-        if (ses.writeQueue().isEmpty()) {
+        if (ses.procWrite.get()) {
             ses.procWrite.set(false);
 
-            if ((key.interestOps() & SelectionKey.OP_WRITE) != 0)
-                key.interestOps(key.interestOps() & (~SelectionKey.OP_WRITE));
+            try {
+                U.sleep(1);
+            }
+            catch (IgniteInterruptedCheckedException e) {
+                e.printStackTrace();
+            }
+
+            if (ses.writeQueue().isEmpty()) {
+                if ((key.interestOps() & SelectionKey.OP_WRITE) != 0)
+                    key.interestOps(key.interestOps() & (~SelectionKey.OP_WRITE));
+            }
+            else
+                ses.procWrite.set(true);
         }
     }
 
@@ -2289,12 +2302,15 @@ public class GridNioServer<T> {
             SelectionKey key = ses.key();
 
             if (key.isValid()) {
-                if ((key.interestOps() & SelectionKey.OP_WRITE) == 0)
+                if (ses.procWrite.get() && (key.interestOps() & SelectionKey.OP_WRITE) == 0)
                     key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
 
                 // Update timestamp to protected against false write timeout.
                 ses.bytesSent(0);
             }
+
+            if (!ses.procWrite.get() && (key.interestOps() & SelectionKey.OP_WRITE) != 0)
+                System.out.println("!!!");
         }
 
         /**
