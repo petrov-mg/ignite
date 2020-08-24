@@ -107,10 +107,10 @@ public class SqlTracingBenchmarks {
                 );
             }
 
-            cli.tracingConfiguration().set(
+           /* cli.tracingConfiguration().set(
                 new TracingConfigurationCoordinates.Builder(SQL).build(),
                 new TracingConfigurationParameters.Builder()
-                    .withSamplingRate(SAMPLING_RATE_ALWAYS).build());
+                    .withSamplingRate(SAMPLING_RATE_ALWAYS).build());*/
         }
 
         /** */
