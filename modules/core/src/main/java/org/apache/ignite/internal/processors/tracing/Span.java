@@ -39,6 +39,9 @@ public interface Span {
      */
     Span addTag(String tagName, Supplier<String> tagValSupplier);
 
+    /** */
+    Span addSensitiveDataTag(String tagName, Supplier<String> tagValSupplier);
+
     /**
      * Logs work to span.
      *
@@ -47,6 +50,9 @@ public interface Span {
      *  So that it's possible not to generate String log description in case of NoopSpan.
      */
     Span addLog(Supplier<String> logDescSupplier);
+
+    /** */
+    Span addSensitiveDataLog(Supplier<String> logDescSupplier);
 
     /**
      * Explicitly set status for span.

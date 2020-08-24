@@ -576,7 +576,7 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
      * @param sql SQL query to execute.
      */
     private void executeJdbc(String sql) throws Exception {
-        try (Connection conn = getConnection(JDBC_URL_PREFIX + Config.SERVER)) {
+        try (Connection conn = getConnection(JDBC_URL_PREFIX + Config.SERVER + ";tracingEnabled=false")) {
             PreparedStatement stmt = conn.prepareStatement(sql);
 
             stmt.execute();
@@ -683,7 +683,7 @@ public class OpenCensusSqlTracingTest extends AbstractTracingTest {
      * @return Id of thre root span.
      */
     private SpanId executeAndCheckRootSpan(SqlFieldsQuery qry, IgniteEx ignite) throws Exception {
-        ignite.context().query().querySqlFields(qry.setPageSize(PAGE_SIZE), false).getAll();
+        ignite.context().query().querySqlFields(qry.setPageSize(PAGE_SIZE).setTracingEnabled(true), false).getAll();
 
         handler().flush();
 

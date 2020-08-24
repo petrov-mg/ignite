@@ -43,6 +43,16 @@ public class NoopSpan implements Span {
     }
 
     /** {@inheritDoc} */
+    @Override public Span addSensitiveDataTag(String tagName, Supplier<String> tagValSupplier) {
+        return null;
+    }
+
+    /** {@inheritDoc} */
+    @Override public Span addSensitiveDataLog(Supplier<String> logDescSupplier) {
+        return null;
+    }
+
+    /** {@inheritDoc} */
     @Override public Span addLog(Supplier<String> logDescSupplier) {
         return this;
     }

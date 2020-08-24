@@ -168,7 +168,8 @@ public class OdbcRequestHandler implements ClientListenerRequestHandler {
             lazy,
             skipReducerOnUpdate,
             null,
-            null
+            null,
+            false
         );
 
         this.busyLock = busyLock;
@@ -368,6 +369,7 @@ public class OdbcRequestHandler implements ClientListenerRequestHandler {
         qry.setSchema(OdbcUtils.prepareSchema(schema));
         qry.setSkipReducerOnUpdate(cliCtx.isSkipReducerOnUpdate());
         qry.setNestedTxMode(nestedTxMode);
+        qry.setTracingEnabled(cliCtx.isTracingEnabled());
 
         return qry;
     }

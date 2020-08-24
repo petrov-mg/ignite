@@ -36,6 +36,9 @@ public class SpanImpl implements Span {
     /** Set of extra included scopes for given span in addition to span's scope that is supported by default. */
     private final Set<Scope> includedScopes;
 
+    /** */
+    private final boolean sensitiveDataAllowed;
+
     /**
      * Constructor
      *
@@ -46,20 +49,42 @@ public class SpanImpl implements Span {
     public SpanImpl(
         SpiSpecificSpan spiSpecificSpan,
         SpanType spanType,
-        Set<Scope> includedScopes) {
+        Set<Scope> includedScopes,
+        boolean sensitiveDataAllowed
+    ) {
         this.spiSpecificSpan = spiSpecificSpan;
         this.spanType = spanType;
         this.includedScopes = includedScopes;
+        this.sensitiveDataAllowed = sensitiveDataAllowed;
     }
 
+    /** {@inheritDoc} */
     @Override public Span addTag(String tagName, Supplier<String> tagValSupplier) {
         spiSpecificSpan.addTag(tagName, tagValSupplier.get());
 
         return this;
     }
 
+    /** {@inheritDoc} */
+    @Override public Span addSensitiveDataTag(String tagName, Supplier<String> tagValSupplier) {
+        if (sensitiveDataAllowed)
+            addTag(tagName, tagValSupplier);
+
+        return this;
+    }
+
+
+    /** {@inheritDoc} */
     @Override public Span addLog(Supplier<String> logDescSupplier) {
         spiSpecificSpan.addLog(logDescSupplier.get());
+
+        return this;
+    }
+
+    /** {@inheritDoc} */
+    @Override public Span addSensitiveDataLog(Supplier<String> logDescSupplier) {
+        if (sensitiveDataAllowed)
+            addLog(logDescSupplier);
 
         return this;
     }
@@ -91,6 +116,11 @@ public class SpanImpl implements Span {
     /** {@inheritDoc} */
     @Override public Set<Scope> includedScopes() {
         return includedScopes;
+    }
+
+    /** */
+    public boolean sensitiveDataAllowed() {
+        return sensitiveDataAllowed;
     }
 
     /**

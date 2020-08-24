@@ -258,6 +258,10 @@ public class ConnectionPropertiesImpl implements ConnectionProperties, Serializa
     private BooleanProperty keepBinary = new BooleanProperty("keepBinary",
         "Whether to keep binary objects in binary form.", false, false);
 
+    /** Flag that indicates whether tracing of the query execution is enabled. */
+    private BooleanProperty tracingEnabled = new BooleanProperty("tracingEnabled",
+            "Enable tracing of the query execution.", false, false);
+
     /** Properties array. */
     private final ConnectionProperty[] propsArray = {
         distributedJoins, enforceJoinOrder, collocated, replicatedOnly, autoCloseServerCursor,
@@ -276,7 +280,8 @@ public class ConnectionPropertiesImpl implements ConnectionProperties, Serializa
         qryTimeout,
         connTimeout,
         disabledFeatures,
-        keepBinary
+        keepBinary,
+        tracingEnabled
     };
 
     /** {@inheritDoc} */
@@ -683,6 +688,16 @@ public class ConnectionPropertiesImpl implements ConnectionProperties, Serializa
     /** {@inheritDoc} */
     @Override public void setKeepBinary(boolean keepBinary) {
         this.keepBinary.setValue(keepBinary);
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean isTracingEnabled() {
+        return tracingEnabled.value();
+    }
+
+    /** {@inheritDoc} */
+    @Override public void setTracingEnabled(boolean tracingEnabled) {
+        this.tracingEnabled.setValue(tracingEnabled);
     }
 
     /**

@@ -58,6 +58,9 @@ public class SqlClientContext implements AutoCloseable {
     /** Skip reducer on update flag. */
     private final boolean skipReducerOnUpdate;
 
+    /** */
+    private final boolean tracingEnabled;
+
     /** Data page scan support for query execution. */
     private final @Nullable Boolean dataPageScanEnabled;
 
@@ -114,7 +117,8 @@ public class SqlClientContext implements AutoCloseable {
         boolean distributedJoins, boolean enforceJoinOrder,
         boolean collocated, boolean replicatedOnly, boolean lazy, boolean skipReducerOnUpdate,
         @Nullable Boolean dataPageScanEnabled,
-        @Nullable Integer updateBatchSize
+        @Nullable Integer updateBatchSize,
+        boolean tracingEnabled
         ) {
         this.ctx = ctx;
         this.orderedBatchWorkerFactory = orderedBatchWorkerFactory;
@@ -126,6 +130,7 @@ public class SqlClientContext implements AutoCloseable {
         this.skipReducerOnUpdate = skipReducerOnUpdate;
         this.dataPageScanEnabled = dataPageScanEnabled;
         this.updateBatchSize = updateBatchSize;
+        this.tracingEnabled = tracingEnabled;
 
         log = ctx.log(SqlClientContext.class.getName());
     }
@@ -258,6 +263,11 @@ public class SqlClientContext implements AutoCloseable {
         synchronized (muxStreamer) {
             return streamOrdered;
         }
+    }
+
+    /** */
+    public boolean isTracingEnabled() {
+        return tracingEnabled;
     }
 
     /**

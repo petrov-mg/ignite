@@ -51,6 +51,9 @@ public class TracingConfigurationParameters implements Serializable {
      */
     private final Set<Scope> includedScopes;
 
+    /** */
+    private boolean sensitiveDataAllowed;
+
     /**
      * Constructor.
      *
@@ -62,10 +65,14 @@ public class TracingConfigurationParameters implements Serializable {
      *  otherwise it'll be skipped.
      *  See {@link Span#isChainable(Scope)} for more details.
      */
-    private TracingConfigurationParameters(double samplingRate,
-        Set<Scope> includedScopes) {
+    private TracingConfigurationParameters(
+        double samplingRate,
+        Set<Scope> includedScopes,
+        boolean sensitiveDataAllowed
+    ) {
         this.samplingRate = samplingRate;
         this.includedScopes = Collections.unmodifiableSet(includedScopes);
+        this.sensitiveDataAllowed = sensitiveDataAllowed;
     }
 
     /**
@@ -86,6 +93,11 @@ public class TracingConfigurationParameters implements Serializable {
      */
     public @NotNull Set<Scope> includedScopes() {
         return Collections.unmodifiableSet(includedScopes);
+    }
+
+    /** */
+    public boolean sensitiveDataAllowed() {
+        return sensitiveDataAllowed;
     }
 
     /** {@inheritDoc} */
@@ -111,6 +123,9 @@ public class TracingConfigurationParameters implements Serializable {
 
         /** Counterpart of {@code TracingConfigurationParameters} includedScopes. */
         private Set<Scope> includedScopes = Collections.emptySet();
+
+        /** */
+        private boolean sensitiveDataAllowed;
 
         /**
          * Builder method that allows to set sampling rate.
@@ -145,13 +160,20 @@ public class TracingConfigurationParameters implements Serializable {
             return this;
         }
 
+        /** */
+        public @NotNull Builder withSensitiveData() {
+            sensitiveDataAllowed = true;
+
+            return this;
+        }
+
         /**
          * Builder's build() method.
          *
          * @return {@code TracingConfigurationParameters} instance.
          */
         public TracingConfigurationParameters build() {
-            return new TracingConfigurationParameters(samplingRate, includedScopes);
+            return new TracingConfigurationParameters(samplingRate, includedScopes, sensitiveDataAllowed);
         }
     }
 }

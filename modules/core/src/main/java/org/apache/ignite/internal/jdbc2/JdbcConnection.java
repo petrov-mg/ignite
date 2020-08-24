@@ -92,6 +92,7 @@ import static org.apache.ignite.IgniteJdbcDriver.PROP_STREAMING_ALLOW_OVERWRITE;
 import static org.apache.ignite.IgniteJdbcDriver.PROP_STREAMING_FLUSH_FREQ;
 import static org.apache.ignite.IgniteJdbcDriver.PROP_STREAMING_PER_NODE_BUF_SIZE;
 import static org.apache.ignite.IgniteJdbcDriver.PROP_STREAMING_PER_NODE_PAR_OPS;
+import static org.apache.ignite.IgniteJdbcDriver.PROP_TRACING_ENABLED;
 import static org.apache.ignite.IgniteJdbcDriver.PROP_TX_ALLOWED;
 import static org.apache.ignite.internal.jdbc2.JdbcUtils.convertToSqlException;
 import static org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode.createJdbcSqlException;
@@ -184,6 +185,9 @@ public class JdbcConnection implements Connection {
     /** Skip reducer on update flag. */
     private final boolean skipReducerOnUpdate;
 
+    /** */
+    private final boolean tracingEnabled;
+
     /** Statements. */
     final Set<JdbcStatement> statements = new HashSet<>();
 
@@ -226,6 +230,7 @@ public class JdbcConnection implements Connection {
         multipleStmts = Boolean.parseBoolean(props.getProperty(PROP_MULTIPLE_STMTS));
         skipReducerOnUpdate = Boolean.parseBoolean(props.getProperty(PROP_SKIP_REDUCER_ON_UPDATE));
         schemaName = QueryUtils.normalizeSchemaName(null, props.getProperty(PROP_SCHEMA));
+        tracingEnabled = Boolean.parseBoolean(props.getProperty(PROP_TRACING_ENABLED));
 
         String nodeIdProp = props.getProperty(PROP_NODE_ID);
 
@@ -918,6 +923,11 @@ public class JdbcConnection implements Connection {
      */
     boolean isLazy() {
         return lazy;
+    }
+
+    /** */
+    boolean isTracingEnabled() {
+        return tracingEnabled;
     }
 
     /**

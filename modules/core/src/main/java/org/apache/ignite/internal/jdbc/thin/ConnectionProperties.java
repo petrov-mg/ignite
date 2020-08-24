@@ -558,4 +558,10 @@ public interface ConnectionProperties {
      * @param keepBinary Whether to keep binary objects in binary form.
      */
     public void setKeepBinary(boolean keepBinary);
+
+    /** */
+    public boolean isTracingEnabled();
+
+    /** */
+    public void setTracingEnabled(boolean tracingEnabled);
 }

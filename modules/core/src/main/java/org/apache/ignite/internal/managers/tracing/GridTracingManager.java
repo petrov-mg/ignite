@@ -310,7 +310,9 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
                             SPI_SPECIFIC_SERIALIZED_SPAN_BODY_OFF,
                             SPI_SPECIFIC_SERIALIZED_SPAN_BODY_OFF + spiSpecificSpanSize)),
                     spanType,
-                    mergedIncludedScopes);
+                    mergedIncludedScopes,
+                    tracingConfiguration.get(new TracingConfigurationCoordinates.Builder(spanType.scope()).build()).
+                        sensitiveDataAllowed());
             }
             else {
                 // do nothing;
@@ -477,7 +479,8 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
                             spanTypeToCreate.spanName(),
                             (SpiSpecificSpan)null),
                         spanTypeToCreate,
-                        tracingConfigurationParameters.includedScopes()) :
+                        tracingConfigurationParameters.includedScopes(),
+                        tracingConfigurationParameters.sensitiveDataAllowed()) :
                     NoopSpan.INSTANCE;
             }
             else
@@ -498,7 +501,8 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
                         spanTypeToCreate.spanName(),
                         ((SpanImpl)parentSpan).spiSpecificSpan()),
                     spanTypeToCreate,
-                    mergedIncludedScopes);
+                    mergedIncludedScopes,
+                    ((SpanImpl)parentSpan).sensitiveDataAllowed());
             }
             else {
                 // do nothing;
