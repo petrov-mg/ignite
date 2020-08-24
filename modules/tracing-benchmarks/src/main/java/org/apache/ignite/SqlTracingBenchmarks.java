@@ -131,7 +131,7 @@ public class SqlTracingBenchmarks {
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     @Warmup(iterations = 1, time = 10)
-    @Measurement(iterations = 4, time = 10)
+    @Measurement(iterations = 5, time = 10)
     @Fork(value = 3)
     public void benchmarkSelect(BenchmarkContext ctx) {
         long lowId = ThreadLocalRandom.current().nextLong(TABLE_POPULATION - SELECT_RANGE);
