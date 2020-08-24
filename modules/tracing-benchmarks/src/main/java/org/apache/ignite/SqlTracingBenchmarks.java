@@ -40,6 +40,8 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.processors.query.GridQueryProcessor;
 import org.apache.ignite.logger.log4j.Log4JLogger;
+import org.apache.ignite.spi.tracing.TracingConfigurationCoordinates;
+import org.apache.ignite.spi.tracing.TracingConfigurationParameters;
 import org.apache.ignite.spi.tracing.opencensus.OpenCensusTracingSpi;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -57,6 +59,8 @@ import static org.apache.ignite.SqlTracingBenchmarks.BenchmarkContext.QRY_PAGE_S
 import static org.apache.ignite.SqlTracingBenchmarks.BenchmarkContext.SELECT_RANGE;
 import static org.apache.ignite.SqlTracingBenchmarks.BenchmarkContext.TABLE_POPULATION;
 import static org.apache.ignite.SqlTracingBenchmarks.BenchmarkContext.UPDATE_RANGE;
+import static org.apache.ignite.spi.tracing.Scope.SQL;
+import static org.apache.ignite.spi.tracing.TracingConfigurationParameters.SAMPLING_RATE_ALWAYS;
 
 /** */
 public class SqlTracingBenchmarks {
@@ -102,6 +106,11 @@ public class SqlTracingBenchmarks {
                     true
                 );
             }
+
+            cli.tracingConfiguration().set(
+                new TracingConfigurationCoordinates.Builder(SQL).build(),
+                new TracingConfigurationParameters.Builder()
+                    .withSamplingRate(SAMPLING_RATE_ALWAYS).build());
         }
 
         /** */
