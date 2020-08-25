@@ -77,7 +77,7 @@ public class SqlTracingBenchmarks {
         public static final int SELECT_RANGE = 1000;
 
         /** */
-        public static final int QRY_PAGE_SIZE = 10;
+        public static final int QRY_PAGE_SIZE = 1024;
 
         /** */
         public static final int UPDATE_RANGE = 100;
@@ -107,10 +107,10 @@ public class SqlTracingBenchmarks {
                 );
             }
 
-           /* cli.tracingConfiguration().set(
+            cli.tracingConfiguration().set(
                 new TracingConfigurationCoordinates.Builder(SQL).build(),
                 new TracingConfigurationParameters.Builder()
-                    .withSamplingRate(SAMPLING_RATE_ALWAYS).build());*/
+                    .withSamplingRate(SAMPLING_RATE_ALWAYS).build());
         }
 
         /** */
@@ -140,8 +140,8 @@ public class SqlTracingBenchmarks {
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     @Warmup(iterations = 1, time = 10)
-    @Measurement(iterations = 5, time = 10)
-    @Fork(value = 3)
+    @Measurement(iterations = 10, time = 10)
+    @Fork(value = 1)
     public void benchmarkSelect(BenchmarkContext ctx) {
         long lowId = ThreadLocalRandom.current().nextLong(TABLE_POPULATION - SELECT_RANGE);
 
@@ -161,7 +161,7 @@ public class SqlTracingBenchmarks {
     }
 
     /** */
-    @Benchmark
+   /* @Benchmark
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     @Warmup(iterations = 1, time = 10)
@@ -183,5 +183,5 @@ public class SqlTracingBenchmarks {
         ) {
             // No-op.
         }
-    }
+    }*/
 }
