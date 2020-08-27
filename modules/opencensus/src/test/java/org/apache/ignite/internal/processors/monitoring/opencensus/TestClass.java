@@ -37,7 +37,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.apache.ignite.spi.tracing.Scope.SQL;
 import static org.apache.ignite.spi.tracing.TracingConfigurationParameters.SAMPLING_RATE_ALWAYS;
 
 /** */
@@ -52,7 +51,7 @@ public class TestClass {
     public static final int SELECT_RANGE = 1000;
 
     /** */
-    public static final int QRY_PAGE_SIZE = 1024;
+    public static final int QRY_PAGE_SIZE = 5;
 
     /** */
     public static final int UPDATE_RANGE = 100;
@@ -88,26 +87,26 @@ public class TestClass {
             );
         }
 
-        cli.tracingConfiguration().set(
+       /* cli.tracingConfiguration().set(
             new TracingConfigurationCoordinates.Builder(SQL).build(),
             new TracingConfigurationParameters.Builder()
-                .withSamplingRate(SAMPLING_RATE_ALWAYS).build());
+                .withSamplingRate(SAMPLING_RATE_ALWAYS).build());*/
 
         for (int i = 0; i < 1 ; i++) {
-            long lowId = ThreadLocalRandom.current().nextLong(TABLE_POPULATION - SELECT_RANGE);
+            long lowId = ThreadLocalRandom.current().nextLong(TABLE_POPULATION - UPDATE_RANGE);
 
-            long highId = lowId + SELECT_RANGE;
+            long highId = lowId + UPDATE_RANGE;
 
             try (
-                FieldsQueryCursor<List<?>> cursor = cli
+                FieldsQueryCursor<List<?>> ignored = cli
                     .context().query().querySqlFields(
-                        new SqlFieldsQuery("SELECT id, val FROM test_table WHERE id BETWEEN ? and ?")
+                        new SqlFieldsQuery("UPDATE test_table SET val = (val + 1) WHERE id BETWEEN ? AND ?")
                             .setArgs(lowId, highId)
                             .setPageSize(QRY_PAGE_SIZE),
                         false
                     )
             ) {
-                cursor.iterator().forEachRemaining(val -> {});
+                // No-op.
             }
         }
 
