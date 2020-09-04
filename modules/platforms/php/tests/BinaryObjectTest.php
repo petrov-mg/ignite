@@ -27,7 +27,7 @@ final class BinaryObjectTestCase extends TestCase
 {
     const CACHE_NAME = '__php_test_cache';
 
-    const TYPE_NAME = 'TestClass';
+    const TYPE_NAME = 'org.apache.ignite.TestClass';
     const INNER_TYPE_NAME = 'InnerTestClass';
     const STRING_VALUE = 'abc';
     const DOUBLE_VALUE = 123.45;
