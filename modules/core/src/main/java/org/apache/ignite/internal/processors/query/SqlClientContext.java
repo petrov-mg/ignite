@@ -58,6 +58,9 @@ public class SqlClientContext implements AutoCloseable {
     /** Skip reducer on update flag. */
     private final boolean skipReducerOnUpdate;
 
+    /** Flag that indicates wheter tracing of query execution is enabled. */
+    private final boolean tracingEnabled;
+
     /** Data page scan support for query execution. */
     private final @Nullable Boolean dataPageScanEnabled;
 
@@ -109,12 +112,14 @@ public class SqlClientContext implements AutoCloseable {
      * @param skipReducerOnUpdate Skip reducer on update flag.
      * @param dataPageScanEnabled Enable scan data page mode.
      * @param updateBatchSize Size of internal batch for DML queries.
+     * @param tracingEnabled Whether tracing of query execution is enabled.
      */
     public SqlClientContext(GridKernalContext ctx, Factory<GridWorker> orderedBatchWorkerFactory,
         boolean distributedJoins, boolean enforceJoinOrder,
         boolean collocated, boolean replicatedOnly, boolean lazy, boolean skipReducerOnUpdate,
         @Nullable Boolean dataPageScanEnabled,
-        @Nullable Integer updateBatchSize
+        @Nullable Integer updateBatchSize,
+        boolean tracingEnabled
         ) {
         this.ctx = ctx;
         this.orderedBatchWorkerFactory = orderedBatchWorkerFactory;
@@ -126,6 +131,7 @@ public class SqlClientContext implements AutoCloseable {
         this.skipReducerOnUpdate = skipReducerOnUpdate;
         this.dataPageScanEnabled = dataPageScanEnabled;
         this.updateBatchSize = updateBatchSize;
+        this.tracingEnabled = tracingEnabled;
 
         log = ctx.log(SqlClientContext.class.getName());
     }
@@ -258,6 +264,13 @@ public class SqlClientContext implements AutoCloseable {
         synchronized (muxStreamer) {
             return streamOrdered;
         }
+    }
+
+    /**
+     * @return Whether tracing of query executions is enabled.
+     */
+    public boolean isTracingEnabled() {
+        return tracingEnabled;
     }
 
     /**

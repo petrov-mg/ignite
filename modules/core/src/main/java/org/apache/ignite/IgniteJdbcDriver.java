@@ -337,6 +337,9 @@ public class IgniteJdbcDriver implements Driver {
     /** Parameter: schema name. */
     public static final String PARAM_SCHEMA = "schema";
 
+    /** Parameter: tracing of query excution enabled flag. */
+    public static final String PARAM_TRACING_ENABLED = "tracingEnabled";
+
     /** Hostname property name. */
     public static final String PROP_HOST = PROP_PREFIX + "host";
 
@@ -390,6 +393,9 @@ public class IgniteJdbcDriver implements Driver {
 
     /** Schema property name. */
     public static final String PROP_SCHEMA = PROP_PREFIX + PARAM_SCHEMA;
+
+    /** Name of the property that iniicates whether tracing of query execution  is enabled. */
+    public static final String PROP_TRACING_ENABLED = PROP_PREFIX + PARAM_TRACING_ENABLED;
 
     /** Cache name property name. */
     public static final String PROP_CFG = PROP_PREFIX + "cfg";
@@ -465,7 +471,8 @@ public class IgniteJdbcDriver implements Driver {
             new JdbcDriverPropertyInfo("Transactions Allowed", info.getProperty(PROP_TX_ALLOWED), ""),
             new JdbcDriverPropertyInfo("Queries with multiple statements allowed", info.getProperty(PROP_MULTIPLE_STMTS), ""),
             new JdbcDriverPropertyInfo("Skip reducer on update", info.getProperty(PROP_SKIP_REDUCER_ON_UPDATE), ""),
-            new JdbcDriverPropertyInfo("Schema name", info.getProperty(PROP_SCHEMA), "")
+            new JdbcDriverPropertyInfo("Schema name", info.getProperty(PROP_SCHEMA), ""),
+            new JdbcDriverPropertyInfo("Tracing enabled", info.getProperty(PROP_TRACING_ENABLED), "")
         );
 
         if (info.getProperty(PROP_CFG) != null)

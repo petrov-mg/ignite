@@ -188,6 +188,7 @@ public class JdbcRequestHandler implements ClientListenerRequestHandler {
      * @param actx Authentication context.
      * @param protocolVer Protocol version.
      * @param connCtx Jdbc connection context.
+     * @param tracingEnabled Whether tracing of query execution is enabled.
      */
     public JdbcRequestHandler(
         GridSpinBusyLock busyLock,
@@ -205,7 +206,8 @@ public class JdbcRequestHandler implements ClientListenerRequestHandler {
         @Nullable Integer updateBatchSize,
         AuthorizationContext actx,
         ClientListenerProtocolVersion protocolVer,
-        JdbcConnectionContext connCtx
+        JdbcConnectionContext connCtx,
+        boolean tracingEnabled
     ) {
         this.connCtx = connCtx;
         this.sender = sender;
@@ -228,7 +230,8 @@ public class JdbcRequestHandler implements ClientListenerRequestHandler {
             lazy,
             skipReducerOnUpdate,
             dataPageScanEnabled,
-            updateBatchSize
+            updateBatchSize,
+            tracingEnabled
         );
 
         this.busyLock = busyLock;
@@ -1011,6 +1014,8 @@ public class JdbcRequestHandler implements ClientListenerRequestHandler {
 
         if (cliCtx.updateBatchSize() != null)
             qry.setUpdateBatchSize(cliCtx.updateBatchSize());
+
+        qry.setTracingEnabled(cliCtx.isTracingEnabled());
     }
 
     /**

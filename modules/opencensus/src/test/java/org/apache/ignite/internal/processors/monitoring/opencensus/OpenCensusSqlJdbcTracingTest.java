@@ -104,7 +104,7 @@ public class OpenCensusSqlJdbcTracingTest extends OpenCensusSqlNativeTracingTest
 
         executeQuery(
             "CREATE TABLE " + table + "(id LONG PRIMARY KEY, first_name VARCHAR, last_name VARCHAR, age LONG)",
-            DFLT_SCHEMA, false, false, null);
+            DFLT_SCHEMA, false, false, null, true);
 
         ignite(0).tracingConfiguration().set(
             new TracingConfigurationCoordinates.Builder(SQL).build(),
@@ -127,10 +127,13 @@ public class OpenCensusSqlJdbcTracingTest extends OpenCensusSqlNativeTracingTest
         String schema,
         boolean skipReduceOnUpdate,
         boolean distributedJoins,
-        Boolean isQry
+        Boolean isQry,
+        boolean tracingEnabled
     ) {
         String url = JDBC_URL_PREFIX + Config.SERVER + '/' + schema +
-            "?skipReducerOnUpdate=" + skipReduceOnUpdate + "&distributedJoins=" + distributedJoins;
+            "?skipReducerOnUpdate=" + skipReduceOnUpdate +
+            "&distributedJoins=" + distributedJoins +
+            "&tracingEnabled=" + tracingEnabled;
 
         try (Connection conn = getConnection(url)) {
             PreparedStatement stmt = conn.prepareStatement(sql);

@@ -97,8 +97,11 @@ public class JdbcThinTcpIo {
     /** Version 2.8.1. Adds features flags support. */
     private static final ClientListenerProtocolVersion VER_2_8_1 = ClientListenerProtocolVersion.create(2, 8, 1);
 
+    /** Version 2.9.0: adds flag that indicates whether tracing of query execution is enabled. */
+    private static  final ClientListenerProtocolVersion VER_2_9_0 = ClientListenerProtocolVersion.create(2, 9, 0);
+
     /** Current version. */
-    private static final ClientListenerProtocolVersion CURRENT_VER = VER_2_8_1;
+    private static final ClientListenerProtocolVersion CURRENT_VER = VER_2_9_0;
 
     /** Initial output stream capacity for handshake. */
     private static final int HANDSHAKE_MSG_SIZE = 13;
@@ -308,6 +311,9 @@ public class JdbcThinTcpIo {
 
         if (ver.compareTo(VER_2_8_1) >= 0)
             writer.writeByteArray(ThinProtocolFeature.featuresAsBytes(enabledFeatures()));
+
+        if (ver.compareTo(VER_2_9_0) >= 0)
+            writer.writeBoolean(connProps.isTracingEnabled());
 
         if (!F.isEmpty(connProps.getUsername())) {
             assert ver.compareTo(VER_2_5_0) >= 0 : "Authentication is supported since 2.5";

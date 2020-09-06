@@ -368,7 +368,7 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
         spi(qryInitiator).blockMessages((node, msg) -> msg instanceof GridQueryNextPageRequest);
 
         IgniteInternalFuture<?> iterFut = runAsync(() ->
-            executeQuery("SELECT * FROM " + prsnTable, TEST_SCHEMA, false, false, true));
+            executeQuery("SELECT * FROM " + prsnTable, TEST_SCHEMA, false, false, true, true));
 
         spi(qryInitiator).waitForBlocked(mapNodesCount());
 
@@ -403,6 +403,24 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
                 checkChildSpan(SQL_FAIL_RESP, nextPageReqSpans.get(0));
             }
         }
+    }
+
+    /**
+     * Tests that single query execution with tracing disabled porsuce no spans.
+     */
+    @Test
+    public void testTracingEnabledFlag() throws Exception {
+        String prsnTable = createTableAndPopulate(Person.class, PARTITIONED, 1);
+
+        executeQuery(
+            "SELECT * FROM " + prsnTable,
+            DFLT_SCHEMA, false, false, null, false);
+
+        checkDroppedSpans();
+
+        handler().flush();
+
+        assertTrue(findChildSpans(SQL_QRY, null).isEmpty());
     }
 
     /**
@@ -490,6 +508,7 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
      * @param schema SQL query schema.
      * @param skipReducerOnUpdate Wether reduce phase should be skipped during update query execution.
      * @param distributedJoins Whether distributed joins enabled.
+     * @param tracingEnabled Whether tracing of query execution enabled.
      * @param isQry {@code True} if query is SELECT, {@code False} - DML queries, {@code null} - all remainings.
      */
     protected void executeQuery(
@@ -497,13 +516,15 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
         String schema,
         boolean skipReducerOnUpdate,
         boolean distributedJoins,
-        Boolean isQry
+        Boolean isQry,
+        boolean tracingEnabled
     ) {
         SqlFieldsQuery qry = new SqlFieldsQueryEx(sql, isQry)
             .setSkipReducerOnUpdate(skipReducerOnUpdate)
             .setDistributedJoins(distributedJoins)
             .setPageSize(PAGE_SIZE)
-            .setSchema(schema);
+            .setSchema(schema)
+            .setTracingEnabled(tracingEnabled);
 
         reducer().context().query().querySqlFields(qry, false).getAll();
     }
@@ -524,7 +545,7 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
         boolean distributedJoins,
         Boolean isQry
     ) throws Exception {
-        executeQuery(sql, schema, skipReducerOnUpdate, distributedJoins, isQry);
+        executeQuery(sql, schema, skipReducerOnUpdate, distributedJoins, isQry, true);
 
         handler().flush();
 

@@ -206,6 +206,7 @@ public class JdbcStatement implements Statement {
         qry.setEnforceJoinOrder(conn.isEnforceJoinOrder());
         qry.setLazy(conn.isLazy());
         qry.setSchema(conn.schemaName());
+        qry.setTracingEnabled(conn.isTracingEnabled());
     }
 
     /**

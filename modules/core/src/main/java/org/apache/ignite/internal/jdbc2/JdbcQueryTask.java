@@ -169,6 +169,7 @@ class JdbcQueryTask implements IgniteCallable<JdbcQueryTaskResult> {
             qry.setEnforceJoinOrder(enforceJoinOrder());
             qry.setLazy(lazy());
             qry.setSchema(schemaName);
+            qry.setTracingEnabled(isTracingEnabled());
 
             FieldsQueryCursor<List<?>> fldQryCursor = cache.withKeepBinary().query(qry);
 
@@ -255,6 +256,13 @@ class JdbcQueryTask implements IgniteCallable<JdbcQueryTaskResult> {
      * @return Flag to update enable server side updates.
      */
     protected boolean skipReducerOnUpdate() {
+        return false;
+    }
+
+    /**
+     * @return Whether queries execution tracing is enabled.
+     */
+    protected boolean isTracingEnabled() {
         return false;
     }
 

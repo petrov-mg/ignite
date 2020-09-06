@@ -95,6 +95,9 @@ public class SqlFieldsQuery extends Query<List<?>> {
      */
     private int updateBatchSize = DFLT_UPDATE_BATCH_SIZE;
 
+    /** Whether tracing of query execution is enabled. */
+    private boolean tracingEnabled;
+
     /**
      * Copy constructs SQL fields query.
      *
@@ -112,6 +115,7 @@ public class SqlFieldsQuery extends Query<List<?>> {
         parts = qry.parts;
         schema = qry.schema;
         updateBatchSize = qry.updateBatchSize;
+        tracingEnabled = qry.tracingEnabled;
     }
 
     /**
@@ -410,6 +414,22 @@ public class SqlFieldsQuery extends Query<List<?>> {
      */
     public SqlFieldsQuery setUpdateBatchSize(int updateBatchSize) {
         this.updateBatchSize = updateBatchSize;
+
+        return this;
+    }
+
+    /**
+     * @return Whether tracing of query execution is enabled.
+     */
+    public boolean isTracingEnabled() {
+        return tracingEnabled;
+    }
+
+    /**
+     * Sets flag that indicates whether tracing of query executions is enabled.
+     */
+    public SqlFieldsQuery setTracingEnabled(boolean tracingEnabled) {
+        this.tracingEnabled = tracingEnabled;
 
         return this;
     }

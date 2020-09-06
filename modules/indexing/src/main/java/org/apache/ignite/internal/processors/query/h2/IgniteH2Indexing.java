@@ -153,6 +153,7 @@ import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisito
 import org.apache.ignite.internal.processors.query.schema.SchemaIndexCacheVisitorImpl;
 import org.apache.ignite.internal.processors.tracing.MTC;
 import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
+import org.apache.ignite.internal.processors.tracing.NoopSpan;
 import org.apache.ignite.internal.processors.tracing.Span;
 import org.apache.ignite.internal.sql.command.SqlCommand;
 import org.apache.ignite.internal.sql.command.SqlCommitTransactionCommand;
@@ -1087,8 +1088,9 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             SqlFieldsQuery remainingQry = qry;
 
             while (remainingQry != null) {
-                Span qrySpan = ctx.tracing().create(SQL_QRY, MTC.span())
-                    .addTag(SQL_SCHEMA, () -> schemaName);
+                Span qrySpan = qry.isTracingEnabled()
+                    ? ctx.tracing().create(SQL_QRY, MTC.span()).addTag(SQL_SCHEMA, () -> schemaName)
+                    : NoopSpan.INSTANCE;
 
                 try (TraceSurroundings ignored = MTC.supportContinual(qrySpan)) {
                     // Parse.
