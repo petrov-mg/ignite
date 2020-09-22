@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.tracing;
 
 import java.util.Set;
 import java.util.function.Supplier;
+import org.apache.ignite.internal.managers.tracing.GridTracingManager.IgniteTracingWorker;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanStatus;
 import org.apache.ignite.spi.tracing.SpiSpecificSpan;
@@ -36,6 +37,9 @@ public class SpanImpl implements Span {
     /** Set of extra included scopes for given span in addition to span's scope that is supported by default. */
     private final Set<Scope> includedScopes;
 
+    /** */
+    private final IgniteTracingWorker worker;
+
     /**
      * Constructor
      *
@@ -44,36 +48,44 @@ public class SpanImpl implements Span {
      * @param includedScopes Set of included scopes.
      */
     public SpanImpl(
+        IgniteTracingWorker worker,
         SpiSpecificSpan spiSpecificSpan,
         SpanType spanType,
         Set<Scope> includedScopes) {
         this.spiSpecificSpan = spiSpecificSpan;
         this.spanType = spanType;
         this.includedScopes = includedScopes;
+        this.worker = worker;
     }
 
+    /** {@inheritDoc} */
     @Override public Span addTag(String tagName, Supplier<String> tagValSupplier) {
-        spiSpecificSpan.addTag(tagName, tagValSupplier.get());
+        String str = tagValSupplier.get();
+
+        worker.add(() -> spiSpecificSpan.addTag(tagName, str));
 
         return this;
     }
 
+    /** {@inheritDoc} */
     @Override public Span addLog(Supplier<String> logDescSupplier) {
-        spiSpecificSpan.addLog(logDescSupplier.get());
+        String str = logDescSupplier.get();
+
+        worker.add(() -> spiSpecificSpan.addLog(str));
 
         return this;
     }
 
     /** {@inheritDoc} */
     @Override public Span setStatus(SpanStatus spanStatus) {
-        spiSpecificSpan.setStatus(spanStatus);
+        worker.add(() -> spiSpecificSpan.setStatus(spanStatus));
 
         return this;
     }
 
     /** {@inheritDoc} */
     @Override public Span end() {
-        spiSpecificSpan.end();
+        worker.add(spiSpecificSpan::end);
 
         return this;
     }

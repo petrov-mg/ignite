@@ -19,8 +19,13 @@ package org.apache.ignite.internal.managers.tracing;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.IgniteException;
+import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.managers.GridManagerAdapter;
@@ -35,6 +40,7 @@ import org.apache.ignite.internal.processors.tracing.Tracing;
 import org.apache.ignite.internal.processors.tracing.configuration.GridTracingConfigurationManager;
 import org.apache.ignite.internal.processors.tracing.messages.TraceableMessagesHandler;
 import org.apache.ignite.internal.util.typedef.internal.LT;
+import org.apache.ignite.internal.util.worker.GridWorker;
 import org.apache.ignite.logger.NullLogger;
 import org.apache.ignite.spi.IgniteSpiException;
 import org.apache.ignite.spi.tracing.NoopTracingSpi;
@@ -44,6 +50,7 @@ import org.apache.ignite.spi.tracing.TracingConfigurationCoordinates;
 import org.apache.ignite.spi.tracing.TracingConfigurationManager;
 import org.apache.ignite.spi.tracing.TracingConfigurationParameters;
 import org.apache.ignite.spi.tracing.TracingSpi;
+import org.apache.ignite.thread.IgniteThread;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -110,6 +117,14 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
     /** Flag that indicates that noop tracing spi is used. */
     private boolean noop = true;
 
+    /** */
+    private final IgniteTracingWorker worker;
+
+    /** */
+    private final IgniteThread workerThread;
+
+
+
     /**
      * Constructor.
      *
@@ -124,6 +139,25 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
         msgHnd = new TraceableMessagesHandler(this, ctx.log(GridTracingManager.class));
 
         tracingConfiguration = new GridTracingConfigurationManager(ctx);
+
+        worker = new IgniteTracingWorker(ctx.igniteInstanceName(), "trcing-worker", log);
+
+        workerThread = new IgniteThread(ctx.igniteInstanceName(), "tracing-worker", worker);
+    }
+
+    /** {@inheritDoc} */
+    @Override protected void onKernalStart0() throws IgniteCheckedException {
+        super.onKernalStart0();
+
+        workerThread.setDaemon(true);
+        workerThread.start();
+    }
+
+    /** {@inheritDoc} */
+    @Override protected void onKernalStop0(boolean cancel) {
+        super.onKernalStop0(cancel);
+
+        workerThread.interrupt();
     }
 
     /**
@@ -303,6 +337,7 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
                 mergedIncludedScopes.remove(spanType.scope());
 
                 span = new SpanImpl(
+                    worker,
                     getSpi().create(
                         spanType.spanName(),
                         Arrays.copyOfRange(
@@ -473,6 +508,7 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
 
                 return shouldSample(tracingConfigurationParameters.samplingRate()) ?
                     new SpanImpl(
+                        worker,
                         getSpi().create(
                             spanTypeToCreate.spanName(),
                             (SpiSpecificSpan)null),
@@ -494,6 +530,7 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
                 mergedIncludedScopes.remove(spanTypeToCreate.scope());
 
                 return new SpanImpl(
+                    worker,
                     getSpi().create(
                         spanTypeToCreate.spanName(),
                         ((SpanImpl)parentSpan).spiSpecificSpan()),
@@ -530,5 +567,55 @@ public class GridTracingManager extends GridManagerAdapter<TracingSpi> implement
             return false;
 
         return Math.random() <= samlingRate;
+    }
+
+    /** */
+    public int size() {
+        return worker.size();
+    }
+
+    /** */
+    public static final class IgniteTracingWorker extends GridWorker {
+        /** */
+        private final LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
+
+        private final AtomicInteger cnt = new AtomicInteger();
+
+        /**
+         * @param igniteInstanceName Ignite instance name.
+         * @param name Name.
+         * @param log Logger.
+         */
+        public IgniteTracingWorker(@Nullable String igniteInstanceName, String name, IgniteLogger log) {
+            super(igniteInstanceName, name, log);
+        }
+
+        /** {@inheritDoc} */
+        @Override protected void body() {
+            while (!isCancelled()) {
+                try {
+                    Runnable r = queue.take();
+
+                    r.run();
+
+                    cnt.decrementAndGet();
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+
+        /** */
+        public synchronized  void add(Runnable r) {
+            queue.add(r);
+
+            cnt.incrementAndGet();
+        }
+
+        /** */
+        private synchronized int size() {
+            return cnt.get();
+        }
     }
 }

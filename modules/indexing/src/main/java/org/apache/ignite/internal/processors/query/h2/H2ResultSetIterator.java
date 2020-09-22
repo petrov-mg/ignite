@@ -211,7 +211,9 @@ public abstract class H2ResultSetIterator<T> extends GridIteratorAdapter<T> impl
                 }
             }
 
-            MTC.span().addTag(SQL_PAGE_ROWS, () -> Integer.toString(page.size()));
+            MTC.span().addTag(SQL_PAGE_ROWS, () -> {
+                return Integer.toString(page.size());
+            });
 
             if (F.isEmpty(page)) {
                 rowIter = null;

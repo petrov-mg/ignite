@@ -33,6 +33,7 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.TestRecordingCommunicationSpi;
+import org.apache.ignite.internal.managers.tracing.GridTracingManager;
 import org.apache.ignite.internal.processors.cache.query.SqlFieldsQueryEx;
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryNextPageRequest;
 import org.apache.ignite.internal.processors.tracing.SpanType;
@@ -85,6 +86,7 @@ import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_QRY_PAR
 import static org.apache.ignite.spi.tracing.Scope.SQL;
 import static org.apache.ignite.spi.tracing.TracingConfigurationParameters.SAMPLING_RATE_ALWAYS;
 import static org.apache.ignite.testframework.GridTestUtils.runAsync;
+import static org.apache.ignite.testframework.GridTestUtils.waitForCondition;
 
 /**
  * Tests tracing of SQL queries based on {@link OpenCensusTracingSpi}.
@@ -547,6 +549,14 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
         Boolean isQry
     ) throws Exception {
         executeQuery(sql, schema, skipReducerOnUpdate, distributedJoins, isQry);
+
+        for (int i = 0; i < GRID_CNT; i++) {
+            int finalI = i;
+
+            waitForCondition(() ->
+                    ((GridTracingManager)ignite(finalI).context().tracing()).size() == 0,
+                getTestTimeout());
+        }
 
         handler().flush();
 
