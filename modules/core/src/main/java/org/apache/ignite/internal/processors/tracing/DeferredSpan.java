@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.tracing;
 
 import java.util.Collections;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanStatus;
@@ -82,6 +83,16 @@ public class DeferredSpan implements Span {
     /** {@inheritDoc} */
     @Override public Set<Scope> includedScopes() {
         return Collections.emptySet();
+    }
+
+    /** {@inheritDoc} */
+    @Override public Span attach(Supplier<Object> attSupplier) {
+        return this;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void attachment(Consumer<Object> attConsumer) {
+        // No-op.
     }
 
     /** {@inheritDoc} */

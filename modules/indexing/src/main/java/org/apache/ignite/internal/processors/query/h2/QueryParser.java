@@ -84,6 +84,7 @@ import org.h2.command.Prepared;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlQuerySplitter.keyColumn;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_PARSER_CACHE_HIT;
 import static org.apache.ignite.internal.processors.tracing.SpanType.SQL_QRY_PARSE;
 
 /**
@@ -201,7 +202,11 @@ public class QueryParser {
 
         QueryParserCacheEntry cached = cache.get(qryDesc);
 
-        if (cached != null) {
+        boolean isCacheHit = cached != null;
+
+        MTC.span().addTag(SQL_PARSER_CACHE_HIT, () -> Boolean.toString(isCacheHit));
+
+        if (isCacheHit) {
             metricsHolder.countCacheHit();
 
             return new QueryParserResult(

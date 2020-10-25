@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.tracing;
 
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.ignite.spi.tracing.Scope;
 import org.apache.ignite.spi.tracing.SpanStatus;
@@ -35,6 +36,9 @@ public class SpanImpl implements Span {
 
     /** Set of extra included scopes for given span in addition to span's scope that is supported by default. */
     private final Set<Scope> includedScopes;
+
+    /** Attachment. */
+    private Object att;
 
     /**
      * Constructor
@@ -91,6 +95,18 @@ public class SpanImpl implements Span {
     /** {@inheritDoc} */
     @Override public Set<Scope> includedScopes() {
         return includedScopes;
+    }
+
+    /** {@inheritDoc} */
+    @Override public Span attach(Supplier<Object> attSupplier) {
+        att = attSupplier.get();
+
+        return this;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void attachment(Consumer<Object> attConsumer) {
+        attConsumer.accept(att);
     }
 
     /**

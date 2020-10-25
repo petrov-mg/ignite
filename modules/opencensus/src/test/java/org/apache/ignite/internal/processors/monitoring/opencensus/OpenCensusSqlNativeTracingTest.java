@@ -44,6 +44,7 @@ import org.apache.ignite.spi.tracing.opencensus.OpenCensusTracingSpi;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.junit.Test;
 
+import static java.lang.Boolean.parseBoolean;
 import static java.lang.Integer.parseInt;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.internal.TestRecordingCommunicationSpi.spi;
@@ -55,6 +56,7 @@ import static org.apache.ignite.internal.processors.tracing.SpanTags.NODE_ID;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_CACHE_UPDATES;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_IDX_RANGE_ROWS;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_PAGE_ROWS;
+import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_PARSER_CACHE_HIT;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_QRY_TEXT;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.SQL_SCHEMA;
 import static org.apache.ignite.internal.processors.tracing.SpanTags.tag;
@@ -137,7 +139,9 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
         SpanId rootSpan = executeAndCheckRootSpan(
             "UPDATE " + prsnTable + " SET prsnVal = (prsnVal + 1)", TEST_SCHEMA, true, false, false);
 
-        checkChildSpan(SQL_QRY_PARSE, rootSpan);
+        SpanId qryParseSpan = checkChildSpan(SQL_QRY_PARSE, rootSpan);
+
+        assertFalse(parseBoolean(getAttribute(qryParseSpan, SQL_PARSER_CACHE_HIT)));
 
         SpanId dmlExecSpan = checkChildSpan(SQL_DML_QRY_EXECUTE, rootSpan);
 
@@ -153,20 +157,23 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
             SpanId execReqSpan = execReqSpans.get(i);
 
             checkChildSpan(SQL_PARTITIONS_RESERVE, execReqSpan);
-            checkSpan(SQL_QRY_PARSE, execReqSpan, 2, null);
+
+            List<SpanId> qryParseSpans = checkSpan(SQL_QRY_PARSE, execReqSpan, 2, null);
+
+            qryParseSpans.forEach(span -> assertFalse(parseBoolean(getAttribute(span, SQL_PARSER_CACHE_HIT))));
 
             SpanId iterSpan = checkChildSpan(SQL_ITER_OPEN, execReqSpan);
 
             checkChildSpan(SQL_QRY_EXECUTE, iterSpan);
 
             fetchedRows += findChildSpans(SQL_PAGE_FETCH, execReqSpan).stream()
-                .mapToInt(span -> getAttribute(span, SQL_PAGE_ROWS))
+                .mapToInt(span -> parseInt(getAttribute(span, SQL_PAGE_ROWS)))
                 .sum();
 
             List<SpanId> cacheUpdateSpans = findChildSpans(SQL_CACHE_UPDATE, execReqSpan);
 
             cacheUpdates += cacheUpdateSpans.stream()
-                .mapToInt(span -> getAttribute(span, SQL_CACHE_UPDATES))
+                .mapToInt(span -> parseInt(getAttribute(span, SQL_CACHE_UPDATES)))
                 .sum();
 
             checkChildSpan(SQL_ITER_CLOSE, execReqSpan);
@@ -271,7 +278,10 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
             "SELECT * FROM " + prsnTable + " AS p JOIN " + orgTable + " AS o ON o.orgId = p.prsnId",
             TEST_SCHEMA, false, true, true);
 
-        checkChildSpan(SQL_QRY_PARSE, rootSpan);
+        SpanId qryParseSpan = checkChildSpan(SQL_QRY_PARSE, rootSpan);
+
+        assertFalse(parseBoolean(getAttribute(qryParseSpan, SQL_PARSER_CACHE_HIT)));
+
         checkChildSpan(SQL_CURSOR_OPEN, rootSpan);
 
         SpanId iterSpan = checkChildSpan(SQL_ITER_OPEN, rootSpan);
@@ -294,34 +304,32 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
             List<SpanId> distrLookupReqSpans = findChildSpans(SQL_IDX_RANGE_REQ, execSpan);
 
             for (SpanId span : distrLookupReqSpans) {
-                idxRangeReqRows += getAttribute(span, SQL_IDX_RANGE_ROWS);
+                idxRangeReqRows += parseInt(getAttribute(span, SQL_IDX_RANGE_ROWS));
 
                 checkChildSpan(SQL_IDX_RANGE_RESP, span);
             }
 
-            preparedRows += getAttribute(
-                checkChildSpan(SQL_PAGE_PREPARE, execReqSpan), SQL_PAGE_ROWS);
+            preparedRows += parseInt(getAttribute(checkChildSpan(SQL_PAGE_PREPARE, execReqSpan), SQL_PAGE_ROWS));
 
             checkChildSpan(SQL_PAGE_RESP, execReqSpan);
         }
 
         SpanId pageFetchSpan = checkChildSpan(SQL_PAGE_FETCH, iterSpan);
 
-        fetchedRows += getAttribute(pageFetchSpan, SQL_PAGE_ROWS);
+        fetchedRows += parseInt(getAttribute(pageFetchSpan, SQL_PAGE_ROWS));
 
         checkChildSpan(SQL_PAGE_WAIT, pageFetchSpan);
 
         SpanId nexPageSpan = checkChildSpan(SQL_NEXT_PAGE_REQ, pageFetchSpan);
 
-        preparedRows += getAttribute(
-            checkChildSpan(SQL_PAGE_PREPARE, nexPageSpan), SQL_PAGE_ROWS);
+        preparedRows += parseInt(getAttribute(checkChildSpan(SQL_PAGE_PREPARE, nexPageSpan), SQL_PAGE_ROWS));
 
         checkChildSpan(SQL_PAGE_RESP, nexPageSpan);
 
         List<SpanId> pageFetchSpans = findChildSpans(SQL_PAGE_FETCH, rootSpan);
 
         for (SpanId span : pageFetchSpans) {
-            fetchedRows += getAttribute(span, SQL_PAGE_ROWS);
+            fetchedRows += parseInt(getAttribute(span, SQL_PAGE_ROWS));
 
             checkChildSpan(SQL_PAGE_WAIT, span);
 
@@ -332,8 +340,7 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
 
                 SpanId nextPageSpan = nextPageSpans.get(0);
 
-                preparedRows += getAttribute(
-                    checkChildSpan(SQL_PAGE_PREPARE, nextPageSpan), SQL_PAGE_ROWS);
+                preparedRows += parseInt(getAttribute(checkChildSpan(SQL_PAGE_PREPARE, nextPageSpan), SQL_PAGE_ROWS));
 
                 checkChildSpan(SQL_PAGE_RESP, nextPageSpan);
             }
@@ -364,9 +371,9 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
 
         SpanId iterOpenSpan = checkChildSpan(SQL_ITER_OPEN, rootSpan);
 
-        List<SpanId> qryExecspans = findChildSpans(SQL_QRY_EXEC_REQ, iterOpenSpan);
+        List<SpanId> qryExecSpans = findChildSpans(SQL_QRY_EXEC_REQ, iterOpenSpan);
 
-        assertEquals(GRID_CNT * qryParallelism, qryExecspans.size());
+        assertEquals(GRID_CNT * qryParallelism, qryExecSpans.size());
     }
 
     /**
@@ -429,8 +436,33 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
         SpanId rootSpan = executeAndCheckRootSpan("CREATE TABLE test_table(id INT PRIMARY KEY, val VARCHAR)",
             DFLT_SCHEMA, false, false, null);
 
-        checkChildSpan(SQL_QRY_PARSE, rootSpan);
+        SpanId qryParseSpan = checkChildSpan(SQL_QRY_PARSE, rootSpan);
+
+        assertFalse(parseBoolean(getAttribute(qryParseSpan, SQL_PARSER_CACHE_HIT)));
+
         checkChildSpan(SQL_CMD_QRY_EXECUTE, rootSpan);
+    }
+
+    /** Tests SQL parser cache hit tag. */
+    @Test
+    public void testParserCacheHitTag() throws Exception {
+        String prsnTable = createTableAndPopulate(Person.class, PARTITIONED, 1);
+
+        SpanId rootSpan = executeAndCheckRootSpan("SELECT * FROM " + prsnTable,
+            TEST_SCHEMA, false, false, true);
+
+        SpanId qryParseSpan = checkChildSpan(SQL_QRY_PARSE, rootSpan);
+
+        assertFalse(parseBoolean(getAttribute(qryParseSpan, SQL_PARSER_CACHE_HIT)));
+
+        handler().clearCollectedSpans();
+
+        rootSpan = executeAndCheckRootSpan("SELECT * FROM " + prsnTable,
+            TEST_SCHEMA, false, false, true);
+
+        qryParseSpan = checkChildSpan(SQL_QRY_PARSE, rootSpan);
+
+        assertTrue(parseBoolean(getAttribute(qryParseSpan, SQL_PARSER_CACHE_HIT)));
     }
 
     /**
@@ -442,7 +474,9 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
     private void checkDmlQuerySpans(String qry, boolean fetchRequired, int expCacheUpdates) throws Exception {
         SpanId rootSpan = executeAndCheckRootSpan(qry, TEST_SCHEMA, false,false,false);
 
-        checkChildSpan(SQL_QRY_PARSE, rootSpan);
+        SpanId qryParseSpan = checkChildSpan(SQL_QRY_PARSE, rootSpan);
+
+        assertFalse(parseBoolean(getAttribute(qryParseSpan, SQL_PARSER_CACHE_HIT)));
 
         SpanId dmlExecSpan = checkChildSpan(SQL_DML_QRY_EXECUTE, rootSpan);
 
@@ -450,14 +484,14 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
             checkChildSpan(SQL_ITER_OPEN, dmlExecSpan);
 
             int fetchedRows = findChildSpans(SQL_PAGE_FETCH, null).stream()
-                .mapToInt(span -> getAttribute(span, SQL_PAGE_ROWS))
+                .mapToInt(span -> parseInt(getAttribute(span, SQL_PAGE_ROWS)))
                 .sum();
 
             assertEquals(expCacheUpdates, fetchedRows);
         }
 
         int cacheUpdates = findChildSpans(SQL_CACHE_UPDATE, dmlExecSpan).stream()
-            .mapToInt(span -> getAttribute(span, SQL_CACHE_UPDATES))
+            .mapToInt(span -> parseInt(getAttribute(span, SQL_CACHE_UPDATES)))
             .sum();
 
         assertEquals(expCacheUpdates, cacheUpdates);
@@ -491,18 +525,18 @@ public class OpenCensusSqlNativeTracingTest extends AbstractTracingTest {
     }
 
     /**
-     * Obtains integer value of the attribtute from span with specified id.
+     * Obtains string representation of the attribtute from span with specified id.
      *
      * @param spanId Id of the target span.
      * @param tag Tag of the attribute.
      * @return Value of the attribute.
      */
-    protected int getAttribute(SpanId spanId, String tag) {
-        return parseInt(attributeValueToString(handler()
+    protected String getAttribute(SpanId spanId, String tag) {
+        return attributeValueToString(handler()
             .spanById(spanId)
             .getAttributes()
             .getAttributeMap()
-            .get(tag)));
+            .get(tag));
     }
 
     /**
