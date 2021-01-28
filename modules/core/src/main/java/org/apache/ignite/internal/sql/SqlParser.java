@@ -36,6 +36,7 @@ import org.apache.ignite.internal.sql.command.SqlKillServiceCommand;
 import org.apache.ignite.internal.sql.command.SqlKillTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlRollbackTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlSetStreamingCommand;
+import org.apache.ignite.internal.sql.command.SqlTraceQueryCommand;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.sql.SqlKeyword.ALTER;
@@ -63,6 +64,7 @@ import static org.apache.ignite.internal.sql.SqlKeyword.SPATIAL;
 import static org.apache.ignite.internal.sql.SqlKeyword.START;
 import static org.apache.ignite.internal.sql.SqlKeyword.STREAMING;
 import static org.apache.ignite.internal.sql.SqlKeyword.TABLE;
+import static org.apache.ignite.internal.sql.SqlKeyword.TRACE;
 import static org.apache.ignite.internal.sql.SqlKeyword.TRANSACTION;
 import static org.apache.ignite.internal.sql.SqlKeyword.UNIQUE;
 import static org.apache.ignite.internal.sql.SqlKeyword.USER;
@@ -219,6 +221,11 @@ public class SqlParser {
                             cmd = processRevoke();
 
                             break;
+
+                        case TRACE:
+                            cmd = processTrace();
+
+                            break;
                     }
 
                     if (cmd != null) {
@@ -326,6 +333,15 @@ public class SqlParser {
      */
     private SqlCommand processCopy() {
         return new SqlBulkLoadCommand().parse(lex);
+    }
+
+    /**
+     * Processes TRACE command.
+     *
+     * @return The {@link SqlTraceQueryCommand} command.
+     */
+    private SqlCommand processTrace() {
+        return new SqlTraceQueryCommand().parse(lex);
     }
 
     /**

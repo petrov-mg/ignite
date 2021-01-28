@@ -1017,7 +1017,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         QueryDescriptor qryDesc,
         QueryParameters qryParams,
         @Nullable SqlClientContext cliCtx,
-        QueryParserResultCommand cmd
+        QueryParserResultCommand cmd,
+        boolean keepBinary
     ) {
         if (cmd.noOp())
             return zeroCursor();
@@ -1037,7 +1038,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         Exception failReason = null;
 
         try (TraceSurroundings ignored = MTC.support(ctx.tracing().create(SQL_CMD_QRY_EXECUTE, MTC.span()))) {
-            res = cmdProc.runCommand(qryDesc.sql(), cmdNative, cmdH2, qryParams, cliCtx, qryId);
+            res = cmdProc.runCommand(cmdNative, cmdH2, qryDesc, qryParams, cliCtx, qryId, keepBinary);
 
             return res.cursor();
         }
@@ -1136,7 +1137,8 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                             newQryDesc,
                             newQryParams,
                             cliCtx,
-                            cmd
+                            cmd,
+                            keepBinary
                         );
 
                         res.add(cmdRes);

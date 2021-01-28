@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -43,6 +44,7 @@ import org.apache.ignite.cache.QueryIndex;
 import org.apache.ignite.cache.QueryIndexType;
 import org.apache.ignite.cache.query.BulkLoadContextCursor;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
+import org.apache.ignite.cache.query.SqlFieldsQuery;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.events.DiscoveryEvent;
@@ -109,6 +111,7 @@ import org.apache.ignite.internal.sql.command.SqlKillServiceCommand;
 import org.apache.ignite.internal.sql.command.SqlKillTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlRollbackTransactionCommand;
 import org.apache.ignite.internal.sql.command.SqlSetStreamingCommand;
+import org.apache.ignite.internal.sql.command.SqlTraceQueryCommand;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.lang.IgniteClosureX;
@@ -396,8 +399,8 @@ public class CommandProcessor {
      * @param qryId Running query ID.
      * @return Result.
      */
-    public CommandResult runCommand(String sql, SqlCommand cmdNative, GridSqlStatement cmdH2,
-        QueryParameters params, @Nullable SqlClientContext cliCtx, Long qryId) throws IgniteCheckedException {
+    public CommandResult runCommand(SqlCommand cmdNative, GridSqlStatement cmdH2,
+        QueryDescriptor descriptor, QueryParameters params, @Nullable SqlClientContext cliCtx, Long qryId, boolean keepBinary) throws IgniteCheckedException {
         assert cmdNative != null || cmdH2 != null;
 
         // Do execute.
@@ -408,7 +411,7 @@ public class CommandProcessor {
             assert cmdH2 == null;
 
             if (isDdl(cmdNative))
-                runCommandNativeDdl(sql, cmdNative);
+                runCommandNativeDdl(descriptor.sql(), cmdNative);
             else if (cmdNative instanceof SqlBulkLoadCommand) {
                 res = processBulkLoadCommand((SqlBulkLoadCommand) cmdNative, qryId);
 
@@ -428,13 +431,15 @@ public class CommandProcessor {
                 processKillScanQueryCommand((SqlKillScanQueryCommand) cmdNative);
             else if (cmdNative instanceof SqlKillContinuousQueryCommand)
                 processKillContinuousQueryCommand((SqlKillContinuousQueryCommand) cmdNative);
+            else if (cmdNative instanceof SqlTraceQueryCommand)
+                processTraceQueryCommand((SqlTraceQueryCommand) cmdNative, descriptor, params, keepBinary);
             else
                 processTxCommand(cmdNative, params);
         }
         else {
             assert cmdH2 != null;
 
-            runCommandH2(sql, cmdH2);
+            runCommandH2(descriptor.sql(), cmdH2);
         }
 
         return new CommandResult(res, unregister);
@@ -550,6 +555,24 @@ public class CommandProcessor {
      */
     private void processKillContinuousQueryCommand(SqlKillContinuousQueryCommand cmd) {
         new QueryMXBeanImpl(ctx).cancelContinuous(cmd.getOriginNodeId(), cmd.getRoutineId());
+    }
+
+    /** */
+    private void processTraceQueryCommand(SqlTraceQueryCommand cmd, QueryDescriptor desc, QueryParameters params, boolean keepBinary) {
+        ctx.query().querySqlFields(
+            new SqlFieldsQuery(cmd.sql())
+                .setSchema(desc.schemaName())
+                .setCollocated(desc.collocated())
+                .setDistributedJoins(desc.distributedJoins())
+                .setEnforceJoinOrder(desc.enforceJoinOrder())
+                .setLocal(desc.local())
+                .setTimeout(params.timeout(), TimeUnit.MILLISECONDS)
+                .setPageSize(params.pageSize())
+                .setArgs(params.arguments())
+                .setUpdateBatchSize(params.updateBatchSize())
+                .setLazy(params.lazy())
+                .setPartitions(params.partitions()),
+            keepBinary);
     }
 
     /**
