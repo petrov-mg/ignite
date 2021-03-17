@@ -1250,7 +1250,6 @@ public class IgniteKernal implements IgniteEx, IgniteMXBean, Externalizable {
                 startTimer.finishGlobalStage("Configure binary metadata");
 
                 startProcessor(createComponent(IGridClusterStateProcessor.class, ctx));
-                startProcessor(new IgniteAuthenticationProcessor(ctx));
                 startProcessor(new GridCacheProcessor(ctx));
                 startProcessor(new IndexProcessor(ctx));
                 startProcessor(new GridQueryProcessor(ctx));
@@ -1567,6 +1566,11 @@ public class IgniteKernal implements IgniteEx, IgniteMXBean, Externalizable {
      */
     private GridProcessor securityProcessor() throws IgniteCheckedException {
         GridSecurityProcessor prc = createComponent(GridSecurityProcessor.class, ctx);
+
+        if (cfg.isAuthenticationEnabled() && !(prc instanceof IgniteAuthenticationProcessor)) {
+            throw new IgniteCheckedException("Invalid security configuration: both authentication is enabled" +
+                " and security plugin is provided.");
+        }
 
         return prc != null && prc.enabled()
             ? new IgniteSecurityProcessor(ctx, prc)
@@ -4348,7 +4352,7 @@ public class IgniteKernal implements IgniteEx, IgniteMXBean, Externalizable {
             return (T)new GridClusterStateProcessor(ctx);
 
         if (cls.equals(GridSecurityProcessor.class))
-            return null;
+            return ctx.config().isAuthenticationEnabled() ? (T)new IgniteAuthenticationProcessor(ctx) : null;
 
         if (cls.equals(IgniteRestProcessor.class))
             return (T)new GridRestProcessor(ctx);
