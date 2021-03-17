@@ -388,11 +388,6 @@ public class StandaloneGridKernalContext implements GridKernalContext {
     }
 
     /** {@inheritDoc} */
-    @Override public IgniteAuthenticationProcessor authentication() {
-        return null;
-    }
-
-    /** {@inheritDoc} */
     @Override public GridContinuousProcessor continuous() {
         return null;
     }
