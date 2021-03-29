@@ -84,6 +84,7 @@ import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.internal.GridComponent.DiscoveryDataExchangeType.AUTH_PROC;
 import static org.apache.ignite.internal.GridTopic.TOPIC_AUTH;
+import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_AUTHENTICATION_ENABLED;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_SECURITY_CREDENTIALS;
 import static org.apache.ignite.internal.processors.authentication.User.DFAULT_USER_NAME;
 import static org.apache.ignite.internal.processors.authentication.UserManagementOperation.OperationType.ADD;
@@ -167,6 +168,7 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
 
         ctx.internalSubscriptionProcessor().registerMetastorageListener(this);
 
+        ctx.addNodeAttribute(ATTR_AUTHENTICATION_ENABLED, true);
         ctx.addNodeAttribute(ATTR_SECURITY_CREDENTIALS, new SecurityCredentials(null, null));
 
         exec = new IgniteThreadPoolExecutor(
