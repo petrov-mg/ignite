@@ -213,7 +213,17 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean enabled() {
+    @Override public boolean authorizationEnabled() {
+        return true;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean nodeAuthenticationEnabled() {
+        return true;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean clientAuthenticationEnabled() {
         return true;
     }
 

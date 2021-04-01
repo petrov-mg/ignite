@@ -82,7 +82,7 @@ public abstract class ClientListenerAbstractConnectionContext implements ClientL
      * @throws IgniteCheckedException If failed.
      */
     protected void authenticate(GridNioSession ses, String user, String pwd) throws IgniteCheckedException {
-        if (!ctx.security().enabled() && !ctx.config().isAuthenticationEnabled())
+        if (!ctx.security().clientAuthenticationEnabled())
             return;
 
         SecurityCredentials cred = new SecurityCredentials(user, pwd);
@@ -107,7 +107,7 @@ public abstract class ClientListenerAbstractConnectionContext implements ClientL
 
     /** {@inheritDoc} */
     @Override public void onDisconnected() {
-        if (ctx.security().enabled())
+        if (ctx.security().clientAuthenticationEnabled())
             ctx.security().onSessionExpired(secCtx.subject().id());
     }
 }

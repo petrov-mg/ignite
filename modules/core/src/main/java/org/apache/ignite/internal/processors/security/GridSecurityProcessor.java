@@ -118,7 +118,8 @@ public interface GridSecurityProcessor extends GridProcessor {
 
     /**
      * @return GridSecurityProcessor is enable.
-     * @deprecated To determine the security mode use {@link IgniteSecurity#enabled()}.
+     * @deprecated To determine the security mode use {@link IgniteSecurity#authorizationEnabled()},
+     * {@link IgniteSecurity#nodeAuthenticationEnabled()} or {@link IgniteSecurity#clientAuthenticationEnabled()}.
      */
     @Deprecated
     public boolean enabled();

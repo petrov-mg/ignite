@@ -489,7 +489,7 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
 
         spi.setMetricsProvider(createMetricsProvider());
 
-        if (ctx.security().enabled()) {
+        if (ctx.security().nodeAuthenticationEnabled()) {
             if (isSecurityCompatibilityMode())
                 ctx.addNodeAttribute(ATTR_SECURITY_COMPATIBILITY_MODE, true);
 
@@ -1305,7 +1305,7 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
                     ", rmtAddrs=" + U.addressesAsString(n) + ", rmtNode=" + U.toShortString(n) + "]");
             }
 
-            if (ctx.security().enabled()) {
+            if (ctx.security().nodeAuthenticationEnabled()) {
                 Boolean rmtSecurityCompatibilityEnabled = n.attribute(ATTR_SECURITY_COMPATIBILITY_MODE);
 
                 if (!F.eq(locSecurityCompatibilityEnabled, rmtSecurityCompatibilityEnabled)) {

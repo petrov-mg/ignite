@@ -1465,7 +1465,7 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
      */
     private void checkSecurityPermission(SecurityPermission perm)
         throws org.apache.ignite.plugin.security.SecurityException {
-        if (!ctx.security().enabled())
+        if (!ctx.security().authorizationEnabled())
             return;
 
         ctx.security().authorize(cacheName, perm);

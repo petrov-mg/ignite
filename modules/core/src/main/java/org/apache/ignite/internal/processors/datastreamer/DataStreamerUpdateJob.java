@@ -166,7 +166,7 @@ class DataStreamerUpdateJob implements GridPlainCallable<Object> {
      */
     private void checkSecurityPermission(SecurityPermission perm)
         throws org.apache.ignite.plugin.security.SecurityException {
-        if (ctx.security().enabled())
+        if (ctx.security().authorizationEnabled())
             ctx.security().authorize(cacheName, perm);
     }
 }

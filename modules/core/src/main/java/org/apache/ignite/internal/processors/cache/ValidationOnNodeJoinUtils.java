@@ -151,7 +151,7 @@ public class ValidationOnNodeJoinUtils {
 
             SecurityContext secCtx = null;
 
-            if (ctx.security().enabled()) {
+            if (ctx.security().nodeAuthenticationEnabled()) {
                 try {
                     secCtx = nodeSecurityContext(marsh, U.resolveClassLoader(ctx.config()), node);
                 }

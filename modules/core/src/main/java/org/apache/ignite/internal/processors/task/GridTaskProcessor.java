@@ -197,7 +197,7 @@ public class GridTaskProcessor extends GridProcessorAdapter implements IgniteCha
         if (!active)
             return;
 
-        tasksMetaCache = ctx.security().enabled() && !ctx.isDaemon() ?
+        tasksMetaCache = ctx.security().authorizationEnabled() && !ctx.isDaemon() ?
             ctx.cache().<GridTaskNameHashKey, String>utilityCache() : null;
 
         startLatch.countDown();
@@ -323,7 +323,7 @@ public class GridTaskProcessor extends GridProcessorAdapter implements IgniteCha
      * @return Task metadata cache.
      */
     private IgniteInternalCache<GridTaskNameHashKey, String> taskMetaCache() {
-        assert ctx.security().enabled();
+        assert ctx.security().authorizationEnabled();
 
         if (tasksMetaCache == null)
             U.awaitQuiet(startLatch);
@@ -526,7 +526,7 @@ public class GridTaskProcessor extends GridProcessorAdapter implements IgniteCha
         if (taskNameHash == 0)
             return null;
 
-        assert ctx.security().enabled();
+        assert ctx.security().authorizationEnabled();
 
         try {
             return taskMetaCache().localPeek(
@@ -774,7 +774,7 @@ public class GridTaskProcessor extends GridProcessorAdapter implements IgniteCha
 
         IgniteCheckedException securityEx = null;
 
-        if (ctx.security().enabled() && deployEx == null && !dep.internalTask(task, taskCls)) {
+        if (ctx.security().authorizationEnabled() && deployEx == null && !dep.internalTask(task, taskCls)) {
             try {
                 saveTaskMetadata(taskName);
             }
@@ -926,7 +926,7 @@ public class GridTaskProcessor extends GridProcessorAdapter implements IgniteCha
         if (ctx.isDaemon())
             return;
 
-        assert ctx.security().enabled();
+        assert ctx.security().authorizationEnabled();
 
         int nameHash = taskName.hashCode();
 

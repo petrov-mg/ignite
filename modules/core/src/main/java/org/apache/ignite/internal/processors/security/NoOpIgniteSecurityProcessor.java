@@ -114,7 +114,17 @@ public class NoOpIgniteSecurityProcessor extends GridProcessorAdapter implements
     }
 
     /** {@inheritDoc} */
-    @Override public boolean enabled() {
+    @Override public boolean authorizationEnabled() {
+        return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean nodeAuthenticationEnabled() {
+        return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean clientAuthenticationEnabled() {
         return false;
     }
 
@@ -138,9 +148,14 @@ public class NoOpIgniteSecurityProcessor extends GridProcessorAdapter implements
     private IgniteNodeValidationResult validateSecProcClass(ClusterNode node) {
         String rmtCls = node.attribute(ATTR_GRID_SEC_PROC_CLASS);
 
-        Boolean authEnabled = node.attribute(IgniteNodeAttributes.ATTR_AUTHENTICATION_ENABLED);
+        if (node.attribute(IgniteNodeAttributes.ATTR_AUTHENTICATION_ENABLED) != null) {
+            return new IgniteNodeValidationResult(
+                node.id(),
+                ""
+            );
+        }
 
-        if (rmtCls != null || (authEnabled != null && authEnabled)) {
+        if (rmtCls != null) {
             ClusterNode locNode = ctx.discovery().localNode();
 
             return new IgniteNodeValidationResult(

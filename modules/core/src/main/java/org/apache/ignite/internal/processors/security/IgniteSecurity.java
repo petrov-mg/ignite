@@ -121,11 +121,14 @@ public interface IgniteSecurity {
      */
     public IgniteSandbox sandbox();
 
-    /**
-     * @return True if IgniteSecurity is a plugin implementation,
-     * false if it's used a default NoOp implementation.
-     */
-    public boolean enabled();
+    /** */
+    public boolean authorizationEnabled();
+
+    /** */
+    public boolean nodeAuthenticationEnabled();
+
+    /** */
+    public boolean clientAuthenticationEnabled();
 
     /**
      * Creates user with the specified login and options.

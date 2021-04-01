@@ -2973,7 +2973,10 @@ public class IgniteKernal implements IgniteEx, IgniteMXBean, Externalizable {
     private void ackSecurity() {
         assert log != null;
 
-        U.quietAndInfo(log, "Security status [authentication=" + onOff(ctx.security().enabled())
+        U.quietAndInfo(log, "Security status [" +
+            "node authentication=" + onOff(ctx.security().nodeAuthenticationEnabled())
+            + ", client authentication=" + onOff(ctx.security().clientAuthenticationEnabled())
+            + ", authorization=" + onOff(ctx.security().authorizationEnabled())
             + ", sandbox=" + onOff(ctx.security().sandbox().enabled())
             + ", tls/ssl=" + onOff(ctx.config().getSslContextFactory() != null) + ']');
     }

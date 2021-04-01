@@ -448,8 +448,18 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
     }
 
     /** {@inheritDoc} */
-    @Override public boolean enabled() {
+    @Override public boolean authorizationEnabled() {
         return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean nodeAuthenticationEnabled() {
+        return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean clientAuthenticationEnabled() {
+        return true;
     }
 
     /**

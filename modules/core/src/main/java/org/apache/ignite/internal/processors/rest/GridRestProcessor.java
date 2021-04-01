@@ -249,7 +249,7 @@ public class GridRestProcessor extends GridProcessorAdapter implements IgniteRes
         if (log.isDebugEnabled())
             log.debug("Received request from client: " + req);
 
-        boolean securityEnabled = ctx.security().enabled() || ctx.config().isAuthenticationEnabled();
+        boolean securityEnabled = ctx.security().clientAuthenticationEnabled();
 
         SecurityContext secCtx0 = null;
 
@@ -394,7 +394,7 @@ public class GridRestProcessor extends GridProcessorAdapter implements IgniteRes
         while (true) {
             if (F.isEmpty(sesTok) && clientId == null) {
                 // TODO: In IGNITE 3.0 we should check credentials only for AUTHENTICATE command.
-                if ((ctx.security().enabled() || ctx.config().isAuthenticationEnabled()) && req.command() != AUTHENTICATE && req.credentials() == null)
+                if (ctx.security().clientAuthenticationEnabled() && req.command() != AUTHENTICATE && req.credentials() == null)
                     throw new IgniteAuthenticationException("Failed to handle request - session token not found or invalid");
 
                 Session ses = Session.random();
@@ -496,7 +496,7 @@ public class GridRestProcessor extends GridProcessorAdapter implements IgniteRes
                                 clientId2SesId.remove(ses.clientId, ses.sesId);
                                 sesId2Ses.remove(ses.sesId, ses);
 
-                                if (ctx.security().enabled() && ses.secCtx != null && ses.secCtx.subject() != null)
+                                if (ctx.security().clientAuthenticationEnabled() && ses.secCtx != null && ses.secCtx.subject() != null)
                                     ctx.security().onSessionExpired(ses.secCtx.subject().id());
                             }
                         }

@@ -24,6 +24,7 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.binary.BinaryMarshaller;
 import org.apache.ignite.internal.marshaller.optimized.OptimizedMarshaller;
+import org.apache.ignite.internal.processors.security.NoOpIgniteSecurityProcessor;
 import org.apache.ignite.spi.discovery.TestReconnectSecurityPluginProvider;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
@@ -307,7 +308,8 @@ public abstract class GridDiscoveryManagerAttributesSelfTest extends GridCommonA
             checkIsClientFlag(ignite);
 
             // Ignore if disabled security plugin used.
-            if (IGNITE_SECURITY_COMPATIBILITY_MODE.equals(prop) && !ignite.context().security().enabled())
+            if (IGNITE_SECURITY_COMPATIBILITY_MODE.equals(prop) &&
+                !(ignite.context().security() instanceof NoOpIgniteSecurityProcessor))
                 return;
 
             if (second != null)

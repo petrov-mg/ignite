@@ -560,7 +560,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         try {
             assert select != null;
 
-            if (ctx.security().enabled())
+            if (ctx.security().authorizationEnabled())
                 checkSecurity(select.cacheIds());
 
             MvccSnapshot mvccSnapshot = null;
@@ -1447,7 +1447,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
         assert !select.mvccEnabled() || mvccTracker != null;
 
         // Check security.
-        if (ctx.security().enabled())
+        if (ctx.security().authorizationEnabled())
             checkSecurity(select.cacheIds());
 
         Iterable<List<?>> iter;
@@ -1591,7 +1591,7 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                 GridCacheQueryType.SQL_FIELDS.name() + " query execution.",
                 qry,
                 qryParams.arguments(),
-                ctx.security().enabled() ? ctx.security().securityContext().subject().id() : null));
+                ctx.security().authorizationEnabled() ? ctx.security().securityContext().subject().id() : null));
         }
 
         return res;

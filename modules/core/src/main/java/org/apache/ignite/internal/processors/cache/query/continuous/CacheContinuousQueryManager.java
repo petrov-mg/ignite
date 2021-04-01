@@ -731,7 +731,7 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
     {
         cctx.checkSecurity(SecurityPermission.CACHE_READ);
 
-        int taskNameHash = !internal && cctx.kernalContext().security().enabled() ?
+        int taskNameHash = !internal && cctx.kernalContext().security().authorizationEnabled() ?
             cctx.kernalContext().job().currentTaskNameHash() : 0;
 
         boolean skipPrimaryCheck = loc && cctx.config().getCacheMode() == CacheMode.REPLICATED && cctx.affinityNode();
@@ -890,7 +890,7 @@ public class CacheContinuousQueryManager<K, V> extends GridCacheManagerAdapter<K
 
         GridKernalContext ctx = cctx.kernalContext();
 
-        if (ctx.security().enabled() && allNodesSupports(ctx.discovery().allNodes(), CONT_QRY_SECURITY_AWARE)) {
+        if (ctx.security().authorizationEnabled() && allNodesSupports(ctx.discovery().allNodes(), CONT_QRY_SECURITY_AWARE)) {
             final UUID subjectId = ctx.security().securityContext().subject().id();
 
             return f.apply(subjectId, component);
