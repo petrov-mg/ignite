@@ -2136,7 +2136,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         long timeout,
         boolean skipOnTimeout
     ) {
-        if (ctx.security().enabled()) {
+        if (ctx.security().authorizationEnabled()) {
             UUID secSubjId = null;
 
             UUID curSecSubjId = ctx.security().securityContext().subject().id();
@@ -4347,7 +4347,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      * @return Security subject id.
      */
     private UUID secSubjId(GridIoMessage msg) {
-        if (ctx.security().enabled()) {
+        if (ctx.security().authorizationEnabled()) {
             assert msg instanceof GridIoSecurityAwareMessage;
 
             return ((GridIoSecurityAwareMessage) msg).secSubjId();

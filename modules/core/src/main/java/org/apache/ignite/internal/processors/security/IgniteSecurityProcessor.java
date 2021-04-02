@@ -100,7 +100,7 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
     private final IgniteLogger log;
 
     /** Map of security contexts. Key is the node's id. */
-    private final Map<UUID, SecurityContext> secCtxs = new ConcurrentHashMap<>();
+    private Map<UUID, SecurityContext> secCtxs;
 
     /** Instance of IgniteSandbox. */
     private IgniteSandbox sandbox;
@@ -118,6 +118,10 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
 
         marsh = MarshallerUtils.jdkMarshaller(ctx.igniteInstanceName());
         log = ctx.log(getClass());
+
+        if (secPrc.authorizationEnabled())
+            secCtxs = new ConcurrentHashMap<>();
+
     }
 
     /** {@inheritDoc} */
@@ -213,7 +217,17 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean enabled() {
+    @Override public boolean authorizationEnabled() {
+        return true;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean nodeAuthenticationEnabled() {
+        return true;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean clientAuthenticationEnabled() {
         return true;
     }
 
@@ -350,6 +364,21 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
     @Override public @Nullable IgniteInternalFuture<?> onReconnected(
         boolean clusterRestarted) throws IgniteCheckedException {
         return secPrc.onReconnected(clusterRestarted);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void createUser(String login, UserOptions opts) throws IgniteCheckedException {
+        secPrc.createUser(login, opts);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void alterUser(String login, UserOptions opts) throws IgniteCheckedException {
+        secPrc.alterUser(login, opts);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void dropUser(String login) throws IgniteCheckedException {
+        secPrc.dropUser(login);
     }
 
     /**

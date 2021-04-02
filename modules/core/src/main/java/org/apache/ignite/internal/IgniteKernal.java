@@ -1250,7 +1250,6 @@ public class IgniteKernal implements IgniteEx, IgniteMXBean, Externalizable {
                 startTimer.finishGlobalStage("Configure binary metadata");
 
                 startProcessor(createComponent(IGridClusterStateProcessor.class, ctx));
-                startProcessor(new IgniteAuthenticationProcessor(ctx));
                 startProcessor(new GridCacheProcessor(ctx));
                 startProcessor(new GridQueryProcessor(ctx));
                 startProcessor(new ClientListenerProcessor(ctx));
@@ -2966,7 +2965,10 @@ public class IgniteKernal implements IgniteEx, IgniteMXBean, Externalizable {
     private void ackSecurity() {
         assert log != null;
 
-        U.quietAndInfo(log, "Security status [authentication=" + onOff(ctx.security().enabled())
+        U.quietAndInfo(log, "Security status [" +
+            "node authentication=" + onOff(ctx.security().nodeAuthenticationEnabled())
+            + ", client authentication=" + onOff(ctx.security().clientAuthenticationEnabled())
+            + ", authorization=" + onOff(ctx.security().authorizationEnabled())
             + ", sandbox=" + onOff(ctx.security().sandbox().enabled())
             + ", tls/ssl=" + onOff(ctx.config().getSslContextFactory() != null) + ']');
     }
@@ -4349,7 +4351,7 @@ public class IgniteKernal implements IgniteEx, IgniteMXBean, Externalizable {
             return (T)new GridClusterStateProcessor(ctx);
 
         if (cls.equals(GridSecurityProcessor.class))
-            return null;
+            return ctx.config().isAuthenticationEnabled() ? (T)new IgniteAuthenticationProcessor(ctx) : null;
 
         if (cls.equals(IgniteRestProcessor.class))
             return (T)new GridRestProcessor(ctx);

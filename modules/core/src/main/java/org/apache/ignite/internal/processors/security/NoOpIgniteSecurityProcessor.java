@@ -19,8 +19,10 @@ package org.apache.ignite.internal.processors.security;
 
 import java.util.Collection;
 import java.util.UUID;
+import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.IgniteNodeAttributes;
 import org.apache.ignite.internal.processors.GridProcessorAdapter;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteSandbox;
 import org.apache.ignite.internal.processors.security.sandbox.NoOpSandbox;
@@ -40,6 +42,9 @@ import static org.apache.ignite.internal.processors.security.SecurityUtils.MSG_S
  * No operation IgniteSecurity.
  */
 public class NoOpIgniteSecurityProcessor extends GridProcessorAdapter implements IgniteSecurity {
+    /** Error message that occurs when trying to perform security operations if security is disabled. */
+    public static final String SECURITY_DISABLED_ERROR_MSG = "Operation cannot be performed: security is disabled.";
+
     /** No operation security context. */
     private final OperationSecurityContext opSecCtx = new OperationSecurityContext(this, null);
 
@@ -109,7 +114,17 @@ public class NoOpIgniteSecurityProcessor extends GridProcessorAdapter implements
     }
 
     /** {@inheritDoc} */
-    @Override public boolean enabled() {
+    @Override public boolean authorizationEnabled() {
+        return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean nodeAuthenticationEnabled() {
+        return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean clientAuthenticationEnabled() {
         return false;
     }
 
@@ -133,6 +148,13 @@ public class NoOpIgniteSecurityProcessor extends GridProcessorAdapter implements
     private IgniteNodeValidationResult validateSecProcClass(ClusterNode node) {
         String rmtCls = node.attribute(ATTR_GRID_SEC_PROC_CLASS);
 
+        if (node.attribute(IgniteNodeAttributes.ATTR_AUTHENTICATION_ENABLED) != null) {
+            return new IgniteNodeValidationResult(
+                node.id(),
+                ""
+            );
+        }
+
         if (rmtCls != null) {
             ClusterNode locNode = ctx.discovery().localNode();
 
@@ -144,5 +166,20 @@ public class NoOpIgniteSecurityProcessor extends GridProcessorAdapter implements
         }
 
         return null;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void createUser(String login, UserOptions opts) throws IgniteCheckedException {
+        throw new IgniteCheckedException(SECURITY_DISABLED_ERROR_MSG);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void alterUser(String login, UserOptions opts) throws IgniteCheckedException {
+        throw new IgniteCheckedException(SECURITY_DISABLED_ERROR_MSG);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void dropUser(String login) throws IgniteCheckedException {
+        throw new IgniteCheckedException(SECURITY_DISABLED_ERROR_MSG);
     }
 }

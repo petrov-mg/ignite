@@ -170,7 +170,7 @@ public class IgniteSchedulerImpl implements IgniteScheduler, Externalizable {
      * @return Security aware runnable.
      */
     private Runnable securityRunnable(Runnable original) {
-        return ctx.security().enabled() ?
+        return ctx.security().authorizationEnabled() ?
             new SecurityAwareClosure<Void>(ctx.security().securityContext().subject().id(), original) : original;
     }
 
@@ -178,7 +178,7 @@ public class IgniteSchedulerImpl implements IgniteScheduler, Externalizable {
      * @return Security aware callable.
      */
     private <T> Callable<T> securityCallable(Callable<T> original) {
-        return ctx.security().enabled() ?
+        return ctx.security().authorizationEnabled() ?
             new SecurityAwareClosure<>(ctx.security().securityContext().subject().id(), original) : original;
     }
 

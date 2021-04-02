@@ -121,9 +121,38 @@ public interface IgniteSecurity {
      */
     public IgniteSandbox sandbox();
 
+    /** */
+    public boolean authorizationEnabled();
+
+    /** */
+    public boolean nodeAuthenticationEnabled();
+
+    /** */
+    public boolean clientAuthenticationEnabled();
+
     /**
-     * @return True if IgniteSecurity is a plugin implementation,
-     * false if it's used a default NoOp implementation.
+     * Creates user with the specified login and options.
+     *
+     * @param login Login of the user to be created.
+     * @param opts User options.
+     * @throws IgniteCheckedException If error occurred.
      */
-    public boolean enabled();
+    public void createUser(String login, UserOptions opts) throws IgniteCheckedException;
+
+    /**
+     * Alters specified options of user with the specified login.
+     *
+     * @param login Login of the user which options should be altered.
+     * @param opts User options.
+     * @throws IgniteCheckedException If error occurred.
+     */
+    public void alterUser(String login, UserOptions opts) throws IgniteCheckedException;
+
+    /**
+     * Drops user with the specified login.
+     *
+     * @param login Login of the user to be dropped.
+     * @throws IgniteCheckedException If error occurred.
+     */
+    public void dropUser(String login) throws IgniteCheckedException;
 }

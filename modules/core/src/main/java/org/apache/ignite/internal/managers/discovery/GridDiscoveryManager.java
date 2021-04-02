@@ -75,6 +75,7 @@ import org.apache.ignite.internal.managers.GridManagerAdapter;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;
 import org.apache.ignite.internal.managers.systemview.walker.ClusterNodeViewWalker;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.authentication.IgniteAuthenticationProcessor;
 import org.apache.ignite.internal.processors.cache.CacheGroupDescriptor;
 import org.apache.ignite.internal.processors.cache.ClientCacheChangeDummyDiscoveryMessage;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeBatch;
@@ -170,6 +171,7 @@ import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_USER_NAME;
 import static org.apache.ignite.internal.IgniteVersionUtils.VER;
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
 import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metricName;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.ifAuthenticationEnabled;
 import static org.apache.ignite.internal.processors.security.SecurityUtils.isSecurityCompatibilityMode;
 import static org.apache.ignite.plugin.segmentation.SegmentationPolicy.NOOP;
 
@@ -487,7 +489,7 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
 
         spi.setMetricsProvider(createMetricsProvider());
 
-        if (ctx.security().enabled()) {
+        if (ctx.security().nodeAuthenticationEnabled()) {
             if (isSecurityCompatibilityMode())
                 ctx.addNodeAttribute(ATTR_SECURITY_COMPATIBILITY_MODE, true);
 
@@ -767,7 +769,7 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
 
                         ctx.service().onLocalJoin(discoEvt, discoCache);
 
-                        ctx.authentication().onLocalJoin();
+                        ifAuthenticationEnabled(ctx, IgniteAuthenticationProcessor::onLocalJoin);
 
                         ctx.encryption().onLocalJoin();
 
@@ -1303,7 +1305,7 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
                     ", rmtAddrs=" + U.addressesAsString(n) + ", rmtNode=" + U.toShortString(n) + "]");
             }
 
-            if (ctx.security().enabled()) {
+            if (ctx.security().nodeAuthenticationEnabled()) {
                 Boolean rmtSecurityCompatibilityEnabled = n.attribute(ATTR_SECURITY_COMPATIBILITY_MODE);
 
                 if (!F.eq(locSecurityCompatibilityEnabled, rmtSecurityCompatibilityEnabled)) {

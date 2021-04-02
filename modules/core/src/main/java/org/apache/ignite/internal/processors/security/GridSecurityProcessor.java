@@ -118,7 +118,8 @@ public interface GridSecurityProcessor extends GridProcessor {
 
     /**
      * @return GridSecurityProcessor is enable.
-     * @deprecated To determine the security mode use {@link IgniteSecurity#enabled()}.
+     * @deprecated To determine the security mode use {@link IgniteSecurity#authorizationEnabled()},
+     * {@link IgniteSecurity#nodeAuthenticationEnabled()} or {@link IgniteSecurity#clientAuthenticationEnabled()}.
      */
     @Deprecated
     public boolean enabled();
@@ -132,5 +133,52 @@ public interface GridSecurityProcessor extends GridProcessor {
      */
     public default boolean sandboxEnabled() {
         return false;
+    }
+
+    /**
+     * Creates user with the specified login and options.
+     *
+     * @param login Login of the user to be created.
+     * @param opts User options.
+     * @throws IgniteCheckedException If error occurred.
+     */
+    public default void createUser(String login, UserOptions opts) throws IgniteCheckedException {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Alters specified options of user with the specified login.
+     *
+     * @param login Login of the user which options should be altered.
+     * @param opts User options.
+     * @throws IgniteCheckedException If error occurred.
+     */
+    public default void alterUser(String login, UserOptions opts) throws IgniteCheckedException {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Drops user with the specified login.
+     *
+     * @param login Login of the user to be dropped.
+     * @throws IgniteCheckedException If error occurred.
+     */
+    public default void dropUser(String login) throws IgniteCheckedException {
+        throw new UnsupportedOperationException();
+    }
+
+    /** */
+    public default boolean authorizationEnabled() {
+        return true;
+    }
+
+    /** */
+    public default boolean nodeAuthenticationEnabled() {
+        return true;
+    }
+
+    /** */
+    public default boolean clientAuthenticationEnabled() {
+        return true;
     }
 }

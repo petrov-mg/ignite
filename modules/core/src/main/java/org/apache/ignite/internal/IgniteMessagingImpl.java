@@ -231,7 +231,7 @@ public class IgniteMessagingImpl extends AsyncSupportAdapter<IgniteMessaging>
     private IgniteBiPredicate<UUID, Object> securityAwareBiPredicate(IgniteBiPredicate<UUID, ?> p) {
         IgniteBiPredicate<UUID, Object> res = (IgniteBiPredicate<UUID, Object>)p;
 
-        if (ctx.security().enabled()) {
+        if (ctx.security().authorizationEnabled()) {
             final UUID subjectId = ctx.security().securityContext().subject().id();
 
             return new SecurityAwareBiPredicate<>(subjectId, res);

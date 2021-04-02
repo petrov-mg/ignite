@@ -638,7 +638,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             }
 
             private String taskName() {
-                return ctx.security().enabled() ? ctx.task().resolveTaskName(taskHash) : null;
+                return ctx.security().authorizationEnabled() ? ctx.task().resolveTaskName(taskHash) : null;
             }
 
             @Override public boolean isPrimaryOnly() {
@@ -1143,7 +1143,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
      * @return Task name.
      */
     private String taskName() {
-        return ctx.security().enabled() ? ctx.task().resolveTaskName(taskHash) : null;
+        return ctx.security().authorizationEnabled() ? ctx.task().resolveTaskName(taskHash) : null;
     }
 
     /** {@inheritDoc} */
