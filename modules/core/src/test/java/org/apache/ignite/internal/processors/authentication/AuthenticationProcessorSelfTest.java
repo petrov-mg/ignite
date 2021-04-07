@@ -35,12 +35,14 @@ import org.apache.ignite.internal.util.lang.IgniteThrowableRunner;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.plugin.security.AuthenticationContext;
 import org.apache.ignite.plugin.security.SecurityCredentials;
+import org.apache.ignite.plugin.security.SecuritySubject;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
 
 import static org.apache.commons.lang3.StringUtils.repeat;
 import static org.apache.ignite.internal.processors.authentication.User.DFAULT_USER_NAME;
+import static org.apache.ignite.plugin.security.SecuritySubjectType.REMOTE_CLIENT;
 
 /**
  * Test for {@link IgniteAuthenticationProcessor}.
@@ -426,6 +428,26 @@ public class AuthenticationProcessorSelfTest extends GridCommonAbstractTest {
             UserManagementException.class, "User name is too long");
     }
 
+    /** Test the ability to obtain the security context ot an authenticated user on the remote server node. */
+    @Test
+    public void testRemoteNodeSecurityContext() throws Exception {
+        createUser(grid(CLI_NODE), secCtxDflt, "test", "pwd");
+
+        SecuritySubject subj = authenticate(grid(0), "test", "pwd").subject();
+
+        for (int i = 1; i < NODES_COUNT - 1; i++) {
+            IgniteSecurity security = ignite(i).context().security();
+
+            try (OperationSecurityContext ignored = security.withContext(subj.id())) {
+                SecuritySubject rmtSubj = security.securityContext().subject();
+
+                assertEquals(subj.id(), rmtSubj.id());
+                assertEquals(subj.login(), rmtSubj.login());
+                assertEquals(subj.type(), rmtSubj.type());
+            }
+        }
+    }
+
     /**
      * @param passwd User's password to check.
      */
@@ -479,6 +501,7 @@ public class AuthenticationProcessorSelfTest extends GridCommonAbstractTest {
         AuthenticationContext authCtx = new AuthenticationContext();
 
         authCtx.credentials(new SecurityCredentials(login, pwd));
+        authCtx.subjectType(REMOTE_CLIENT);
 
         return ignite.context().security().authenticate(authCtx);
     }

@@ -49,6 +49,8 @@ import org.apache.ignite.internal.processors.GridProcessorAdapter;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.GridCacheUtils;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.PartitionsExchangeAware;
 import org.apache.ignite.internal.processors.cache.persistence.metastorage.MetastorageLifecycleListener;
 import org.apache.ignite.internal.processors.cache.persistence.metastorage.MetastorageTree;
 import org.apache.ignite.internal.processors.cache.persistence.metastorage.ReadOnlyMetastorage;
@@ -98,7 +100,9 @@ import static org.apache.ignite.plugin.security.SecuritySubjectType.REMOTE_NODE;
 /**
  *
  */
-public class IgniteAuthenticationProcessor extends GridProcessorAdapter implements GridSecurityProcessor, MetastorageLifecycleListener {
+public class IgniteAuthenticationProcessor extends GridProcessorAdapter implements GridSecurityProcessor,
+    MetastorageLifecycleListener, PartitionsExchangeAware
+{
     /** Store user prefix. */
     private static final String STORE_USER_PREFIX = "user.";
 
@@ -161,10 +165,8 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
         super(ctx);
     }
 
-    /** {@inheritDoc} */
-    @Override public void start() throws IgniteCheckedException {
-        super.start();
-
+    /** Starts security processor. */
+    public void onPluginProviderStart() throws IgniteCheckedException {
         if (!GridCacheUtils.isPersistenceEnabled(ctx.config())) {
             throw new IgniteCheckedException("Authentication can be enabled only for cluster with enabled persistence."
                 + " Check the DataRegionConfiguration");
@@ -175,50 +177,9 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
         ctx.addNodeAttribute(ATTR_AUTHENTICATION_ENABLED, true);
         ctx.addNodeAttribute(ATTR_SECURITY_CREDENTIALS, new SecurityCredentials());
 
-        exec = new IgniteThreadPoolExecutor(
-            "auth",
-            ctx.config().getIgniteInstanceName(),
-            1,
-            1,
-            0,
-            new LinkedBlockingQueue<>());
-    }
-
-    /**
-     * On cache processor started.
-     */
-    public void cacheProcessorStarted() {
         sharedCtx = ctx.cache().context();
-    }
 
-    /** {@inheritDoc} */
-    @Override public void stop(boolean cancel) throws IgniteCheckedException {
-        if (ioLsnr != null)
-            ctx.io().removeMessageListener(TOPIC_AUTH, ioLsnr);
-
-        if (discoLsnr != null)
-            ctx.event().removeDiscoveryEventListener(discoLsnr, DISCO_EVT_TYPES);
-
-        cancelFutures("Node stopped");
-
-        if (exec != null) {
-            if (!cancel)
-                exec.shutdown();
-            else
-                exec.shutdownNow();
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override public void onKernalStop(boolean cancel) {
-        synchronized (mux) {
-            cancelFutures("Kernal stopped.");
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override public void onKernalStart(boolean active) throws IgniteCheckedException {
-        super.onKernalStart(active);
+        sharedCtx.exchange().registerExchangeAwareComponent(this);
 
         GridDiscoveryManager discoMgr = ctx.discovery();
 
@@ -244,6 +205,8 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
             }
         };
 
+        discoMgr.localJoinFuture().listen(fut -> onLocalJoin());
+
         ctx.event().addDiscoveryEventListener(discoLsnr, DISCO_EVT_TYPES);
 
         ioLsnr = (nodeId, msg, plc) -> {
@@ -259,6 +222,39 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
         };
 
         ioMgr.addMessageListener(TOPIC_AUTH, ioLsnr);
+
+        exec = new IgniteThreadPoolExecutor(
+            "auth",
+            ctx.config().getIgniteInstanceName(),
+            1,
+            1,
+            0,
+            new LinkedBlockingQueue<>());
+    }
+
+    /** {@inheritDoc} */
+    @Override public void stop(boolean cancel) throws IgniteCheckedException {
+        if (ioLsnr != null)
+            ctx.io().removeMessageListener(TOPIC_AUTH, ioLsnr);
+
+        if (discoLsnr != null)
+            ctx.event().removeDiscoveryEventListener(discoLsnr, DISCO_EVT_TYPES);
+
+        cancelFutures("Node stopped");
+
+        if (exec != null) {
+            if (!cancel)
+                exec.shutdown();
+            else
+                exec.shutdownNow();
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override public void onKernalStop(boolean cancel) {
+        synchronized (mux) {
+            cancelFutures("Kernal stopped.");
+        }
     }
 
     /** {@inheritDoc} */
@@ -781,8 +777,8 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
      * Local node joined to topology. Discovery cache is available but no discovery custom message are received.
      * Initial user set and initial user operation (received on join) are processed here.
      */
-    public void onLocalJoin() {
-        if (coordinator() == null)
+    private void onLocalJoin() {
+        if (ctx.isDaemon() || ctx.clientDisconnected() || coordinator() == null)
             return;
 
         if (F.eq(coordinator().id(), ctx.localNodeId())) {
@@ -819,10 +815,8 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
         readyForAuthFut.onDone();
     }
 
-    /**
-     * Called on node activate.
-     */
-    public void onActivate() {
+    /** {@inheritDoc} */
+    @Override public void onDoneBeforeTopologyUnlock(GridDhtPartitionsExchangeFuture fut) {
         activateFut.onDone();
     }
 
@@ -920,6 +914,8 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
 
     /** {@inheritDoc} */
     @Override public SecurityContext securityContext(UUID subjId) {
+        assert !ctx.clientNode();
+
         return new SecurityContextImpl(subjId, users.get(subjId).name(), REMOTE_CLIENT, null);
     }
 
@@ -931,10 +927,12 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
     private void checkUserOperation(UserManagementOperation op) throws IgniteAccessControlException {
         assert op != null;
 
-        Object login = ctx.security().securityContext().subject().login();
+        SecuritySubject subj = ctx.security().securityContext().subject();
 
-        if (login == null)
+        if (subj.type() == REMOTE_NODE)
             throw new IgniteAccessControlException("Operation not allowed: security context is empty.");
+
+        Object login = subj.login();
 
         if (!DFAULT_USER_NAME.equals(login) && !(UPDATE == op.type() && Objects.equals(login, op.user().name()))) {
             throw new IgniteAccessControlException("User management operations are not allowed for user" +

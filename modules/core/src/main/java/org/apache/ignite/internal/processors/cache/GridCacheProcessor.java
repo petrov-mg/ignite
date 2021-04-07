@@ -220,7 +220,6 @@ import static org.apache.ignite.internal.processors.cache.GridCacheUtils.isNearE
 import static org.apache.ignite.internal.processors.cache.GridCacheUtils.isPersistentCache;
 import static org.apache.ignite.internal.processors.cache.ValidationOnNodeJoinUtils.validateHashIdResolvers;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtLocalPartition.DFLT_CACHE_REMOVE_ENTRIES_TTL;
-import static org.apache.ignite.internal.processors.security.SecurityUtils.ifAuthenticationEnabled;
 import static org.apache.ignite.internal.util.IgniteUtils.doInParallel;
 
 /**
@@ -630,7 +629,6 @@ public class GridCacheProcessor extends GridProcessorAdapter {
             log.debug("Started cache processor.");
 
         ctx.state().cacheProcessorStarted();
-        ifAuthenticationEnabled(ctx, IgniteAuthenticationProcessor::cacheProcessorStarted);
 
         ctx.systemView().registerFiltrableView(
             CACHE_GRP_PAGE_LIST_VIEW,
