@@ -32,6 +32,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cluster.ClusterNode;
@@ -154,6 +155,10 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
     /** Node activate future. */
     private final GridFutureAdapter<Void> activateFut = new GridFutureAdapter<>();
 
+    HashSet<UUID> joinedOnSecondPhase = new HashSet<>();
+
+    AtomicBoolean isSecondPhase = new AtomicBoolean();
+
     /**
      * @param ctx Kernal context.
      */
@@ -161,10 +166,8 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
         super(ctx);
     }
 
-    /** {@inheritDoc} */
-    @Override public void start() throws IgniteCheckedException {
-        super.start();
-
+    /** */
+    public void authenticationStart() throws IgniteCheckedException {
         if (!GridCacheUtils.isPersistenceEnabled(ctx.config())) {
             throw new IgniteCheckedException("Authentication can be enabled only for cluster with enabled persistence."
                 + " Check the DataRegionConfiguration");
@@ -174,51 +177,6 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
 
         ctx.addNodeAttribute(ATTR_AUTHENTICATION_ENABLED, true);
         ctx.addNodeAttribute(ATTR_SECURITY_CREDENTIALS, new SecurityCredentials());
-
-        exec = new IgniteThreadPoolExecutor(
-            "auth",
-            ctx.config().getIgniteInstanceName(),
-            1,
-            1,
-            0,
-            new LinkedBlockingQueue<>());
-    }
-
-    /**
-     * On cache processor started.
-     */
-    public void cacheProcessorStarted() {
-        sharedCtx = ctx.cache().context();
-    }
-
-    /** {@inheritDoc} */
-    @Override public void stop(boolean cancel) throws IgniteCheckedException {
-        if (ioLsnr != null)
-            ctx.io().removeMessageListener(TOPIC_AUTH, ioLsnr);
-
-        if (discoLsnr != null)
-            ctx.event().removeDiscoveryEventListener(discoLsnr, DISCO_EVT_TYPES);
-
-        cancelFutures("Node stopped");
-
-        if (exec != null) {
-            if (!cancel)
-                exec.shutdown();
-            else
-                exec.shutdownNow();
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override public void onKernalStop(boolean cancel) {
-        synchronized (mux) {
-            cancelFutures("Kernal stopped.");
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override public void onKernalStart(boolean active) throws IgniteCheckedException {
-        super.onKernalStart(active);
 
         GridDiscoveryManager discoMgr = ctx.discovery();
 
@@ -259,6 +217,57 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
         };
 
         ioMgr.addMessageListener(TOPIC_AUTH, ioLsnr);
+
+        exec = new IgniteThreadPoolExecutor(
+            "auth",
+            ctx.config().getIgniteInstanceName(),
+            1,
+            1,
+            0,
+            new LinkedBlockingQueue<>());
+    }
+
+    /** {@inheritDoc} */
+    @Override public void start() throws IgniteCheckedException {
+        super.start();
+
+    }
+
+    /**
+     * On cache processor started.
+     */
+    public void cacheProcessorStarted() {
+        sharedCtx = ctx.cache().context();
+    }
+
+    /** {@inheritDoc} */
+    @Override public void stop(boolean cancel) throws IgniteCheckedException {
+        if (ioLsnr != null)
+            ctx.io().removeMessageListener(TOPIC_AUTH, ioLsnr);
+
+        if (discoLsnr != null)
+            ctx.event().removeDiscoveryEventListener(discoLsnr, DISCO_EVT_TYPES);
+
+        cancelFutures("Node stopped");
+
+        if (exec != null) {
+            if (!cancel)
+                exec.shutdown();
+            else
+                exec.shutdownNow();
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override public void onKernalStop(boolean cancel) {
+        synchronized (mux) {
+            cancelFutures("Kernal stopped.");
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override public void onKernalStart(boolean active) throws IgniteCheckedException {
+        super.onKernalStart(active);
     }
 
     /** {@inheritDoc} */
@@ -409,6 +418,9 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
 
                 dataBag.addGridCommonData(AUTH_PROC.ordinal(), d);
             }
+
+            if (isSecondPhase.get())
+                joinedOnSecondPhase.add(dataBag.joiningNodeId());
         }
     }
 
@@ -556,6 +568,8 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
             activeOps.remove(op.id());
 
             users.put(usr.id(), usr);
+
+            isSecondPhase.set(true);
         }
     }
 
@@ -577,6 +591,8 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
             activeOps.remove(op.id());
 
             users.remove(usr.id());
+
+            isSecondPhase.set(true);
         }
     }
 
@@ -598,6 +614,8 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
             activeOps.remove(op.id());
 
             users.put(usr.id(), usr);
+
+            isSecondPhase.set(true);
         }
     }
 
@@ -654,6 +672,9 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
     private void onNodeJoin(ClusterNode node) {
         if (isNodeHoldsUsers(ctx.discovery().localNode()) && isNodeHoldsUsers(node)) {
             synchronized (mux) {
+                if (joinedOnSecondPhase.contains(node.id()))
+                    return;
+
                 for (UserOperationFinishFuture f : opFinishFuts.values())
                     f.onNodeJoin(node.id());
             }
@@ -706,8 +727,13 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
         if (log.isDebugEnabled())
             log.debug(msg.toString());
 
+        String loc = ctx.localNodeId().toString();
+        String s = nodeId.toString();
+
         synchronized (mux) {
             UserOperationFinishFuture fut = opFinishFuts.get(msg.operationId());
+
+            log.error("@!!! fin " + loc.substring(loc.length() - 1) + " " + s.substring(s.length() - 1) + " " + msg.operationId());
 
             if (fut == null) {
                 fut = new UserOperationFinishFuture(msg.operationId());
@@ -812,8 +838,13 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
                 exec.execute(new RefreshUsersStorageWorker(initUsrs.usrs));
             }
 
-            for (UserManagementOperation op : initUsrs.activeOps)
+            for (UserManagementOperation op : initUsrs.activeOps) {
+                String loc = ctx.localNodeId().toString();
+
+                log.error("@!!! SUB " + loc.substring(loc.length() - 1) + " " + op.id());
+
                 submitOperation(op);
+            }
         }
 
         readyForAuthFut.onDone();
@@ -1011,6 +1042,11 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
     private final class UserAcceptedListener implements CustomEventListener<UserAcceptedMessage> {
         /** {@inheritDoc} */
         @Override public void onCustomEvent(AffinityTopologyVersion topVer, ClusterNode snd, UserAcceptedMessage msg) {
+            String loc = ctx.localNodeId().toString();
+            String s = snd.id().toString();
+
+            log.error("@!!! acc " + loc.substring(loc.length() - 1) + " " + s.substring(s.length() - 1) + " " + msg.operationId());
+
             if (ctx.isStopping())
                 return;
 
@@ -1026,6 +1062,9 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
                     else
                         f.onDone();
                 }
+
+                isSecondPhase.set(false);
+                joinedOnSecondPhase.clear();
             }
         }
     }
@@ -1055,6 +1094,9 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
         UserOperationFinishFuture(IgniteUuid opId) {
             this.opId = opId;
 
+            String loc = ctx.localNodeId().toString();
+
+
             if (!ctx.clientNode()) {
                 requiredFinish = new HashSet<>();
                 receivedFinish = new HashSet<>();
@@ -1068,6 +1110,8 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
                 requiredFinish = null;
                 receivedFinish = null;
             }
+
+            log.error("@!!! fut " + loc.substring(loc.length() - 1) + " " + opId + " " + requiredFinish);
         }
 
         /**
@@ -1112,6 +1156,10 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
          */
         synchronized void onNodeJoin(UUID id) {
             assert requiredFinish != null : "Process node join on client";
+
+            String loc = ctx.localNodeId().toString();
+
+            log.error("@!!! add " + loc.substring(loc.length() - 1) + " " + opId.toString()  + " " + id.toString().substring(id.toString().length() - 1));
 
             requiredFinish.add(id);
         }
@@ -1261,8 +1309,14 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
 
             sendFinish(curOpFinishMsg);
 
+            String loc = ctx.localNodeId().toString();
+
+            log.error("@!!! acq " + loc.substring(loc.length() - 1) + " " + op.id() + " " + fut.requiredFinish );
+
             try {
                 fut.get();
+
+                log.error("@!!! don " + loc.substring(loc.length() - 1) + " " + op.id() );
             }
             catch (IgniteCheckedException e) {
                 if (!e.hasCause(IgniteFutureCancelledException.class))

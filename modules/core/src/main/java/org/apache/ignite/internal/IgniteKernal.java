@@ -1250,6 +1250,7 @@ public class IgniteKernal implements IgniteEx, IgniteMXBean, Externalizable {
                 startTimer.finishGlobalStage("Configure binary metadata");
 
                 startProcessor(createComponent(IGridClusterStateProcessor.class, ctx));
+                ((IgniteAuthenticationProcessor)((IgniteSecurityProcessor)ctx.security()).securityProcessor()).authenticationStart();
                 startProcessor(new GridCacheProcessor(ctx));
                 startProcessor(new IndexProcessor(ctx));
                 startProcessor(new GridQueryProcessor(ctx));
