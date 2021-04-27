@@ -25,6 +25,7 @@ import org.apache.ignite.configuration.DataStorageConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
+import org.apache.ignite.internal.processors.security.OperationSecurityContext;
 import org.apache.ignite.internal.processors.security.SecurityContext;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.GridTestUtils;
@@ -121,23 +122,23 @@ public class AuthenticationProcessorNodeRestartTest extends GridCommonAbstractTe
         GridTestUtils.runMultiThreaded(() -> {
             String user = "test" + usrCnt.getAndIncrement();
 
-            try {
+            try (OperationSecurityContext ignored = grid(CLI_NODE).context().security().withContext(secCtxDflt)) {
                 int state = 0;
                 while (!restartFut.isDone()) {
                     try {
                         switch (state) {
                             case 0:
-                                createUser(grid(CLI_NODE), secCtxDflt, user, "passwd_" + user);
+                                grid(CLI_NODE).context().security().createUser(user, ("passwd_" + user).toCharArray());
 
                                 break;
 
                             case 1:
-                                alterUserPassword(grid(CLI_NODE), secCtxDflt, user, "new_passwd_" + user);
+                                grid(CLI_NODE).context().security().alterUser(user, ("new_passwd_" + user).toCharArray());
 
                                 break;
 
                             case 2:
-                                dropUser(grid(CLI_NODE), secCtxDflt, user);
+                                grid(CLI_NODE).context().security().dropUser(user);
 
                                 break;
 
@@ -173,8 +174,11 @@ public class AuthenticationProcessorNodeRestartTest extends GridCommonAbstractTe
     public void testConcurrentAuthorize() throws Exception {
         final int testUsersCnt = 10;
 
-        for (int i = 0; i < testUsersCnt; ++i)
-            createUser(grid(CLI_NODE), secCtxDflt, "test" + i, "passwd_test" + i);
+        for (int i = 0; i < testUsersCnt; ++i) {
+            try (OperationSecurityContext ignored = grid(CLI_NODE).context().security().withContext(secCtxDflt)) {
+                grid(CLI_NODE).context().security().createUser("test" + i, ("passwd_test" + i).toCharArray());
+            }
+        }
 
         final IgniteInternalFuture restartFut = GridTestUtils.runAsync(() -> {
             try {
