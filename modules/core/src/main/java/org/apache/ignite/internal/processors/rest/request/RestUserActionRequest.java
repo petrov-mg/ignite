@@ -29,6 +29,9 @@ public class RestUserActionRequest extends GridRestRequest {
     /** Password. */
     private String pwd;
 
+    /** User options. */
+    private String userOpts;
+
     /**
      * @param user User name.
      */
@@ -55,6 +58,16 @@ public class RestUserActionRequest extends GridRestRequest {
      */
     public String password() {
         return pwd;
+    }
+
+    /** Gets user options. */
+    public String userOptions() {
+        return userOpts;
+    }
+
+    /** Sets user options. */
+    public void userOptions(String userOpts) {
+        this.userOpts = userOpts;
     }
 
     /** {@inheritDoc} */

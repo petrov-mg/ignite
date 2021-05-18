@@ -129,7 +129,7 @@ public class AuthenticationProcessorNodeRestartTest extends GridCommonAbstractTe
                     try {
                         switch (state) {
                             case 0:
-                                grid(CLI_NODE).context().security().createUser(user, ("passwd_" + user).toCharArray());
+                                grid(CLI_NODE).context().security().createUser(user, ("passwd_" + user).toCharArray(), null);
 
                                 break;
 
@@ -178,7 +178,7 @@ public class AuthenticationProcessorNodeRestartTest extends GridCommonAbstractTe
         withSecurityContextOnAllNodes(secCtxDflt);
 
         for (int i = 0; i < testUsersCnt; ++i)
-            grid(CLI_NODE).context().security().createUser("test" + i, ("passwd_test" + i).toCharArray());
+            grid(CLI_NODE).context().security().createUser("test" + i, ("passwd_test" + i).toCharArray(), null);
 
         final IgniteInternalFuture restartFut = GridTestUtils.runAsync(() -> {
             try {
@@ -271,7 +271,7 @@ public class AuthenticationProcessorNodeRestartTest extends GridCommonAbstractTe
                     String user = "test" + usrCnt.getAndIncrement();
 
                     System.out.println("+++ CREATE  " + user);
-                    grid(0).context().security().createUser(user, "init".toCharArray());
+                    grid(0).context().security().createUser(user, "init".toCharArray(), null);
                 }
             }
             catch (Exception e) {
@@ -331,7 +331,7 @@ public class AuthenticationProcessorNodeRestartTest extends GridCommonAbstractTe
 
             try {
                 while (!restartFut.isDone()) {
-                    grid(CLI_NODE).context().security().createUser(user, "init".toCharArray());
+                    grid(CLI_NODE).context().security().createUser(user, "init".toCharArray(), null);
 
                     grid(CLI_NODE).context().security().alterUser(user, ("passwd_" + user).toCharArray());
 
@@ -357,7 +357,7 @@ public class AuthenticationProcessorNodeRestartTest extends GridCommonAbstractTe
 
         withSecurityContextOnAllNodes(secCtxDflt);
 
-        grid(CLI_NODE).context().security().createUser("test", "test".toCharArray());
+        grid(CLI_NODE).context().security().createUser("test", "test".toCharArray(), null);
 
         GridTestUtils.runMultiThreaded(() -> {
             withSecurityContextOnAllNodes(secCtxDflt);
@@ -365,7 +365,7 @@ public class AuthenticationProcessorNodeRestartTest extends GridCommonAbstractTe
             try {
                 while (!restartFut.isDone()) {
                     GridTestUtils.assertThrows(log, () -> {
-                        grid(CLI_NODE).context().security().createUser("test", "test".toCharArray());
+                        grid(CLI_NODE).context().security().createUser("test", "test".toCharArray(), null);
 
                         return null;
                     }, UserManagementException.class, "User already exists");

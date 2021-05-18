@@ -658,7 +658,7 @@ public class CommandProcessor {
             else if (cmd instanceof SqlCreateUserCommand) {
                 SqlCreateUserCommand addCmd = (SqlCreateUserCommand)cmd;
 
-                ctx.security().createUser(addCmd.userName(), addCmd.password().toCharArray());
+                ctx.security().createUser(addCmd.userName(), addCmd.password().toCharArray(), addCmd.userOptions());
             }
             else if (cmd instanceof SqlAlterUserCommand) {
                 SqlAlterUserCommand altCmd = (SqlAlterUserCommand)cmd;

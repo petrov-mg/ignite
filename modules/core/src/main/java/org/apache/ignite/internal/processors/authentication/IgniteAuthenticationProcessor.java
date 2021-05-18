@@ -337,7 +337,7 @@ public class IgniteAuthenticationProcessor extends GridProcessorAdapter implemen
     }
 
     /** {@inheritDoc} */
-    @Override public void createUser(String login, char[] passwd) throws IgniteCheckedException {
+    @Override public void createUser(String login, char[] passwd, String userOpts) throws IgniteCheckedException {
         validate(login, passwd);
 
         UserManagementOperation op = new UserManagementOperation(User.create(login, new String(passwd)), ADD);

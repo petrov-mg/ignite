@@ -22,9 +22,14 @@ import org.apache.ignite.internal.sql.SqlParserUtils;
 import org.apache.ignite.internal.util.typedef.internal.S;
 
 import static org.apache.ignite.internal.sql.SqlKeyword.PASSWORD;
+import static org.apache.ignite.internal.sql.SqlKeyword.USER_OPTIONS;
 import static org.apache.ignite.internal.sql.SqlKeyword.WITH;
+import static org.apache.ignite.internal.sql.SqlLexerTokenType.DEFAULT;
+import static org.apache.ignite.internal.sql.SqlParserUtils.error;
+import static org.apache.ignite.internal.sql.SqlParserUtils.errorUnexpectedToken;
 import static org.apache.ignite.internal.sql.SqlParserUtils.parseString;
 import static org.apache.ignite.internal.sql.SqlParserUtils.skipIfMatchesKeyword;
+import static org.apache.ignite.internal.sql.SqlParserUtils.skipIfMatchesOptionalKeyword;
 
 /**
  * CREATE USER command.
@@ -35,6 +40,9 @@ public class SqlCreateUserCommand implements SqlCommand {
 
     /** User's password. */
     private String passwd;
+
+    /** User options. */
+    private String userOpts;
 
     /** {@inheritDoc} */
     @Override public String schemaName() {
@@ -60,14 +68,45 @@ public class SqlCreateUserCommand implements SqlCommand {
         return passwd;
     }
 
+    /** User options. */
+    public String userOptions() {
+        return userOpts;
+    }
+
     /** {@inheritDoc} */
     @Override public SqlCommand parse(SqlLexer lex) {
         userName = SqlParserUtils.parseUsername(lex);
 
         skipIfMatchesKeyword(lex, WITH);
-        skipIfMatchesKeyword(lex, PASSWORD);
 
-        passwd = parseString(lex);
+        do {
+            if (!lex.shift() || lex.tokenType() != DEFAULT)
+                break;
+
+            switch (lex.token()) {
+                case PASSWORD: {
+                    if (passwd != null)
+                        throw error(lex, PASSWORD + " query option specified multiple times");
+
+                    passwd = parseString(lex);
+
+                    break;
+                }
+
+                case USER_OPTIONS: {
+                    if (userOpts != null)
+                        throw error(lex, USER_OPTIONS + " query option specified multiple times");
+
+                    userOpts = parseString(lex);
+
+                    break;
+                }
+
+                default:
+                    throw errorUnexpectedToken(lex, PASSWORD, USER_OPTIONS);
+            }
+        }
+        while (skipIfMatchesOptionalKeyword(lex, WITH));
 
         return this;
     }

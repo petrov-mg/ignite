@@ -152,7 +152,7 @@ public class NoOpIgniteSecurityProcessor extends GridProcessorAdapter implements
     }
 
     /** {@inheritDoc} */
-    @Override public void createUser(String login, char[] pwd) throws IgniteCheckedException {
+    @Override public void createUser(String login, char[] pwd, String userOpts) throws IgniteCheckedException {
         throw new IgniteException(SECURITY_DISABLED_ERROR_MSG);
     }
 

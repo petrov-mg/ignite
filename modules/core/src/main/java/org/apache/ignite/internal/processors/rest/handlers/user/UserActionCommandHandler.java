@@ -70,7 +70,7 @@ public class UserActionCommandHandler extends GridRestCommandHandlerAdapter {
 
             switch (cmd) {
                 case ADD_USER:
-                    security.createUser(req0.user(), req0.password().toCharArray());
+                    security.createUser(req0.user(), req0.password().toCharArray(), req0.userOptions());
                     break;
 
                 case REMOVE_USER:

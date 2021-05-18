@@ -99,7 +99,7 @@ public class Authentication1kUsersNodeRestartTest extends GridCommonAbstractTest
         IntStream.range(0, USERS_COUNT).parallel().forEach(
             i -> {
                 try (AutoCloseable ignored = withSecurityContextOnAllNodes(secCtxDflt)) {
-                    sec.createUser("test" + i, "init".toCharArray());
+                    sec.createUser("test" + i, "init".toCharArray(), null);
                 }
                 catch (Exception e) {
                     throw new IgniteException(e);

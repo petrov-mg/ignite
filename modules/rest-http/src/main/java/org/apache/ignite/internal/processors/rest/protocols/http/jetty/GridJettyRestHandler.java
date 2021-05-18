@@ -800,6 +800,7 @@ public class GridJettyRestHandler extends AbstractHandler {
 
                 restReq0.user(params.get("user"));
                 restReq0.password(params.get("password"));
+                restReq0.userOptions(params.get("userOptions"));
 
                 restReq = restReq0;
 

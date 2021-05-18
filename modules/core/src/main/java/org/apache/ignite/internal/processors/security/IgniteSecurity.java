@@ -128,13 +128,14 @@ public interface IgniteSecurity {
     public boolean enabled();
 
     /**
-     * Creates user with the specified login and password.
+     * Creates user with the specified login, password and options.
      *
      * @param login Login of the user to be created.
      * @param pwd User password.
+     * @param userOpts User options.
      * @throws IgniteCheckedException If error occurred.
      */
-    public void createUser(String login, char[] pwd) throws IgniteCheckedException;
+    public void createUser(String login, char[] pwd, String userOpts) throws IgniteCheckedException;
 
     /**
      * Alters password of user with the specified login.

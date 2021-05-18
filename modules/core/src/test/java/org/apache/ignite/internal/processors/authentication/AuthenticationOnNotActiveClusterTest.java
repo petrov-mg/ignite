@@ -113,7 +113,7 @@ public class AuthenticationOnNotActiveClusterTest extends GridCommonAbstractTest
         withSecurityContextOnAllNodes(secCtxDflt);
 
         for (int i = 0; i < 10; ++i)
-            grid(0).context().security().createUser("test" + i, "passwd".toCharArray());
+            grid(0).context().security().createUser("test" + i, "passwd".toCharArray(), null);
 
         stopAllGrids();
 

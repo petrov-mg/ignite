@@ -35,17 +35,37 @@ public class SqlParserUserSelfTest extends SqlParserAbstractSelfTest {
     @Test
     public void testCreateUser() throws Exception {
         // Base.
-        parseValidateCreate("CREATE USER test WITH PASSWORD 'test'", "TEST", "test");
-        parseValidateCreate("CREATE USER \"test\" WITH PASSWORD 'test'", "test", "test");
+        parseValidateCreate("CREATE USER test WITH PASSWORD 'test'", "TEST", "test", null);
+        parseValidateCreate("CREATE USER \"test\" WITH PASSWORD 'test'", "test", "test", null);
         parseValidateCreate("CREATE USER \"Test Name\" WITH PASSWORD 'PaSSword'",
-            "Test Name", "PaSSword");
+            "Test Name", "PaSSword", null);
         parseValidateCreate("CREATE USER test WITH PASSWORD '~!''@#$%^&*()_+=-`:\"|?.,/'",
-            "TEST", "~!'@#$%^&*()_+=-`:\"|?.,/");
+            "TEST", "~!'@#$%^&*()_+=-`:\"|?.,/", null);
+
+        parseValidateCreate("CREATE USER test WITH PASSWORD '~!''@#$%^&*()_+=-`:\"|?.,/'",
+            "TEST", "~!'@#$%^&*()_+=-`:\"|?.,/", null);
+
+        parseValidateCreate("CREATE USER test WITH PASSWORD 'test' WITH USER_OPTIONS 'userOptions'", "TEST", "test", "userOptions");
+        parseValidateCreate("CREATE USER test WITH PASSWORD 'test' WITH USER_OPTIONS '~!''@#$%^&*()_+=-`:\"|?.,/'", "TEST", "test", "~!'@#$%^&*()_+=-`:\"|?.,/");
+
+        parseValidateCreate("CREATE USER test WITH USER_OPTIONS 'userOptions'", "TEST", null, "userOptions");
+        parseValidateCreate("CREATE USER test WITH USER_OPTIONS '~!''@#$%^&*()_+=-`:\"|?.,/'", "TEST", null, "~!'@#$%^&*()_+=-`:\"|?.,/");
+
+        parseValidateCreate("CREATE USER test WITH USER_OPTIONS 'userOptions' WITH PASSWORD 'test'", "TEST", "test", "userOptions");
 
         assertParseError(null, "CREATE USER 'test' WITH PASSWORD 'test'",
             "Unexpected token: \"test\" (expected: \"[username identifier]\")");
         assertParseError(null, "CREATE USER \"PUBLIC\".\"test\" WITH PASSWORD 'test'",
             "Unexpected token: \".\" (expected: \"WITH\")");
+
+        assertParseError(null, "CREATE USER test WITH PASSWORD 'test' WITH PASSWORD 'test'",
+            "PASSWORD query option specified multiple times");
+
+        assertParseError(null, "CREATE USER test WITH USER_OPTIONS 'userOptions' WITH USER_OPTIONS 'userOptions'",
+            "USER_OPTIONS query option specified multiple times");
+
+        assertParseError(null, "CREATE USER test WITH OPTIONS 'options'",
+            "Unexpected token: \"OPTIONS\" (expected: \"PASSWORD\", \"USER_OPTIONS\")");
     }
 
     /**
@@ -95,11 +115,12 @@ public class SqlParserUserSelfTest extends SqlParserAbstractSelfTest {
      * @param expPasswd Expected user password.
      * @return Command.
      */
-    private static SqlCreateUserCommand parseValidateCreate(String sql, String expUserName, String expPasswd) {
+    private static SqlCreateUserCommand parseValidateCreate(String sql, String expUserName, String expPasswd, String expUserOpts) {
         SqlCreateUserCommand cmd = (SqlCreateUserCommand)new SqlParser(null, sql).nextCommand();
 
         assertEquals(expUserName, cmd.userName());
         assertEquals(expPasswd, cmd.password());
+        assertEquals(expUserOpts, cmd.userOptions());
 
         return cmd;
     }

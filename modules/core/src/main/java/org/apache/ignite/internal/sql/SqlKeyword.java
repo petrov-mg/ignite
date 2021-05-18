@@ -314,6 +314,9 @@ public class SqlKeyword {
     /** Keyword: REVOKE. */
     public static final String REVOKE = "REVOKE";
 
+    /** Keyword: USER_OPTIONS. */
+    public static final String USER_OPTIONS = "USER_OPTIONS";
+
     /** All keywords. */
     private static final HashSet<String> KEYWORDS;
 

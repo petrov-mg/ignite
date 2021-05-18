@@ -152,7 +152,7 @@ public class AuthenticationConfigurationClusterTest extends GridCommonAbstractTe
 
         GridTestUtils.assertThrows(log, new Callable<Object>() {
                 @Override public Object call() throws Exception {
-                    grid(0).context().security().createUser("test", "test".toCharArray());
+                    grid(0).context().security().createUser("test", "test".toCharArray(), null);
 
                     return null;
                 }
