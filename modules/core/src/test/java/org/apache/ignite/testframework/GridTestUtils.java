@@ -65,6 +65,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import javax.cache.CacheException;
 import javax.cache.configuration.Factory;
 import javax.management.Attribute;
@@ -2512,6 +2513,29 @@ public final class GridTestUtils {
         @Override default void run() {
             try {
                 runx();
+            }
+            catch (Exception e) {
+                throw new IgniteException(e);
+            }
+        }
+    }
+
+    /**
+     * Consumer that can throw exceptions.
+     */
+    @FunctionalInterface
+    public static interface ConsumerX<T> extends Consumer<T> {
+        /**
+         * Consumer body.
+         *
+         * @throws Exception If failed.
+         */
+        public void acceptX(T t) throws Exception;
+
+        /** {@inheritDoc} */
+        @Override public default void accept(T t) {
+            try {
+                acceptX(t);
             }
             catch (Exception e) {
                 throw new IgniteException(e);

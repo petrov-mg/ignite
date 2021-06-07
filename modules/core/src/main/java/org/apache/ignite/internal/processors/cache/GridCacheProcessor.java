@@ -154,6 +154,7 @@ import org.apache.ignite.internal.processors.query.schema.SchemaNodeLeaveExchang
 import org.apache.ignite.internal.processors.query.schema.message.SchemaAbstractDiscoveryMessage;
 import org.apache.ignite.internal.processors.query.schema.message.SchemaProposeDiscoveryMessage;
 import org.apache.ignite.internal.processors.security.IgniteSecurity;
+import org.apache.ignite.internal.processors.security.OperationSecurityContext;
 import org.apache.ignite.internal.processors.service.GridServiceProcessor;
 import org.apache.ignite.internal.suggestions.GridPerformanceSuggestions;
 import org.apache.ignite.internal.util.F0;
@@ -225,6 +226,7 @@ import static org.apache.ignite.internal.processors.cache.GridCacheUtils.isPersi
 import static org.apache.ignite.internal.processors.cache.ValidationOnNodeJoinUtils.validateHashIdResolvers;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtLocalPartition.DFLT_CACHE_REMOVE_ENTRIES_TTL;
 import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metricName;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.securitySubjectId;
 import static org.apache.ignite.internal.util.IgniteUtils.doInParallel;
 
 /**
@@ -394,7 +396,7 @@ public class GridCacheProcessor extends GridProcessorAdapter {
             SchemaAbstractDiscoveryMessage msg0 = (SchemaAbstractDiscoveryMessage)msg;
 
             if (msg0.exchange())
-                return new SchemaExchangeWorkerTask(msg0);
+                return new SchemaExchangeWorkerTask(securitySubjectId(ctx), msg0);
         }
         else if (msg instanceof ClientCacheChangeDummyDiscoveryMessage) {
             ClientCacheChangeDummyDiscoveryMessage msg0 = (ClientCacheChangeDummyDiscoveryMessage)msg;
@@ -405,7 +407,7 @@ public class GridCacheProcessor extends GridProcessorAdapter {
             CacheStatisticsModeChangeMessage msg0 = (CacheStatisticsModeChangeMessage)msg;
 
             if (msg0.initial())
-                return new CacheStatisticsModeChangeTask(msg0);
+                return new CacheStatisticsModeChangeTask(securitySubjectId(ctx), msg0);
         }
 
         return null;
@@ -1786,7 +1788,9 @@ public class GridCacheProcessor extends GridProcessorAdapter {
             .map(desc -> new StartCacheInfo(desc, null, exchTopVer, false))
             .collect(toList());
 
-        prepareStartCaches(startCacheInfos);
+        try (OperationSecurityContext c = ctx.security().withContext(nodeId)) {
+            prepareStartCaches(startCacheInfos);
+        }
 
         return receivedCaches;
     }

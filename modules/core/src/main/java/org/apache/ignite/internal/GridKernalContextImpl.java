@@ -93,6 +93,8 @@ import org.apache.ignite.internal.processors.resource.GridResourceProcessor;
 import org.apache.ignite.internal.processors.rest.IgniteRestProcessor;
 import org.apache.ignite.internal.processors.schedule.IgniteScheduleProcessorAdapter;
 import org.apache.ignite.internal.processors.security.IgniteSecurity;
+import org.apache.ignite.internal.processors.security.SecurityAwareExecutorService;
+import org.apache.ignite.internal.processors.security.SecurityAwareStripedExecutor;
 import org.apache.ignite.internal.processors.segmentation.GridSegmentationProcessor;
 import org.apache.ignite.internal.processors.service.ServiceProcessorAdapter;
 import org.apache.ignite.internal.processors.session.GridTaskSessionProcessor;
@@ -707,8 +709,12 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
             pdsFolderRslvr = (PdsFoldersResolver)comp;
         else if (comp instanceof GridInternalSubscriptionProcessor)
             internalSubscriptionProc = (GridInternalSubscriptionProcessor)comp;
-        else if (comp instanceof IgniteSecurity)
+        else if (comp instanceof IgniteSecurity) {
             security = (IgniteSecurity)comp;
+
+            if (security.enabled())
+                wrapExecutors();
+        }
         else if (comp instanceof CompressionProcessor)
             compressProc = (CompressionProcessor)comp;
         else if (comp instanceof DiagnosticProcessor)
@@ -1330,5 +1336,54 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
         return config().getAsyncContinuationExecutor() == null
                 ? ForkJoinPool.commonPool()
                 : config().getAsyncContinuationExecutor();
+    }
+
+    /**
+     * Wraps executors to security aware implementations.
+     */
+    private void wrapExecutors() {
+        utilityCachePool = wrapToSecurityAware(utilityCachePool);
+        execSvc = wrapToSecurityAware(execSvc);
+        svcExecSvc = wrapToSecurityAware(svcExecSvc);
+        sysExecSvc = wrapToSecurityAware(sysExecSvc);
+        p2pExecSvc = wrapToSecurityAware(p2pExecSvc);
+        mgmtExecSvc = wrapToSecurityAware(mgmtExecSvc);
+        restExecSvc = wrapToSecurityAware(restExecSvc);
+        affExecSvc = wrapToSecurityAware(affExecSvc);
+        idxExecSvc = wrapToSecurityAware(idxExecSvc);
+        qryExecSvc = wrapToSecurityAware(qryExecSvc);
+        schemaExecSvc = wrapToSecurityAware(schemaExecSvc);
+
+        if (customExecSvcs != null) {
+            Map<String, ExecutorService> res = new HashMap<>();
+
+            for (Map.Entry<String, ? extends ExecutorService> e : customExecSvcs.entrySet())
+                res.put(e.getKey(), wrapToSecurityAware(e.getValue()));
+
+            customExecSvcs = res;
+        }
+
+        stripedExecSvc = wrapToSecurityAware(stripedExecSvc);
+        dataStreamExecSvc = wrapToSecurityAware(dataStreamExecSvc);
+    }
+
+    /**
+     * Wraps original executor by security aware implementation.
+     *
+     * @param original Original executor.
+     * @return Security aware executor.
+     */
+    private StripedExecutor wrapToSecurityAware(StripedExecutor original) {
+        return original != null ? new SecurityAwareStripedExecutor(this, original) : null;
+    }
+
+    /**
+     * Wraps original executor by security aware implementation.
+     *
+     * @param original Original executor.
+     * @return Security aware executor.
+     */
+    private ExecutorService wrapToSecurityAware(ExecutorService original) {
+        return original != null ? new SecurityAwareExecutorService(this, original) : null;
     }
 }

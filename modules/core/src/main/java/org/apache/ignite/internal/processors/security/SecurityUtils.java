@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -44,7 +45,8 @@ import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridInternalWrapper;
 import org.apache.ignite.internal.GridKernalContext;
-import org.apache.ignite.internal.IgniteNodeAttributes;
+import org.apache.ignite.internal.processors.cache.GridCacheContext;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteDomainCombiner;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteSandbox;
 import org.apache.ignite.internal.util.typedef.F;
@@ -53,6 +55,8 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.marshaller.Marshaller;
 import org.apache.ignite.plugin.security.SecurityException;
 import org.apache.ignite.plugin.security.SecurityPermission;
+
+import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_SECURITY_SUBJECT_V2;
 
 /**
  * Security utilities.
@@ -151,7 +155,7 @@ public class SecurityUtils {
     public static SecurityContext nodeSecurityContext(Marshaller marsh, ClassLoader ldr, ClusterNode node) {
         A.notNull(node, "Cluster node");
 
-        byte[] subjBytes = node.attribute(IgniteNodeAttributes.ATTR_SECURITY_SUBJECT_V2);
+        byte[] subjBytes = node.attribute(ATTR_SECURITY_SUBJECT_V2);
 
         if (subjBytes == null)
             throw new SecurityException("Security context isn't certain.");
@@ -162,6 +166,52 @@ public class SecurityUtils {
         catch (IgniteCheckedException e) {
             throw new SecurityException("Failed to get security context.", e);
         }
+    }
+
+    /**
+     * @return Current security subject id if security is enabled otherwise null.
+     */
+    public static UUID securitySubjectId(GridKernalContext ctx) {
+        return securitySubjectId(ctx.security());
+    }
+
+    /**
+     * @return Current security subject id if security is enabled otherwise null.
+     */
+    public static UUID securitySubjectId(IgniteSecurity security) {
+        return security.enabled() ? security.securityContext().subject().id() : null;
+    }
+
+    /**
+     * @return Current security subject id if security is enabled otherwise null.
+     */
+    public static UUID securitySubjectId(GridCacheContext<?, ?> cctx) {
+        return securitySubjectId(cctx.kernalContext());
+    }
+
+    /**
+     * @return Current security subject id if security is enabled otherwise null.
+     */
+    public static UUID securitySubjectId(GridCacheSharedContext<?, ?> cctx) {
+        return securitySubjectId(cctx.kernalContext());
+    }
+
+    /**
+     * Runs passed {@code runnable} with the security context associated with passed {@code secSubjId} if security is
+     * enabled.
+     *
+     * @param secSubjId Security subject id.
+     * @param security Ignite security.
+     * @param r Runnable.
+     */
+    public static void withContextIfNeed(UUID secSubjId, IgniteSecurity security, RunnableX r) {
+        if (security.enabled() && secSubjId != null) {
+            try (OperationSecurityContext s = security.withContext(secSubjId)) {
+                r.run();
+            }
+        }
+        else
+            r.run();
     }
 
     /**
@@ -220,6 +270,19 @@ public class SecurityUtils {
         return AccessController.doPrivileged((PrivilegedAction<Boolean>)
             () -> ctx.getDomainCombiner() instanceof IgniteDomainCombiner
         );
+    }
+
+    /**
+     * @return True if security is enabled and the local node is authenticated.
+     */
+    public static boolean isAuthentificated(GridKernalContext ctx) {
+        if (ctx.security().enabled()) {
+            ClusterNode locNode = ctx.discovery() != null ? ctx.discovery().localNode() : null;
+
+            return locNode != null && locNode.attribute(ATTR_SECURITY_SUBJECT_V2) != null;
+        }
+
+        return false;
     }
 
     /**
@@ -283,6 +346,29 @@ public class SecurityUtils {
                     throw new IgniteException(e.getTargetException());
                 }
             });
+        }
+    }
+
+    /**
+     * Runnable that can throw exceptions.
+     */
+    @FunctionalInterface
+    public static interface RunnableX extends Runnable {
+        /**
+         * Runnable body.
+         *
+         * @throws Exception If failed.
+         */
+        void runx() throws Exception;
+
+        /** {@inheritDoc} */
+        @Override default void run() {
+            try {
+                runx();
+            }
+            catch (Exception e) {
+                throw new IgniteException(e);
+            }
         }
     }
 }

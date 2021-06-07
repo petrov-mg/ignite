@@ -45,6 +45,7 @@ import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.GridProcessorAdapter;
 import org.apache.ignite.internal.processors.rest.client.message.GridClientTaskResultBean;
 import org.apache.ignite.internal.processors.rest.handlers.GridRestCommandHandler;
+import org.apache.ignite.internal.processors.rest.handlers.SecurityAwareGridRestCommandHandler;
 import org.apache.ignite.internal.processors.rest.handlers.auth.AuthenticationCommandHandler;
 import org.apache.ignite.internal.processors.rest.handlers.beforeStart.NodeStateBeforeStartCommandHandler;
 import org.apache.ignite.internal.processors.rest.handlers.cache.GridCacheCommandHandler;
@@ -951,10 +952,15 @@ public class GridRestProcessor extends GridProcessorAdapter implements IgniteRes
         if (log.isDebugEnabled())
             log.debug("Added REST command handler: " + hnd);
 
-        for (GridRestCommand cmd : hnd.supportedCommands()) {
+        GridRestCommandHandler cmdHnd = hnd;
+
+        if (ctx.security().enabled())
+            cmdHnd = new SecurityAwareGridRestCommandHandler(ctx, hnd);
+
+        for (GridRestCommand cmd : cmdHnd.supportedCommands()) {
             assert !handlers.containsKey(cmd) : cmd;
 
-            handlers.put(cmd, hnd);
+            handlers.put(cmd, cmdHnd);
         }
     }
 

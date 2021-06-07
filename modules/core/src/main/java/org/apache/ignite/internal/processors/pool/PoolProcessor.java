@@ -27,6 +27,7 @@ import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.processors.GridProcessorAdapter;
 import org.apache.ignite.internal.processors.plugin.IgnitePluginProcessor;
+import org.apache.ignite.internal.processors.security.SecurityAwareIoPool;
 import org.apache.ignite.plugin.extensions.communication.IoPool;
 import org.jetbrains.annotations.Nullable;
 
@@ -73,6 +74,10 @@ public class PoolProcessor extends GridProcessorAdapter {
                     if (extPools[id] != null)
                         throw new IgniteException("Failed to register IO executor pool because its ID as " +
                             "already used: " + id);
+
+                    // 4. Wrap by a security aware version of IoPool:
+                    if (ctx.security().enabled())
+                        ex = new SecurityAwareIoPool(ctx, ex);
 
                     extPools[id] = ex;
                 }
