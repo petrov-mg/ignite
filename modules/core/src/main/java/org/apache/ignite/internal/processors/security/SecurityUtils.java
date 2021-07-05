@@ -196,24 +196,6 @@ public class SecurityUtils {
     }
 
     /**
-     * Runs passed {@code runnable} with the security context associated with passed {@code secSubjId} if security is
-     * enabled.
-     *
-     * @param secSubjId Security subject id.
-     * @param security Ignite security.
-     * @param r Runnable.
-     */
-    public static void withContextIfNeed(UUID secSubjId, IgniteSecurity security, RunnableX r) {
-        if (security.enabled() && secSubjId != null) {
-            try (OperationSecurityContext s = security.withContext(secSubjId)) {
-                r.run();
-            }
-        }
-        else
-            r.run();
-    }
-
-    /**
      * Computes a result in a privileged action.
      *
      * @param c Instance of SandboxCallable.
@@ -269,19 +251,6 @@ public class SecurityUtils {
         return AccessController.doPrivileged((PrivilegedAction<Boolean>)
             () -> ctx.getDomainCombiner() instanceof IgniteDomainCombiner
         );
-    }
-
-    /**
-     * @return True if security is enabled and the local node is authenticated.
-     */
-    public static boolean isAuthentificated(GridKernalContext ctx) {
-        if (ctx.security().enabled()) {
-            ClusterNode locNode = ctx.discovery() != null ? ctx.discovery().localNode() : null;
-
-            return locNode != null && locNode.attribute(ATTR_SECURITY_SUBJECT_V2) != null;
-        }
-
-        return false;
     }
 
     /**
@@ -345,29 +314,6 @@ public class SecurityUtils {
                     throw new IgniteException(e.getTargetException());
                 }
             });
-        }
-    }
-
-    /**
-     * Runnable that can throw exceptions.
-     */
-    @FunctionalInterface
-    public static interface RunnableX extends Runnable {
-        /**
-         * Runnable body.
-         *
-         * @throws Exception If failed.
-         */
-        void runx() throws Exception;
-
-        /** {@inheritDoc} */
-        @Override default void run() {
-            try {
-                runx();
-            }
-            catch (Exception e) {
-                throw new IgniteException(e);
-            }
         }
     }
 }
