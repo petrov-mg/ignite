@@ -792,8 +792,6 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
     ) {
         assert sysCacheCtx == null || sysCacheCtx.systemTx();
 
-        UUID subjId = null; // TODO GG-9141 how to get subj ID?
-
         int taskNameHash = cctx.kernalContext().job().currentTaskNameHash();
 
         GridNearTxLocal tx = new GridNearTxLocal(
@@ -808,7 +806,7 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
             storeEnabled,
             mvccOp,
             txSize,
-            subjId,
+            SecurityUtils.securitySubjectId(cctx),
             taskNameHash,
             lb,
             txDumpsThrottling,
