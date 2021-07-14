@@ -118,6 +118,8 @@ import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.lang.IgniteProductVersion;
 import org.apache.ignite.lang.IgniteUuid;
+import org.apache.ignite.marshaller.Marshaller;
+import org.apache.ignite.marshaller.MarshallerUtils;
 import org.apache.ignite.plugin.security.SecurityCredentials;
 import org.apache.ignite.plugin.segmentation.SegmentationPolicy;
 import org.apache.ignite.spi.IgniteSpiException;
@@ -128,6 +130,7 @@ import org.apache.ignite.spi.discovery.DiscoveryDataBag.JoiningNodeDiscoveryData
 import org.apache.ignite.spi.discovery.DiscoveryMetricsProvider;
 import org.apache.ignite.spi.discovery.DiscoveryNotification;
 import org.apache.ignite.spi.discovery.DiscoverySpi;
+import org.apache.ignite.spi.discovery.DiscoverySpiCustomMessage;
 import org.apache.ignite.spi.discovery.DiscoverySpiDataExchange;
 import org.apache.ignite.spi.discovery.DiscoverySpiHistorySupport;
 import org.apache.ignite.spi.discovery.DiscoverySpiListener;
@@ -179,6 +182,7 @@ import static org.apache.ignite.internal.IgniteVersionUtils.VER;
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
 import static org.apache.ignite.internal.processors.metric.impl.MetricUtils.metricName;
 import static org.apache.ignite.internal.processors.security.SecurityUtils.isSecurityCompatibilityMode;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.nodeSecurityContext;
 import static org.apache.ignite.plugin.segmentation.SegmentationPolicy.NOOP;
 
 /**
@@ -555,6 +559,8 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
         spi.setListener(new DiscoverySpiListener() {
             private long gridStartTime;
 
+            private final Marshaller marshaller = MarshallerUtils.jdkMarshaller(ctx.igniteInstanceName());
+
             /** {@inheritDoc} */
             @Override public void onLocalNodeInitialized(ClusterNode locNode) {
                 for (IgniteInClosure<ClusterNode> lsnr : locNodeInitLsnrs)
@@ -572,10 +578,9 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
             @Override public IgniteFuture<?> onDiscovery(DiscoveryNotification notification) {
                 GridFutureAdapter<?> notificationFut = new GridFutureAdapter<>();
 
-                discoNtfWrk.submit(notificationFut,
-                    notification.getCustomMsgData() instanceof SecurityAwareCustomMessageWrapper
-                        ? new SecurityAwareNotificationTask(notification)
-                        : new NotificationTask(notification));
+                discoNtfWrk.submit(notificationFut, ctx.security().enabled()
+                    ? new SecurityAwareNotificationTask(notification)
+                    : new NotificationTask(notification));
 
                 IgniteFuture<?> fut = new IgniteFutureImpl<>(notificationFut);
 
@@ -809,6 +814,8 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
 
                         ctx.encryption().onLocalJoin();
 
+                        ctx.security().onLocalJoin();
+
                         ctx.cluster().onLocalJoin();
                     }
 
@@ -932,26 +939,38 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
             /** */
             class SecurityAwareNotificationTask extends NotificationTask {
                 /** */
-                private final UUID secSubjId;
-
-                /** */
                 public SecurityAwareNotificationTask(DiscoveryNotification notification) {
                     super(notification);
-
-                    secSubjId = ((SecurityAwareCustomMessageWrapper)notification.getCustomMsgData()).securitySubjectId();
                 }
 
                 /** */
                 @Override public void run() {
-                    try (OperationSecurityContext ignored = ctx.security().withContext(secSubjId)) {
-                        super.run();
+                    DiscoverySpiCustomMessage customMsg = notification.getCustomMsgData();
+
+                    if (customMsg instanceof SecurityAwareCustomMessageWrapper) {
+                        UUID secSubjId = ((SecurityAwareCustomMessageWrapper)customMsg).securitySubjectId();
+
+                        try (OperationSecurityContext ignored = ctx.security().withContext(secSubjId)) {
+                            super.run();
+                        }
+                    }
+                    else {
+                        SecurityContext secCtx = nodeSecurityContext(
+                            marshaller,
+                            U.resolveClassLoader(ctx.config()),
+                            notification.getNode()
+                        );
+
+                        try (OperationSecurityContext ignored = ctx.security().withContext(secCtx)) {
+                            super.run();
+                        }
                     }
                 }
             }
 
             class NotificationTask implements Runnable {
                 /** */
-                private final DiscoveryNotification notification;
+                protected final DiscoveryNotification notification;
 
                 /** */
                 public NotificationTask(DiscoveryNotification notification) {

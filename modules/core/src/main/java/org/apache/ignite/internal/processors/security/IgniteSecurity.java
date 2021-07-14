@@ -21,6 +21,8 @@ import java.util.Collection;
 import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.events.DiscoveryEvent;
+import org.apache.ignite.internal.managers.discovery.DiscoCache;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteSandbox;
 import org.apache.ignite.plugin.security.AuthenticationContext;
 import org.apache.ignite.plugin.security.SecurityCredentials;
@@ -152,4 +154,11 @@ public interface IgniteSecurity {
      * @throws IgniteCheckedException If error occurred.
      */
     public void dropUser(String login) throws IgniteCheckedException;
+
+    /**
+     * Callback for local join events for which the regular events are not generated.
+     * <p/>
+     * Local join event is expected in cases of joining to topology or client reconnect.
+     */
+    public void onLocalJoin();
 }

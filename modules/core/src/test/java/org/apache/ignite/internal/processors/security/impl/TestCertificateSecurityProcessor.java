@@ -130,7 +130,7 @@ public class TestCertificateSecurityProcessor extends GridProcessorAdapter imple
 
     /** {@inheritDoc} */
     @Override public SecuritySubject authenticatedSubject(UUID subjId) {
-        return null;
+        return securityContext(subjId).subject();
     }
 
     /** {@inheritDoc} */

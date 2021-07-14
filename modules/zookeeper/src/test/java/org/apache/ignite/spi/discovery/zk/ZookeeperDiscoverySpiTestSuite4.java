@@ -17,17 +17,7 @@
 
 package org.apache.ignite.spi.discovery.zk;
 
-import org.apache.ignite.internal.ClusterNodeMetricsUpdateTest;
-import org.apache.ignite.internal.IgniteNodeValidationFailedEventTest;
-import org.apache.ignite.internal.processors.cache.distributed.dht.IgniteCachePutRetryAtomicSelfTest;
-import org.apache.ignite.internal.processors.cache.distributed.dht.IgniteCachePutRetryTransactionalSelfTest;
-import org.apache.ignite.internal.processors.cache.distributed.near.GridCacheAtomicMultiNodeFullApiSelfTest;
-import org.apache.ignite.internal.processors.cache.distributed.replicated.GridCacheReplicatedAtomicMultiNodeFullApiSelfTest;
-import org.apache.ignite.internal.processors.cache.distributed.replicated.IgniteCacheReplicatedQuerySelfTest;
-import org.apache.ignite.internal.processors.metastorage.DistributedMetaStoragePersistentTest;
-import org.apache.ignite.internal.processors.metastorage.DistributedMetaStorageTest;
-import org.apache.ignite.internal.processors.security.discovery.DiscoveryCustomMessageSecurityContextTest;
-import org.apache.ignite.spi.discovery.DiscoverySpiDataExchangeTest;
+import org.apache.ignite.internal.processors.security.events.CacheCreateDestroyEventsTest;
 import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
@@ -37,18 +27,7 @@ import org.junit.runners.Suite;
  */
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
-    ZookeeperDiscoverySuitePreprocessorTest.class,
-    IgniteCachePutRetryAtomicSelfTest.class,
-    IgniteCachePutRetryTransactionalSelfTest.class,
-    ClusterNodeMetricsUpdateTest.class,
-    GridCacheAtomicMultiNodeFullApiSelfTest.class,
-    GridCacheReplicatedAtomicMultiNodeFullApiSelfTest.class,
-    IgniteCacheReplicatedQuerySelfTest.class,
-    DistributedMetaStorageTest.class,
-    DistributedMetaStoragePersistentTest.class,
-    IgniteNodeValidationFailedEventTest.class,
-    DiscoverySpiDataExchangeTest.class,
-    DiscoveryCustomMessageSecurityContextTest.class
+    CacheCreateDestroyEventsTest.class
 })
 public class ZookeeperDiscoverySpiTestSuite4 {
     /** */
