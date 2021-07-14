@@ -57,7 +57,7 @@ public class ReservationsOnDoneAfterTopologyUnlockFailTest extends GridCommonAbs
             return invocationOnMock.callRealMethod();
         }).when(mockMgmtExecSvc).execute(any(Runnable.class));
 
-        GridTestUtils.setFieldValue(grid(0).context(), "mgmtExecSvc", mockMgmtExecSvc);
+        GridTestUtils.setFieldValue(grid(0).context().pools(), "mgmtExecSvc", mockMgmtExecSvc);
 
         grid0.getOrCreateCache(new CacheConfiguration<>()
                 .setName(DEFAULT_CACHE_NAME))

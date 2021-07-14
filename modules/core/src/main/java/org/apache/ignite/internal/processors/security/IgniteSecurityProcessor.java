@@ -409,20 +409,7 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
             }
         }
 
-        DeferredSecurityContext res = new DeferredSecurityContext();
-
-        nodeSecCtxReadyFut.listen(fut -> {
-            try {
-                res.onDone(fut.get());
-            }
-            catch (IgniteCheckedException e) {
-                res.onDone(e);
-
-                throw new IgniteException(e);
-            }
-        });
-
-        return res;
+        return new DeferredSecurityContext(nodeSecCtxReadyFut);
     }
 
     /**
@@ -453,45 +440,48 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
      * Represents {@link SecurityContext} wrapper that makes it possible to block the current thread until the security
      * context to which wrapper delegates operations becomes available.
      */
-    public static class DeferredSecurityContext extends GridFutureAdapter<SecurityContext> implements SecurityContext {
+    public static class DeferredSecurityContext implements SecurityContext {
+        /** */
+        private final GridFutureAdapter<SecurityContext> fut;
+
+        /** */
+        public DeferredSecurityContext(GridFutureAdapter<SecurityContext> fut) {
+            this.fut = fut;
+        }
+
         /** {@inheritDoc} */
         @Override public SecuritySubject subject() {
-            return get().subject();
+            return delegate().subject();
         }
 
         /** {@inheritDoc} */
         @Override public boolean taskOperationAllowed(String taskClsName, SecurityPermission perm) {
-            return get().taskOperationAllowed(taskClsName, perm);
+            return delegate().taskOperationAllowed(taskClsName, perm);
         }
 
         /** {@inheritDoc} */
         @Override public boolean cacheOperationAllowed(String cacheName, SecurityPermission perm) {
-            return get().cacheOperationAllowed(cacheName, perm);
+            return delegate().cacheOperationAllowed(cacheName, perm);
         }
 
         /** {@inheritDoc} */
         @Override public boolean serviceOperationAllowed(String srvcName, SecurityPermission perm) {
-            return get().serviceOperationAllowed(srvcName, perm);
+            return delegate().serviceOperationAllowed(srvcName, perm);
         }
 
         /** {@inheritDoc} */
         @Override public boolean systemOperationAllowed(SecurityPermission perm) {
-            return get().systemOperationAllowed(perm);
-        }
-
-        /** {@inheritDoc} */
-        @Override public SecurityContext get() {
-            try {
-                return super.get();
-            }
-            catch (IgniteCheckedException e) {
-                throw new IgniteException(e);
-            }
+            return delegate().systemOperationAllowed(perm);
         }
 
         /** */
         public SecurityContext delegate() {
-            return get();
+            try {
+                return fut.get();
+            }
+            catch (IgniteCheckedException e) {
+                throw new IgniteException(e); 
+            }
         }
     }
 }
