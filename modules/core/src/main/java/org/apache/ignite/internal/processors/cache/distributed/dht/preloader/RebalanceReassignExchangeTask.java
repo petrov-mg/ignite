@@ -35,7 +35,11 @@ public class RebalanceReassignExchangeTask extends AbstractCachePartitionExchang
      * @param exchId Exchange ID.
      * @param exchFut Exchange future.
      */
-    public RebalanceReassignExchangeTask(SecurityContext secCtx, GridDhtPartitionExchangeId exchId, GridDhtPartitionsExchangeFuture exchFut) {
+    public RebalanceReassignExchangeTask(
+        SecurityContext secCtx,
+        GridDhtPartitionExchangeId exchId,
+        GridDhtPartitionsExchangeFuture exchFut
+    ) {
         super(secCtx);
 
         assert exchId != null;

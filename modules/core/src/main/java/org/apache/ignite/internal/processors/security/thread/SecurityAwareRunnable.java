@@ -17,7 +17,6 @@
 
 package org.apache.ignite.internal.processors.security.thread;
 
-import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.security.IgniteSecurity;
 import org.apache.ignite.internal.processors.security.OperationSecurityContext;
 import org.apache.ignite.internal.processors.security.SecurityContext;

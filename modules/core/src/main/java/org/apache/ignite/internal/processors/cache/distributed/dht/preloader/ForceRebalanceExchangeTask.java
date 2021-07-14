@@ -36,7 +36,11 @@ public class ForceRebalanceExchangeTask extends AbstractCachePartitionExchangeWo
      * @param exchId Exchange ID.
      * @param forcedRebFut Rebalance future.
      */
-    public ForceRebalanceExchangeTask(SecurityContext secCtx, GridDhtPartitionExchangeId exchId, GridCompoundFuture<Boolean, Boolean> forcedRebFut) {
+    public ForceRebalanceExchangeTask(
+        SecurityContext secCtx,
+        GridDhtPartitionExchangeId exchId,
+        GridCompoundFuture<Boolean, Boolean> forcedRebFut
+    ) {
         super(secCtx);
 
         assert exchId != null;
