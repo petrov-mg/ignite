@@ -453,7 +453,7 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
      * Represents {@link SecurityContext} wrapper that makes it possible to block the current thread until the security
      * context to which wrapper delegates operations becomes available.
      */
-    private static class DeferredSecurityContext extends GridFutureAdapter<SecurityContext> implements SecurityContext {
+    public static class DeferredSecurityContext extends GridFutureAdapter<SecurityContext> implements SecurityContext {
         /** {@inheritDoc} */
         @Override public SecuritySubject subject() {
             return get().subject();
@@ -487,6 +487,11 @@ public class IgniteSecurityProcessor implements IgniteSecurity, GridProcessor {
             catch (IgniteCheckedException e) {
                 throw new IgniteException(e);
             }
+        }
+
+        /** */
+        public SecurityContext delegate() {
+            return get();
         }
     }
 }
