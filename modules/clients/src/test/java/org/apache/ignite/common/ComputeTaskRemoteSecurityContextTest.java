@@ -111,7 +111,7 @@ public class ComputeTaskRemoteSecurityContextTest extends AbstractSecurityTest {
     private static final AtomicInteger CONN_COUNTER = new AtomicInteger();
 
     /** */
-    private static final String DFLT_REST_PORT = "11080";
+    static final String DFLT_REST_PORT = "11080";
 
     /** */
     private static final long TEST_TASK_TIMEOUT = 500;
@@ -432,7 +432,7 @@ public class ComputeTaskRemoteSecurityContextTest extends AbstractSecurityTest {
     }
 
     /** */
-    private static UUID authenticatedSubjectId(IgniteEx ignite, String login) {
+    static UUID authenticatedSubjectId(IgniteEx ignite, String login) {
         List<SecuritySubject> secSubjects;
 
         try {
@@ -451,7 +451,7 @@ public class ComputeTaskRemoteSecurityContextTest extends AbstractSecurityTest {
     }
 
     /** */
-    private static JsonNode sendRestRequest(String url) throws IOException {
+    static JsonNode sendRestRequest(String url) throws IOException {
         URLConnection conn = new URL(url).openConnection();
 
         StringBuilder buf = new StringBuilder(256);
