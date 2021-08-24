@@ -803,6 +803,8 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
 
                     discoWrk.discoCache = discoCache;
 
+                    ctx.security().onLocalJoin();
+
                     if (!isLocDaemon && !ctx.clientDisconnected()) {
                         ctx.cache().context().versions().onLocalJoin(topVer);
 
@@ -813,8 +815,6 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
                         ctx.service().onLocalJoin(discoEvt, discoCache);
 
                         ctx.encryption().onLocalJoin();
-
-                        ctx.security().onLocalJoin();
 
                         ctx.cluster().onLocalJoin();
                     }

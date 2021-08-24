@@ -27,7 +27,6 @@ import org.apache.ignite.cache.CacheMetrics;
 import org.apache.ignite.cluster.ClusterMetrics;
 import org.apache.ignite.internal.ClusterMetricsSnapshot;
 import org.apache.ignite.internal.managers.discovery.IgniteClusterNode;
-import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteProductVersion;
 
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_NODE_CONSISTENT_ID;
@@ -61,7 +60,7 @@ public class IsolatedNode implements IgniteClusterNode {
      */
     public IsolatedNode(UUID id, Map<String, Object> attrs, IgniteProductVersion ver) {
         this.id = id;
-        this.attrs = U.sealMap(attrs);
+        this.attrs = attrs;
         this.ver = ver;
     }
 
