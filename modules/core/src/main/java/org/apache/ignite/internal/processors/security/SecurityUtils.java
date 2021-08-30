@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.security;
 
+import java.io.Serializable;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -45,15 +46,19 @@ import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridInternalWrapper;
 import org.apache.ignite.internal.GridKernalContext;
-import org.apache.ignite.internal.IgniteNodeAttributes;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteDomainCombiner;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteSandbox;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.marshaller.Marshaller;
+import org.apache.ignite.plugin.security.SecurityCredentials;
 import org.apache.ignite.plugin.security.SecurityException;
 import org.apache.ignite.plugin.security.SecurityPermission;
+import org.apache.ignite.spi.discovery.DiscoverySpiNodeAuthenticator;
+
+import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_AUTHENTICATION_ENABLED;
+import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_SECURITY_SUBJECT_V2;
 
 /**
  * Security utilities.
@@ -152,7 +157,7 @@ public class SecurityUtils {
     public static SecurityContext nodeSecurityContext(Marshaller marsh, ClassLoader ldr, ClusterNode node) {
         A.notNull(node, "Cluster node");
 
-        byte[] subjBytes = node.attribute(IgniteNodeAttributes.ATTR_SECURITY_SUBJECT_V2);
+        byte[] subjBytes = node.attribute(ATTR_SECURITY_SUBJECT_V2);
 
         if (subjBytes == null)
             throw new SecurityException("Security context isn't certain.");
@@ -292,5 +297,38 @@ public class SecurityUtils {
                 }
             });
         }
+    }
+
+    /** */
+    public static Map<String, Object> updateNodeAttributesWiSecurityContext(
+        SecurityContext secCtx,
+        ClusterNode node,
+        Marshaller marsh
+    ) throws IgniteCheckedException {
+        if (!(secCtx instanceof Serializable))
+            throw new IgniteCheckedException("Authentication subject is not serializable.");
+
+        Map<String, Object> nodeAttrs = new HashMap<>(node.attributes());
+
+        nodeAttrs.put(ATTR_SECURITY_SUBJECT_V2, U.marshal(marsh, secCtx));
+
+        return nodeAttrs;
+    }
+
+    /** */
+    public static SecurityContext authenticateNode(
+        ClusterNode locNode,
+        SecurityCredentials cred,
+        DiscoverySpiNodeAuthenticator nodeAuth
+    ) throws IgniteCheckedException {
+        assert nodeAuth != null;
+        assert cred != null || locNode.attribute(ATTR_AUTHENTICATION_ENABLED) != null;
+
+        SecurityContext secCtx = nodeAuth.authenticateNode(locNode, cred);
+
+        if (secCtx == null)
+            throw new IgniteCheckedException("Authentication failed for node: " + locNode.id());
+
+        return secCtx;
     }
 }

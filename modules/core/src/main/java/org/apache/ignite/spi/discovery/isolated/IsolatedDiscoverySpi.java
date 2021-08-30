@@ -19,7 +19,6 @@ package org.apache.ignite.spi.discovery.isolated;
 
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -35,7 +34,6 @@ import org.apache.ignite.internal.IgniteKernal;
 import org.apache.ignite.internal.managers.discovery.IgniteDiscoverySpi;
 import org.apache.ignite.internal.managers.discovery.IgniteDiscoverySpiInternalListener;
 import org.apache.ignite.internal.processors.security.SecurityContext;
-import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteFuture;
 import org.apache.ignite.lang.IgniteProductVersion;
 import org.apache.ignite.marshaller.Marshaller;
@@ -59,8 +57,9 @@ import static java.util.Collections.singleton;
 import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
 import static org.apache.ignite.internal.IgniteFeatures.allNodesSupports;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_SECURITY_CREDENTIALS;
-import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_SECURITY_SUBJECT_V2;
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.authenticateNode;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.updateNodeAttributesWiSecurityContext;
 
 /**
  * Special discovery SPI implementation to start a single-node cluster in "isolated" mode.
@@ -90,7 +89,7 @@ public class IsolatedDiscoverySpi extends IgniteSpiAdapter implements IgniteDisc
     private ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
     /** */
-    private DiscoverySpiNodeAuthenticator auth;
+    private DiscoverySpiNodeAuthenticator nodeAuth;
 
     /** */
     private Marshaller marsh;
@@ -155,7 +154,7 @@ public class IsolatedDiscoverySpi extends IgniteSpiAdapter implements IgniteDisc
 
     /** {@inheritDoc} */
     @Override public void setAuthenticator(DiscoverySpiNodeAuthenticator auth) {
-        this.auth = auth;
+        this.nodeAuth = auth;
     }
 
     /** {@inheritDoc} */
@@ -206,21 +205,22 @@ public class IsolatedDiscoverySpi extends IgniteSpiAdapter implements IgniteDisc
 
     /** {@inheritDoc} */
     @Override public void spiStart(@Nullable String igniteInstanceName) throws IgniteSpiException {
-        if (auth != null) {
-            Map<String, Object> nodeAttrs = new HashMap<>(locNode.attributes());
-
-            SecurityCredentials locNodeCreds = (SecurityCredentials)nodeAttrs.remove(ATTR_SECURITY_CREDENTIALS);
-
-            SecurityContext secCtx = auth.authenticateNode(locNode, locNodeCreds);
-
+        if (nodeAuth != null) {
             try {
-                nodeAttrs.put(ATTR_SECURITY_SUBJECT_V2, U.marshal(marsh, secCtx));
+                SecurityContext secCtx = authenticateNode(
+                    locNode,
+                    (SecurityCredentials)locNode.attributes().get(ATTR_SECURITY_CREDENTIALS),
+                    nodeAuth);
+
+                Map<String, Object> attrs = updateNodeAttributesWiSecurityContext(secCtx, locNode, marsh);
+
+                attrs.remove(ATTR_SECURITY_CREDENTIALS);
+
+                locNode.setAttributes(attrs);
             }
             catch (IgniteCheckedException e) {
-                throw new IgniteSpiException(e);
+                throw new IgniteSpiException("Failed to authenticate local node (will shutdown local node).", e);
             }
-
-            locNode.setAttributes(nodeAttrs);
         }
 
         exec.execute(() -> {

@@ -65,6 +65,7 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.events.DiscoveryCustomEvent;
 import org.apache.ignite.internal.managers.discovery.IgniteDiscoverySpiInternalListener;
 import org.apache.ignite.internal.processors.security.SecurityContext;
+import org.apache.ignite.internal.processors.security.SecurityUtils;
 import org.apache.ignite.internal.util.GridLongList;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
 import org.apache.ignite.internal.util.IgniteUtils;
@@ -107,6 +108,10 @@ import static org.apache.ignite.events.EventType.EVT_NODE_SEGMENTED;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_IGNITE_INSTANCE_NAME;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_SECURITY_CREDENTIALS;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_SECURITY_SUBJECT_V2;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.authenticateNode;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.authenticateNodeAndUpdateAttributes;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.securitySubjectId;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.updateNodeAttributesWiSecurityContext;
 import static org.apache.zookeeper.CreateMode.EPHEMERAL_SEQUENTIAL;
 import static org.apache.zookeeper.CreateMode.PERSISTENT;
 
@@ -1112,24 +1117,11 @@ public class ZookeeperDiscoveryImpl {
      * @throws IgniteSpiException If any error occurs.
      */
     private void localAuthentication(DiscoverySpiNodeAuthenticator nodeAuth, SecurityCredentials locCred) {
-        assert nodeAuth != null;
-        assert locCred != null;
-
         try {
-            SecurityContext subj = nodeAuth.authenticateNode(locNode, locCred);
-
-            // Note: exception message is checked in tests.
-            if (subj == null)
-                throw new IgniteSpiException("Authentication failed for local node.");
-
-            if (!(subj instanceof Serializable))
-                throw new IgniteSpiException("Authentication subject is not Serializable.");
-
-            Map<String, Object> attrs = new HashMap<>(locNode.attributes());
-
-            attrs.put(ATTR_SECURITY_SUBJECT_V2, U.marshal(marsh, subj));
-
-            locNode.setAttributes(attrs);
+            locNode.setAttributes(updateNodeAttributesWiSecurityContext(
+                SecurityUtils.authenticateNode(locNode, locCred, nodeAuth),
+                locNode,
+                marsh));
         }
         catch (Exception e) {
             throw new IgniteSpiException("Failed to authenticate local node (will shutdown local node).", e);
@@ -2138,9 +2130,12 @@ public class ZookeeperDiscoveryImpl {
             return new ZkNodeValidateResult("Failed to unmarshal node credentials");
         }
 
-        SecurityContext subj = nodeAuth.authenticateNode(node, cred);
+        SecurityContext subj;
 
-        if (subj == null) {
+        try {
+            subj = SecurityUtils.authenticateNode(node, cred, spi.getAuthenticator());
+        }
+        catch (IgniteCheckedException e) {
             U.warn(log, "Authentication failed [nodeId=" + node.id() +
                 ", addrs=" + U.addressesAsString(node) + ']');
 
@@ -2160,11 +2155,7 @@ public class ZookeeperDiscoveryImpl {
         try {
             secSubjZipBytes = marshalZip(subj);
 
-            Map<String, Object> attrs = new HashMap<>(node.getAttributes());
-
-            attrs.put(ATTR_SECURITY_SUBJECT_V2, U.marshal(marsh, subj));
-
-            node.setAttributes(attrs);
+            node.setAttributes(updateNodeAttributesWiSecurityContext(subj, locNode, marsh));
         }
         catch (Exception e) {
             U.error(log, "Failed to marshal node security subject: " + e, e);

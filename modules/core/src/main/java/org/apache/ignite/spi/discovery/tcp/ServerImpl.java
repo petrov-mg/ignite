@@ -20,6 +20,7 @@ package org.apache.ignite.spi.discovery.tcp;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.NotSerializableException;
 import java.io.ObjectStreamException;
 import java.io.OutputStream;
 import java.io.Serializable;
@@ -113,7 +114,6 @@ import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.lang.IgniteProductVersion;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.plugin.security.SecurityCredentials;
-import org.apache.ignite.plugin.security.SecurityPermission;
 import org.apache.ignite.plugin.security.SecurityPermissionSet;
 import org.apache.ignite.spi.IgniteNodeValidationResult;
 import org.apache.ignite.spi.IgniteSpiContext;
@@ -177,14 +177,17 @@ import static org.apache.ignite.failure.FailureType.CRITICAL_ERROR;
 import static org.apache.ignite.failure.FailureType.SYSTEM_WORKER_TERMINATION;
 import static org.apache.ignite.internal.IgniteFeatures.TCP_DISCOVERY_MESSAGE_NODE_COMPACT_REPRESENTATION;
 import static org.apache.ignite.internal.IgniteFeatures.nodeSupports;
-import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_AUTHENTICATION_ENABLED;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_EVENT_DRIVEN_SERVICE_PROCESSOR_ENABLED;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_LATE_AFFINITY_ASSIGNMENT;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_MARSHALLER;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_MARSHALLER_COMPACT_FOOTER;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_MARSHALLER_USE_BINARY_STRING_SER_VER_2;
 import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_MARSHALLER_USE_DFLT_SUID;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.authenticateNode;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.authenticateNodeAndUpdateAttributes;
 import static org.apache.ignite.internal.processors.security.SecurityUtils.nodeSecurityContext;
+import static org.apache.ignite.internal.processors.security.SecurityUtils.updateNodeAttributesWiSecurityContext;
+import static org.apache.ignite.plugin.security.SecurityPermission.JOIN_AS_SERVER;
 import static org.apache.ignite.spi.IgnitePortProtocol.TCP;
 import static org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi.DFLT_DISCOVERY_CLIENT_RECONNECT_HISTORY_SIZE;
 import static org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi.DFLT_NODE_IDS_HISTORY_SIZE;
@@ -1255,21 +1258,11 @@ class ServerImpl extends TcpDiscoveryImpl {
      * @throws IgniteSpiException If any error occurs.
      */
     private void localAuthentication(SecurityCredentials locCred) {
-        assert spi.nodeAuth != null;
-        assert locCred != null || locNode.attribute(ATTR_AUTHENTICATION_ENABLED) != null;
-
         try {
-            SecurityContext subj = spi.nodeAuth.authenticateNode(locNode, locCred);
-
-            if (subj == null)
-                throw new IgniteSpiException("Authentication failed for local node: " + locNode.id());
-
-            Map<String, Object> attrs = new HashMap<>(locNode.attributes());
-
-            attrs.put(IgniteNodeAttributes.ATTR_SECURITY_SUBJECT_V2, U.marshal(spi.marshaller(), subj));
-
-            locNode.setAttributes(attrs);
-
+            locNode.setAttributes(updateNodeAttributesWiSecurityContext(
+                authenticateNode(locNode, locCred, spi.nodeAuth),
+                locNode,
+                spi.marshaller()));
         }
         catch (IgniteException | IgniteCheckedException e) {
             throw new IgniteSpiException("Failed to authenticate local node (will shutdown local node).", e);
@@ -4288,19 +4281,43 @@ class ServerImpl extends TcpDiscoveryImpl {
                 if (spi.nodeAuth != null) {
                     // Authenticate node first.
                     try {
-                        SecurityCredentials cred = unmarshalCredentials(node);
+                        SecurityContext secCtx;
 
-                        SecurityContext subj = spi.nodeAuth.authenticateNode(node, cred);
+                        try {
+                            secCtx = authenticateNode(node, unmarshalCredentials(node), spi.nodeAuth);
+                        }
+                        catch (IgniteCheckedException e) {
+                            String errMsg = "Authentication failed [nodeId=" + node.id() +
+                                ", addrs=" + U.addressesAsString(node) + ']';
 
-                        if (subj == null) {
-                            // Node has not pass authentication.
-                            LT.warn(log, "Authentication failed [nodeId=" + node.id() +
-                                ", addrs=" + U.addressesAsString(node) + ']');
+                            LT.warn(log, errMsg);
 
                             // Always output in debug.
                             if (log.isDebugEnabled())
-                                log.debug("Authentication failed [nodeId=" + node.id() + ", addrs=" +
-                                    U.addressesAsString(node));
+                                log.debug(errMsg);
+
+                            throw e;
+                        }
+
+                        if (node.clientRouterNodeId() == null && !secCtx.systemOperationAllowed(JOIN_AS_SERVER))
+                            throw new IgniteCheckedException("Node is not authorised to join as a server node");
+
+                        try {
+                            node.setAttributes(updateNodeAttributesWiSecurityContext(secCtx, node, spi.marshaller()));
+                        }
+                        catch (IgniteCheckedException e) {
+                            LT.warn(log, "Authentication subject is not Serializable [nodeId=" + node.id() +
+                                ", addrs=" + U.addressesAsString(node) + ']');
+
+                            throw e;
+                        }
+                    }
+                    catch (IgniteException | IgniteCheckedException e) {
+                        try {
+                            // Always output in debug.
+                            if (log.isDebugEnabled())
+                                log.debug(e.getMessage() + " [nodeId=" + node.id() +
+                                    ", addrs=" + U.addressesAsString(node));
 
                             try {
                                 trySendMessageDirectly(
@@ -4308,90 +4325,35 @@ class ServerImpl extends TcpDiscoveryImpl {
                                     new TcpDiscoveryAuthFailedMessage(locNodeId, spi.locHost, node.id())
                                 );
                             }
-                            catch (IgniteSpiException e) {
+                            catch (IgniteSpiException msgSendE) {
                                 if (log.isDebugEnabled())
                                     log.debug("Failed to send unauthenticated message to node " +
-                                        "[node=" + node + ", err=" + e.getMessage() + ']');
+                                        "[node=" + node + ", err=" + msgSendE.getMessage() + ']');
 
                                 onException("Failed to send unauthenticated message to node " +
-                                    "[node=" + node + ", err=" + e.getMessage() + ']', e);
+                                    "[node=" + node + ", err=" + msgSendE.getMessage() + ']', msgSendE);
                             }
+                        }
+                        catch (IgniteException | IgniteCheckedException e) {
+                            LT.error(log, e, "Authentication failed [nodeId=" + node.id() + ", addrs=" +
+                                U.addressesAsString(node) + ']');
 
+                            if (log.isDebugEnabled())
+                                log.debug("Failed to authenticate node (will ignore join request) [node=" + node +
+                                    ", err=" + e + ']');
+
+                            onException("Failed to authenticate node (will ignore join request) [node=" + node +
+                                ", err=" + e + ']', e);
+
+                            return;
+                        }
+                        finally {
                             // Ignore join request.
                             msg.spanContainer().span()
                                 .addLog(() -> "Ignored")
                                 .setStatus(SpanStatus.ABORTED)
                                 .end();
-
-                            return;
                         }
-                        else {
-                            String authFailedMsg = null;
-
-                            if (!(subj instanceof Serializable)) {
-                                // Node has not pass authentication.
-                                LT.warn(log, "Authentication subject is not Serializable [nodeId=" + node.id() +
-                                    ", addrs=" + U.addressesAsString(node) + ']');
-
-                                authFailedMsg = "Authentication subject is not serializable";
-                            }
-                            else if (node.clientRouterNodeId() == null &&
-                                !subj.systemOperationAllowed(SecurityPermission.JOIN_AS_SERVER))
-                                authFailedMsg = "Node is not authorised to join as a server node";
-
-                            if (authFailedMsg != null) {
-                                // Always output in debug.
-                                if (log.isDebugEnabled())
-                                    log.debug(authFailedMsg + " [nodeId=" + node.id() +
-                                        ", addrs=" + U.addressesAsString(node));
-
-                                try {
-                                    trySendMessageDirectly(
-                                        node,
-                                        new TcpDiscoveryAuthFailedMessage(locNodeId, spi.locHost, node.id())
-                                    );
-                                }
-                                catch (IgniteSpiException e) {
-                                    if (log.isDebugEnabled())
-                                        log.debug("Failed to send unauthenticated message to node " +
-                                            "[node=" + node + ", err=" + e.getMessage() + ']');
-                                }
-
-                                // Ignore join request.
-                                msg.spanContainer().span()
-                                    .addLog(() -> "Ignored")
-                                    .setStatus(SpanStatus.ABORTED)
-                                    .end();
-
-                                return;
-                            }
-
-                            // Stick in authentication subject to node (use security-safe attributes for copy).
-                            Map<String, Object> attrs = new HashMap<>(node.getAttributes());
-
-                            attrs.put(IgniteNodeAttributes.ATTR_SECURITY_SUBJECT_V2, U.marshal(spi.marshaller(), subj));
-
-                            node.setAttributes(attrs);
-                        }
-                    }
-                    catch (IgniteException | IgniteCheckedException e) {
-                        LT.error(log, e, "Authentication failed [nodeId=" + node.id() + ", addrs=" +
-                            U.addressesAsString(node) + ']');
-
-                        if (log.isDebugEnabled())
-                            log.debug("Failed to authenticate node (will ignore join request) [node=" + node +
-                                ", err=" + e + ']');
-
-                        onException("Failed to authenticate node (will ignore join request) [node=" + node +
-                            ", err=" + e + ']', e);
-
-                        // Ignore join request.
-                        msg.spanContainer().span()
-                            .addLog(() -> "Ignored")
-                            .setStatus(SpanStatus.ABORTED)
-                            .end();
-
-                        return;
                     }
                 }
 
@@ -5047,7 +5009,7 @@ class ServerImpl extends TcpDiscoveryImpl {
                     boolean authFailed = true;
 
                     try {
-                        SecurityCredentials cred = unmarshalCredentials(node);
+                        SecurityCredentials cred = unmarshalCredentials(node, spi.marshaller());
 
                         if (cred == null) {
                             if (log.isDebugEnabled())
