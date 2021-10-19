@@ -17,9 +17,14 @@
 
 package org.apache.ignite.internal.processors.cache.validation;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
@@ -30,6 +35,7 @@ import org.apache.ignite.cache.validation.SegmentationResolverPluginProvider;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.events.Event;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.processors.cache.CacheInvalidStateException;
 import org.apache.ignite.internal.processors.cache.distributed.dht.IgniteCacheTopologySplitAbstractTest;
@@ -45,6 +51,9 @@ import static java.util.stream.Collectors.toList;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.PRIMARY_SYNC;
 import static org.apache.ignite.cluster.ClusterState.ACTIVE;
 import static org.apache.ignite.cluster.ClusterState.ACTIVE_READ_ONLY;
+import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
+import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
+import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.internal.processors.cache.distributed.GridCacheModuloAffinityFunction.IDX_ATTR;
 import static org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi.DFLT_PORT;
 import static org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi.DFLT_PORT_RANGE;
@@ -68,6 +77,9 @@ public class SegmentationResolverTest extends IgniteCacheTopologySplitAbstractTe
     }
 
     /** */
+    public static final Map<String, List<Event>> events = new ConcurrentHashMap<>();
+
+    /** */
     private IgniteConfiguration getConfiguration(
         String igniteInstanceName,
         boolean skipSegmentationPluginConfiguration
@@ -85,6 +97,12 @@ public class SegmentationResolverTest extends IgniteCacheTopologySplitAbstractTe
             .setLocalPortRange(1)
             .setLocalPort(getDiscoPort(idx))
             .setConnectionRecoveryTimeout(0);
+
+        cfg.setLocalEventListeners(Collections.singletonMap(e -> {
+            events.computeIfAbsent(igniteInstanceName, k -> new ArrayList<>()).add(e);
+
+            return true;
+        }, new int[] {EVT_NODE_FAILED, EVT_NODE_JOINED, EVT_NODE_LEFT}));
 
         return cfg;
     }
@@ -166,26 +184,18 @@ public class SegmentationResolverTest extends IgniteCacheTopologySplitAbstractTe
     /** */
     @Test
     public void testConnectionToSegmentedCluster() throws Exception {
-        startGrids(4);
+        startGridsMultiThreaded(4);
 
         splitAndWait();
 
         checkSegmentState(0, false);
+        checkSegmentState(1, false);
+
+        connectNodeToSegment(4, 0);
         checkSegmentState(0, false);
 
-        assertThrowsAnyCause(
-            log,
-            () -> connectNodeToSegment(4, 0),
-            IgniteSpiException.class,
-            "The node cannot join the cluster because the cluster was marked as segmented."
-        );
-
-        assertThrowsAnyCause(
-            log,
-            () -> connectNodeToSegment(5, 1),
-            IgniteSpiException.class,
-            "The node cannot join the cluster because the cluster was marked as segmented."
-        );
+        connectNodeToSegment(5, 1);
+        checkSegmentState(1, false);
     }
 
     /** */
@@ -245,7 +255,7 @@ public class SegmentationResolverTest extends IgniteCacheTopologySplitAbstractTe
 
         checkPut(0, true);
 
-        startGrid(3);
+//        startGrid(3);
 
         splitAndWait();
 

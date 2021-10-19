@@ -2800,7 +2800,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                     addDiscoEvtForTest(fut.firstEvent());
 
-                    curFut.context().events().addEvent(fut.initialVersion(),
+                    curFut.context().events().addEvent(
+                        fut.initialVersion(),
                         fut.firstEvent(),
                         fut.firstEventCache());
 

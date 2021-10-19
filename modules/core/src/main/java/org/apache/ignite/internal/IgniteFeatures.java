@@ -242,7 +242,7 @@ public enum IgniteFeatures {
         final BitSet set = new BitSet();
 
         for (IgniteFeatures value : IgniteFeatures.values()) {
-            if (value == PME_FREE_SWITCH && getBoolean(IGNITE_PME_FREE_SWITCH_DISABLED))
+            if (value == PME_FREE_SWITCH && !getBoolean(IGNITE_PME_FREE_SWITCH_DISABLED))
                 continue;
 
             final int featureId = value.getFeatureId();

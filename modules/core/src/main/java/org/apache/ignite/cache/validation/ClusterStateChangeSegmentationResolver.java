@@ -18,7 +18,12 @@
 package org.apache.ignite.cache.validation;
 
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
+import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.events.DiscoveryEvent;
@@ -26,11 +31,16 @@ import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.managers.discovery.DiscoCache;
 import org.apache.ignite.internal.processors.cache.ExchangeActions;
 import org.apache.ignite.internal.processors.cache.StateChangeRequest;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionExchangeId;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
+import org.apache.ignite.internal.processors.metastorage.DistributedMetastorageLifecycleListener;
+import org.apache.ignite.internal.processors.metastorage.ReadableDistributedMetaStorage;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.thread.IgniteThreadPoolExecutor;
 import org.apache.ignite.thread.OomExceptionHandler;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.ignite.cluster.ClusterState.ACTIVE;
 import static org.apache.ignite.cluster.ClusterState.ACTIVE_READ_ONLY;
 import static org.apache.ignite.configuration.IgniteConfiguration.DFLT_THREAD_KEEP_ALIVE_TIME;
@@ -41,24 +51,36 @@ import static org.apache.ignite.internal.managers.communication.GridIoPolicy.UND
  * Represents {@link PluggableSegmentationResolver} implementation that detects cluster nodes segmentation and
  * changes state of segmented part of the cluster to read-only mode.
  */
-public class ClusterStateChangeSegmentationResolver implements PluggableSegmentationResolver {
+public class ClusterStateChangeSegmentationResolver implements PluggableSegmentationResolver, DistributedMetastorageLifecycleListener {
     /** Ignite kernel context. */
     private final GridKernalContext ctx;
 
     /** Ignite logger. */
     private final IgniteLogger log;
 
-    /** The executor that asynchronously performs cluster state change procedure. */
-    private final IgniteThreadPoolExecutor stateChangeExecutor;
+    /** */
+    private final IgniteThreadPoolExecutor exec;
 
-    /** State of the current segment.*/
-    private boolean isValid;
+    /** */
+    private final Lock topSegmentationStateLock = new ReentrantLock();
 
-    /** Last checked exchange future. */
-    private GridDhtPartitionsExchangeFuture lastCheckedExchangeFut;
+    /** */
+    private final Condition topSegmentationStateUpdated = topSegmentationStateLock.newCondition();
 
-    /** Baseline nodes count that the cluster had on previous PME. */
-    private int prevBaselineNodesCnt;
+    /** */
+    private IgniteBiTuple<GridDhtPartitionExchangeId, Boolean> topSegmentationState;
+
+    /** */
+    private long lastCheckedTopVer;
+
+    /** */
+    private int lastCheckedBaselineNodesCnt;
+
+    /** State of the current segment. */
+    private volatile boolean isValid;
+
+    /** */
+    private static final String SEGMENTATION_STATE_KEY = "segmentation.state";
 
     /** @param ctx Ignite kernel context. */
     public ClusterStateChangeSegmentationResolver(GridKernalContext ctx) {
@@ -66,10 +88,8 @@ public class ClusterStateChangeSegmentationResolver implements PluggableSegmenta
 
         log = ctx.log(getClass());
 
-        isValid = true;
-
-        stateChangeExecutor = new IgniteThreadPoolExecutor(
-            "segmentation-resolver-state-change-executor",
+        exec = new IgniteThreadPoolExecutor(
+            "segmentation-resolver-executor",
             ctx.igniteInstanceName(),
             1,
             1,
@@ -78,66 +98,99 @@ public class ClusterStateChangeSegmentationResolver implements PluggableSegmenta
             UNDEFINED,
             new OomExceptionHandler(ctx));
 
-        stateChangeExecutor.allowCoreThreadTimeOut(true);
+        exec.allowCoreThreadTimeOut(true);
     }
 
     /** {@inheritDoc} */
     @Override public void onDoneBeforeTopologyUnlock(GridDhtPartitionsExchangeFuture fut) {
-        if (lastCheckedExchangeFut == fut)
+        long exchResultTopVer = fut.topologyVersion().topologyVersion();
+
+        if (lastCheckedTopVer == exchResultTopVer)
             return;
 
-        int baselineNodesCnt = baselineNodesCount(fut);
+        boolean isValid0 = isValid;
 
-        if (isValid) {
-            if (hasServerFailed(fut) && baselineNodesCnt <= prevBaselineNodesCnt / 2) {
-                isValid = false;
+        boolean segStateChanged = false;
 
-                U.warn(log, "Cluster segmentation was detected [segmentedNodes=" + formatTopologyNodes(fut) + ']');
+        if (lastCheckedTopVer == 0)
+            isValid0 = U.isLocalNodeCoordinator(ctx.discovery()) || awaitTopologySegmentationState(exchResultTopVer);
+        else {
+            if (isValid0) {
+                if (segmentationDetected(fut)) {
+                    isValid0 = false;
 
-                restrictSegmentedCluster();
+                    segStateChanged = true;
+
+                    U.warn(log, "Cluster segmentation was detected [segmentedNodes=" + formatTopologyNodes(fut) + ']');
+                }
+            }
+            else if (segmentationResolved(fut)) {
+                isValid0 = true;
+
+                U.warn(log, "Segmentation sign was removed from nodes [nodes=" + formatTopologyNodes(fut) + ']');
             }
         }
-        else
-            checkSegmentationResolved(fut);
-
-        prevBaselineNodesCnt = baselineNodesCnt;
-
-        lastCheckedExchangeFut = fut;
-    }
-
-    /** Restricts segmented cluster by changing state to READ-ONLY mode. */
-    private void restrictSegmentedCluster() {
-        U.warn(log, "Switching cluster state to READ-ONLY mode due to segmentation.");
 
         if (U.isLocalNodeCoordinator(ctx.discovery())) {
-            stateChangeExecutor.submit(() -> {
-                try {
-                    ctx.state().changeGlobalState(
-                        ACTIVE_READ_ONLY,
-                        false,
-                        null,
-                        false
-                    ).get();
-                }
-                catch (Throwable e) {
-                    U.error(log, "Failed to switch state of the segmented cluster nodes to the read-only mode.", e);
-                }
-            });
+            propagateSegmentationState(exchResultTopVer, isValid0);
+
+            if (segStateChanged)
+                handleSegmentation();
+        }
+
+        lastCheckedTopVer = exchResultTopVer;
+        lastCheckedBaselineNodesCnt = fut.events().discoveryCache().aliveBaselineNodes().size();
+
+        isValid = isValid0;
+    }
+
+    /** */
+    private boolean segmentationDetected(GridDhtPartitionsExchangeFuture fut) {
+        int failedBaselineNodes = 0;
+
+        DiscoCache discoCache = fut.events().discoveryCache();
+
+        for (DiscoveryEvent event : fut.events().events()) {
+            if (event.type() == EVT_NODE_FAILED && !event.eventNode().isClient() && discoCache.baselineNode(event.node()))
+                ++failedBaselineNodes;
+        }
+
+        return failedBaselineNodes >= lastCheckedBaselineNodesCnt - lastCheckedBaselineNodesCnt / 2;
+    }
+
+    /** */
+    private boolean awaitTopologySegmentationState(long topVer) {
+        topSegmentationStateLock.lock();
+
+        try {
+            while (topSegmentationState != null)
+                topSegmentationStateUpdated.await(ctx.config().getFailureDetectionTimeout(), MILLISECONDS);
+
+            return topSegmentationState.getValue();
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+
+            throw new IgniteException(e);
+        }
+        finally {
+            topSegmentationStateLock.unlock();
         }
     }
 
-    /** Checks that segmentation was resolved manually and, if so, resets segmentation flag for the cluster nodes. */
-    private void checkSegmentationResolved(GridDhtPartitionsExchangeFuture exchFut) {
-        ExchangeActions exchActions = exchFut.exchangeActions();
-
-        StateChangeRequest stateChangeReq = exchActions == null ? null : exchActions.stateChangeRequest();
-
-        if (stateChangeReq != null && stateChangeReq.state() == ACTIVE) {
-            isValid = true;
-
-            if (log.isInfoEnabled())
-                log.info("Segmentation was resolved manually for nodes [nodes=" + formatTopologyNodes(exchFut) + ']');
-        }
+    /** */
+    private void propagateSegmentationState(long topVer, boolean isValid) {
+        exec.submit(() -> {
+            try {
+                ctx.distributedMetastorage().write(
+                    SEGMENTATION_STATE_KEY,
+                    new IgniteBiTuple<>(topVer, isValid)
+                );
+            }
+            catch (IgniteCheckedException e) {
+                U.error(log, e);
+            }
+        });
     }
 
     /** {@inheritDoc} */
@@ -145,30 +198,44 @@ public class ClusterStateChangeSegmentationResolver implements PluggableSegmenta
         return isValid;
     }
 
-    /** @return Count of baseline nodes that are part of the cluster at the end of specified PME future. */
-    private int baselineNodesCount(GridDhtPartitionsExchangeFuture fut) {
-        int res = 0;
+    /** {@inheritDoc} */
+    @Override public void onReadyForRead(ReadableDistributedMetaStorage metastorage) {
+        metastorage.listen(SEGMENTATION_STATE_KEY::equals, (key, oldVal, newVal) -> {
+            topSegmentationStateLock.lock();
 
-        DiscoCache discoCache = fut.events().discoveryCache();
-
-        for (ClusterNode node : fut.events().lastEvent().topologyNodes()) {
-            if (!node.isClient() && discoCache.baselineNode(node))
-                ++res;
-        }
-
-        return res;
+            try {
+                topSegmentationStateUpdated.signalAll();
+            }
+            finally {
+                topSegmentationStateLock.unlock();
+            }
+        });
     }
 
-    /** @return Whether any nodes failed since previous PME. */
-    private boolean hasServerFailed(GridDhtPartitionsExchangeFuture fut) {
-        boolean res = false;
+    /** Restricts segmented cluster writes by changing its state to READ-ONLY mode. */
+    private void handleSegmentation() {
+        exec.submit(() -> {
+            try {
+                ctx.state().changeGlobalState(
+                    ACTIVE_READ_ONLY,
+                    false,
+                    null,
+                    false
+                ).get();
+            }
+            catch (Throwable e) {
+                U.error(log, "Failed to switch state of the segmented cluster nodes to the READ-ONLY mode.", e);
+            }
+        });
+    }
 
-        for (DiscoveryEvent event : fut.events().events()) {
-            if (event.type() == EVT_NODE_FAILED && !event.eventNode().isClient())
-                res = true;
-        }
+    /** */
+    private boolean segmentationResolved(GridDhtPartitionsExchangeFuture fut) {
+        ExchangeActions exchActions = fut.exchangeActions();
 
-        return res;
+        StateChangeRequest stateChangeReq = exchActions == null ? null : exchActions.stateChangeRequest();
+
+        return stateChangeReq != null && stateChangeReq.state() == ACTIVE;
     }
 
     /**

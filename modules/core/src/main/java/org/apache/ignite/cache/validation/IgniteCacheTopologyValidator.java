@@ -17,11 +17,15 @@
 
 package org.apache.ignite.cache.validation;
 
+import java.io.Serializable;
 import java.util.Collection;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.TopologyValidator;
 import org.apache.ignite.internal.IgniteEx;
+import org.apache.ignite.internal.processors.configuration.distributed.DistributedBooleanProperty;
+import org.apache.ignite.internal.processors.configuration.distributed.DistributedConfigurationProcessor;
+import org.apache.ignite.internal.processors.configuration.distributed.DistributedProperty;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lifecycle.LifecycleAware;
@@ -81,6 +85,14 @@ public class IgniteCacheTopologyValidator implements TopologyValidator, Lifecycl
         }
 
         segResolver = segResolvers[0];
+    }
+
+    /** */
+    private void initIfNeeded() {
+        DistributedConfigurationProcessor distr = ignite.context().distributedConfiguration();
+
+        if (distr.property("") == null)
+            distr.registerProperty(DistributedBooleanProperty.detachedBooleanProperty(""));
     }
 
     /** {@inheritDoc} */

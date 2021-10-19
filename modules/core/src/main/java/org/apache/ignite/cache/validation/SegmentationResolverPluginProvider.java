@@ -97,6 +97,7 @@ public class SegmentationResolverPluginProvider implements PluginProvider<Plugin
         ctx.addNodeAttribute(ATTR_SEG_RESOLVE_ENABLED, true);
 
         ctx.cache().context().exchange().registerExchangeAwareComponent(segResolver);
+        ctx.internalSubscriptionProcessor().registerDistributedMetastorageListener(segResolver);
     }
 
     /** {@inheritDoc} */
@@ -140,10 +141,6 @@ public class SegmentationResolverPluginProvider implements PluginProvider<Plugin
                 " trying to join the cluster. Since the segmentation resolver is only applicable if all server nodes" +
                 " in the cluster have one, node join request will be rejected [nodeId=" + node.id() + ']';
         }
-
-        if (!segResolver.isValidSegment())
-            errMsg = "The node cannot join the cluster because the cluster was marked as segmented. Resolve" +
-                " segmentation and retry join attempt [nodeId=" + node.id() + ']';
 
         if (errMsg != null)
             throw new PluginValidationException(errMsg, errMsg, node.id());
