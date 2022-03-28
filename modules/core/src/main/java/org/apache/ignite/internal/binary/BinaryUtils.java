@@ -30,6 +30,11 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -171,6 +176,10 @@ public class BinaryUtils {
         PLAIN_CLASS_TO_FLAG.put(Date.class, GridBinaryMarshaller.DATE);
         PLAIN_CLASS_TO_FLAG.put(Timestamp.class, GridBinaryMarshaller.TIMESTAMP);
         PLAIN_CLASS_TO_FLAG.put(Time.class, GridBinaryMarshaller.TIME);
+        PLAIN_CLASS_TO_FLAG.put(LocalTime.class, GridBinaryMarshaller.LOCAL_TIME);
+        PLAIN_CLASS_TO_FLAG.put(LocalDate.class, GridBinaryMarshaller.LOCAL_DATE);
+        PLAIN_CLASS_TO_FLAG.put(LocalDateTime.class, GridBinaryMarshaller.LOCAL_DATE_TIME);
+        PLAIN_CLASS_TO_FLAG.put(OffsetDateTime.class, GridBinaryMarshaller.OFFSET_DATE_TIME);
 
         PLAIN_CLASS_TO_FLAG.put(byte[].class, GridBinaryMarshaller.BYTE_ARR);
         PLAIN_CLASS_TO_FLAG.put(short[].class, GridBinaryMarshaller.SHORT_ARR);
@@ -186,6 +195,10 @@ public class BinaryUtils {
         PLAIN_CLASS_TO_FLAG.put(Date[].class, GridBinaryMarshaller.DATE_ARR);
         PLAIN_CLASS_TO_FLAG.put(Timestamp[].class, GridBinaryMarshaller.TIMESTAMP_ARR);
         PLAIN_CLASS_TO_FLAG.put(Time[].class, GridBinaryMarshaller.TIME_ARR);
+        PLAIN_CLASS_TO_FLAG.put(LocalTime[].class, GridBinaryMarshaller.LOCAL_TIME_ARR);
+        PLAIN_CLASS_TO_FLAG.put(LocalDate[].class, GridBinaryMarshaller.LOCAL_DATE_ARR);
+        PLAIN_CLASS_TO_FLAG.put(LocalDateTime[].class, GridBinaryMarshaller.LOCAL_DATE_TIME_ARR);
+        PLAIN_CLASS_TO_FLAG.put(OffsetDateTime[].class, GridBinaryMarshaller.OFFSET_DATE_TIME_ARR);
 
         for (Map.Entry<Class<?>, Byte> entry : PLAIN_CLASS_TO_FLAG.entrySet())
             FLAG_TO_CLASS.put(entry.getValue(), entry.getKey());
@@ -200,14 +213,45 @@ public class BinaryUtils {
         PLAIN_CLASS_TO_FLAG.put(boolean.class, GridBinaryMarshaller.BOOLEAN);
 
         for (byte b : new byte[] {
-            GridBinaryMarshaller.BYTE, GridBinaryMarshaller.SHORT, GridBinaryMarshaller.INT, GridBinaryMarshaller.LONG,
-            GridBinaryMarshaller.FLOAT, GridBinaryMarshaller.DOUBLE, GridBinaryMarshaller.CHAR, GridBinaryMarshaller.BOOLEAN,
-            GridBinaryMarshaller.DECIMAL, GridBinaryMarshaller.STRING, GridBinaryMarshaller.UUID, GridBinaryMarshaller.DATE,
-            GridBinaryMarshaller.TIMESTAMP, GridBinaryMarshaller.TIME, GridBinaryMarshaller.BYTE_ARR, GridBinaryMarshaller.SHORT_ARR,
-            GridBinaryMarshaller.INT_ARR, GridBinaryMarshaller.LONG_ARR, GridBinaryMarshaller.FLOAT_ARR, GridBinaryMarshaller.DOUBLE_ARR,
-            GridBinaryMarshaller.TIME_ARR, GridBinaryMarshaller.CHAR_ARR, GridBinaryMarshaller.BOOLEAN_ARR,
-            GridBinaryMarshaller.DECIMAL_ARR, GridBinaryMarshaller.STRING_ARR, GridBinaryMarshaller.UUID_ARR, GridBinaryMarshaller.DATE_ARR,
-            GridBinaryMarshaller.TIMESTAMP_ARR, GridBinaryMarshaller.ENUM, GridBinaryMarshaller.ENUM_ARR, GridBinaryMarshaller.NULL}) {
+            GridBinaryMarshaller.BYTE,
+            GridBinaryMarshaller.SHORT,
+            GridBinaryMarshaller.INT,
+            GridBinaryMarshaller.LONG,
+            GridBinaryMarshaller.FLOAT,
+            GridBinaryMarshaller.DOUBLE,
+            GridBinaryMarshaller.CHAR,
+            GridBinaryMarshaller.BOOLEAN,
+            GridBinaryMarshaller.DECIMAL,
+            GridBinaryMarshaller.STRING,
+            GridBinaryMarshaller.UUID,
+            GridBinaryMarshaller.DATE,
+            GridBinaryMarshaller.TIMESTAMP,
+            GridBinaryMarshaller.TIME,
+            GridBinaryMarshaller.LOCAL_TIME,
+            GridBinaryMarshaller.LOCAL_DATE,
+            GridBinaryMarshaller.LOCAL_DATE_TIME,
+            GridBinaryMarshaller.OFFSET_DATE_TIME,
+            GridBinaryMarshaller.BYTE_ARR,
+            GridBinaryMarshaller.SHORT_ARR,
+            GridBinaryMarshaller.INT_ARR,
+            GridBinaryMarshaller.LONG_ARR,
+            GridBinaryMarshaller.FLOAT_ARR,
+            GridBinaryMarshaller.DOUBLE_ARR,
+            GridBinaryMarshaller.TIME_ARR,
+            GridBinaryMarshaller.CHAR_ARR,
+            GridBinaryMarshaller.BOOLEAN_ARR,
+            GridBinaryMarshaller.DECIMAL_ARR,
+            GridBinaryMarshaller.STRING_ARR,
+            GridBinaryMarshaller.UUID_ARR,
+            GridBinaryMarshaller.DATE_ARR,
+            GridBinaryMarshaller.TIMESTAMP_ARR,
+            GridBinaryMarshaller.LOCAL_TIME_ARR,
+            GridBinaryMarshaller.LOCAL_DATE_ARR,
+            GridBinaryMarshaller.LOCAL_DATE_TIME_ARR,
+            GridBinaryMarshaller.OFFSET_DATE_TIME_ARR,
+            GridBinaryMarshaller.ENUM,
+            GridBinaryMarshaller.ENUM_ARR,
+            GridBinaryMarshaller.NULL}) {
 
             PLAIN_TYPE_FLAG[b] = true;
         }
@@ -225,6 +269,10 @@ public class BinaryUtils {
         BINARY_CLS.add(Date.class);
         BINARY_CLS.add(Timestamp.class);
         BINARY_CLS.add(Time.class);
+        BINARY_CLS.add(LocalTime.class);
+        BINARY_CLS.add(LocalDate.class);
+        BINARY_CLS.add(LocalDateTime.class);
+        BINARY_CLS.add(OffsetDateTime.class);
         BINARY_CLS.add(BigDecimal.class);
         BINARY_CLS.add(byte[].class);
         BINARY_CLS.add(short[].class);
@@ -239,6 +287,10 @@ public class BinaryUtils {
         BINARY_CLS.add(Date[].class);
         BINARY_CLS.add(Timestamp[].class);
         BINARY_CLS.add(Time[].class);
+        BINARY_CLS.add(LocalTime[].class);
+        BINARY_CLS.add(LocalDate[].class);
+        BINARY_CLS.add(LocalDateTime[].class);
+        BINARY_CLS.add(OffsetDateTime[].class);
         BINARY_CLS.add(BigDecimal[].class);
 
         FIELD_TYPE_NAMES = new String[104];
@@ -257,6 +309,10 @@ public class BinaryUtils {
         FIELD_TYPE_NAMES[GridBinaryMarshaller.DATE] = "Date";
         FIELD_TYPE_NAMES[GridBinaryMarshaller.TIMESTAMP] = "Timestamp";
         FIELD_TYPE_NAMES[GridBinaryMarshaller.TIME] = "Time";
+        FIELD_TYPE_NAMES[GridBinaryMarshaller.LOCAL_TIME] = "LocalTime";
+        FIELD_TYPE_NAMES[GridBinaryMarshaller.LOCAL_DATE] = "LocalDate";
+        FIELD_TYPE_NAMES[GridBinaryMarshaller.LOCAL_DATE_TIME] = "LocalDateTime";
+        FIELD_TYPE_NAMES[GridBinaryMarshaller.OFFSET_DATE_TIME] = "OffsetDateTime";
         FIELD_TYPE_NAMES[GridBinaryMarshaller.ENUM] = "Enum";
         FIELD_TYPE_NAMES[GridBinaryMarshaller.OBJ] = "Object";
         FIELD_TYPE_NAMES[GridBinaryMarshaller.BINARY_OBJ] = "Object";
@@ -277,6 +333,10 @@ public class BinaryUtils {
         FIELD_TYPE_NAMES[GridBinaryMarshaller.DATE_ARR] = "Date[]";
         FIELD_TYPE_NAMES[GridBinaryMarshaller.TIMESTAMP_ARR] = "Timestamp[]";
         FIELD_TYPE_NAMES[GridBinaryMarshaller.TIME_ARR] = "Time[]";
+        FIELD_TYPE_NAMES[GridBinaryMarshaller.LOCAL_TIME_ARR] = "LocalTime[]";
+        FIELD_TYPE_NAMES[GridBinaryMarshaller.LOCAL_DATE_ARR] = "LocalDate[]";
+        FIELD_TYPE_NAMES[GridBinaryMarshaller.LOCAL_DATE_TIME_ARR] = "LocalDateTime[]";
+        FIELD_TYPE_NAMES[GridBinaryMarshaller.OFFSET_DATE_TIME_ARR] = "OffsetDateTime[]";
         FIELD_TYPE_NAMES[GridBinaryMarshaller.OBJ_ARR] = "Object[]";
         FIELD_TYPE_NAMES[GridBinaryMarshaller.ENUM_ARR] = "Enum[]";
         FIELD_TYPE_NAMES[GridBinaryMarshaller.BINARY_ENUM] = "Enum";
@@ -469,6 +529,26 @@ public class BinaryUtils {
 
                 break;
 
+            case GridBinaryMarshaller.LOCAL_TIME:
+                writer.doWriteLocalTime((LocalTime)val);
+
+                break;
+
+            case GridBinaryMarshaller.LOCAL_DATE:
+                writer.doWriteLocalDate((LocalDate)val);
+
+                break;
+
+            case GridBinaryMarshaller.LOCAL_DATE_TIME:
+                writer.doWriteLocalDateTime((LocalDateTime)val);
+
+                break;
+
+            case GridBinaryMarshaller.OFFSET_DATE_TIME:
+                writer.doWriteOffsetDateTime((OffsetDateTime)val);
+
+                break;
+
             case GridBinaryMarshaller.BYTE_ARR:
                 writer.doWriteByteArray((byte[])val);
 
@@ -539,6 +619,26 @@ public class BinaryUtils {
 
                 break;
 
+            case GridBinaryMarshaller.LOCAL_TIME_ARR:
+                writer.doWriteLocalTimeArray((LocalTime[])val);
+
+                break;
+
+            case GridBinaryMarshaller.LOCAL_DATE_ARR:
+                writer.doWriteLocalDateArray((LocalDate[])val);
+
+                break;
+
+            case GridBinaryMarshaller.LOCAL_DATE_TIME_ARR:
+                writer.doWriteLocalDateTimeArray((LocalDateTime[])val);
+
+                break;
+
+            case GridBinaryMarshaller.OFFSET_DATE_TIME_ARR:
+                writer.doWriteOffsetDateTimeArray((OffsetDateTime[])val);
+
+                break;
+
             default:
                 throw new IllegalArgumentException("Can't write object with type: " + val.getClass());
         }
@@ -590,7 +690,12 @@ public class BinaryUtils {
      */
     public static boolean isPlainArrayType(int type) {
         return (type >= GridBinaryMarshaller.BYTE_ARR && type <= GridBinaryMarshaller.DATE_ARR)
-            || type == GridBinaryMarshaller.TIMESTAMP_ARR || type == GridBinaryMarshaller.TIME_ARR;
+            || type == GridBinaryMarshaller.TIMESTAMP_ARR
+            || type == GridBinaryMarshaller.TIME_ARR
+            || type == GridBinaryMarshaller.LOCAL_TIME_ARR
+            || type == GridBinaryMarshaller.LOCAL_DATE_ARR
+            || type == GridBinaryMarshaller.LOCAL_DATE_TIME_ARR
+            || type == GridBinaryMarshaller.OFFSET_DATE_TIME_ARR;
     }
 
     /**
@@ -747,7 +852,8 @@ public class BinaryUtils {
         return cls == byte[].class || cls == short[].class || cls == int[].class || cls == long[].class ||
             cls == float[].class || cls == double[].class || cls == char[].class || cls == boolean[].class ||
             cls == String[].class || cls == UUID[].class || cls == Date[].class || cls == Timestamp[].class ||
-            cls == BigDecimal[].class || cls == Time[].class;
+            cls == BigDecimal[].class || cls == Time[].class || cls == LocalTime[].class || cls == LocalDate[].class ||
+            cls == LocalDateTime[].class || cls == OffsetDateTime[].class;
     }
 
     /**
@@ -1137,6 +1243,14 @@ public class BinaryUtils {
             return BinaryWriteMode.TIMESTAMP;
         else if (cls == Time.class)
             return BinaryWriteMode.TIME;
+        else if (cls == LocalTime.class)
+            return BinaryWriteMode.LOCAL_TIME;
+        else if (cls == LocalDate.class)
+            return BinaryWriteMode.LOCAL_DATE;
+        else if (cls == LocalDateTime.class)
+            return BinaryWriteMode.LOCAL_DATE_TIME;
+        else if (cls == OffsetDateTime.class)
+            return BinaryWriteMode.OFFSET_DATE_TIME;
         else if (cls == byte[].class)
             return BinaryWriteMode.BYTE_ARR;
         else if (cls == short[].class)
@@ -1165,6 +1279,14 @@ public class BinaryUtils {
             return BinaryWriteMode.TIMESTAMP_ARR;
         else if (cls == Time[].class)
             return BinaryWriteMode.TIME_ARR;
+        else if (cls == LocalTime[].class)
+            return BinaryWriteMode.LOCAL_TIME_ARR;
+        else if (cls == LocalDate[].class)
+            return BinaryWriteMode.LOCAL_DATE_ARR;
+        else if (cls == LocalDateTime[].class)
+            return BinaryWriteMode.LOCAL_DATE_TIME_ARR;
+        else if (cls == OffsetDateTime[].class)
+            return BinaryWriteMode.OFFSET_DATE_TIME_ARR;
         else if (cls.isArray())
             return cls.getComponentType().isEnum() ? BinaryWriteMode.ENUM_ARR : BinaryWriteMode.OBJECT_ARR;
         else if (cls == BinaryArray.class)
@@ -1375,6 +1497,34 @@ public class BinaryUtils {
         return new Time(time);
     }
 
+    /** */
+    public static LocalTime doReadLocalTime(BinaryInputStream in) {
+        long nanoOfDay = in.readLong();
+
+        return LocalTime.ofNanoOfDay(nanoOfDay);
+    }
+
+    /** */
+    public static LocalDate doReadLocalDate(BinaryInputStream in) {
+        long epochDay = in.readLong();
+
+        return LocalDate.ofEpochDay(epochDay);
+    }
+
+    /** */
+    public static LocalDateTime doReadLocalDateTime(BinaryInputStream in) {
+        return LocalDateTime.of(doReadLocalDate(in), doReadLocalTime(in));
+    }
+
+    /** */
+    public static OffsetDateTime doReadOffsetDateTime(BinaryInputStream in) {
+        int zoneOffsetSeconds = in.readInt();
+
+        LocalDateTime locDateTime = doReadLocalDateTime(in);
+
+        return OffsetDateTime.of(locDateTime, ZoneOffset.ofTotalSeconds(zoneOffsetSeconds));
+    }
+
     /**
      * @return Value.
      * @throws BinaryObjectException In case of error.
@@ -1519,6 +1669,94 @@ public class BinaryUtils {
                     throw new BinaryObjectException("Invalid flag value: " + flag);
 
                 arr[i] = doReadTime(in);
+            }
+        }
+
+        return arr;
+    }
+
+    /** */
+    public static LocalTime[] doReadLocalTimeArray(BinaryInputStream in) throws BinaryObjectException {
+        int len = in.readInt();
+
+        LocalTime[] arr = new LocalTime[len];
+
+        for (int i = 0; i < len; i++) {
+            byte flag = in.readByte();
+
+            if (flag == GridBinaryMarshaller.NULL)
+                arr[i] = null;
+            else {
+                if (flag != GridBinaryMarshaller.LOCAL_TIME)
+                    throw new BinaryObjectException("Invalid flag value: " + flag);
+
+                arr[i] = doReadLocalTime(in);
+            }
+        }
+
+        return arr;
+    }
+
+    /** */
+    public static LocalDate[] doReadLocalDateArray(BinaryInputStream in) throws BinaryObjectException {
+        int len = in.readInt();
+
+        LocalDate[] arr = new LocalDate[len];
+
+        for (int i = 0; i < len; i++) {
+            byte flag = in.readByte();
+
+            if (flag == GridBinaryMarshaller.NULL)
+                arr[i] = null;
+            else {
+                if (flag != GridBinaryMarshaller.LOCAL_DATE)
+                    throw new BinaryObjectException("Invalid flag value: " + flag);
+
+                arr[i] = doReadLocalDate(in);
+            }
+        }
+
+        return arr;
+    }
+
+    /** */
+    public static LocalDateTime[] doReadLocalDateTimeArray(BinaryInputStream in) throws BinaryObjectException {
+        int len = in.readInt();
+
+        LocalDateTime[] arr = new LocalDateTime[len];
+
+        for (int i = 0; i < len; i++) {
+            byte flag = in.readByte();
+
+            if (flag == GridBinaryMarshaller.NULL)
+                arr[i] = null;
+            else {
+                if (flag != GridBinaryMarshaller.LOCAL_DATE_TIME)
+                    throw new BinaryObjectException("Invalid flag value: " + flag);
+
+                arr[i] = doReadLocalDateTime(in);
+            }
+        }
+
+        return arr;
+    }
+
+    /** */
+    public static OffsetDateTime[] doReadOffsetDateTimeArray(BinaryInputStream in) throws BinaryObjectException {
+        int len = in.readInt();
+
+        OffsetDateTime[] arr = new OffsetDateTime[len];
+
+        for (int i = 0; i < len; i++) {
+            byte flag = in.readByte();
+
+            if (flag == GridBinaryMarshaller.NULL)
+                arr[i] = null;
+            else {
+                if (flag != GridBinaryMarshaller.OFFSET_DATE_TIME)
+                    throw new BinaryObjectException("Invalid flag value: " + flag);
+
+                arr[i] = doReadOffsetDateTime(in);
             }
         }
 
@@ -1971,6 +2209,18 @@ public class BinaryUtils {
             case GridBinaryMarshaller.TIME:
                 return doReadTime(in);
 
+            case GridBinaryMarshaller.LOCAL_TIME:
+                return doReadLocalTime(in);
+
+            case GridBinaryMarshaller.LOCAL_DATE:
+                return doReadLocalDate(in);
+
+            case GridBinaryMarshaller.LOCAL_DATE_TIME:
+                return doReadLocalDateTime(in);
+
+            case GridBinaryMarshaller.OFFSET_DATE_TIME:
+                return doReadOffsetDateTime(in);
+
             case GridBinaryMarshaller.BYTE_ARR:
                 return doReadByteArray(in);
 
@@ -2012,6 +2262,18 @@ public class BinaryUtils {
 
             case GridBinaryMarshaller.TIME_ARR:
                 return doReadTimeArray(in);
+
+            case GridBinaryMarshaller.LOCAL_TIME_ARR:
+                return doReadLocalTimeArray(in);
+
+            case GridBinaryMarshaller.LOCAL_DATE_ARR:
+                return doReadLocalDateArray(in);
+
+            case GridBinaryMarshaller.LOCAL_DATE_TIME_ARR:
+                return doReadLocalDateTimeArray(in);
+
+            case GridBinaryMarshaller.OFFSET_DATE_TIME_ARR:
+                return doReadOffsetDateTimeArray(in);
 
             case GridBinaryMarshaller.OBJ_ARR:
                 if (BinaryArray.useBinaryArrays() && !deserialize)

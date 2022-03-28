@@ -88,6 +88,18 @@ public enum BinaryWriteMode {
     TIME(GridBinaryMarshaller.TIME),
 
     /** */
+    LOCAL_TIME(GridBinaryMarshaller.LOCAL_TIME),
+
+    /** */
+    LOCAL_DATE(GridBinaryMarshaller.LOCAL_DATE),
+
+    /** */
+    LOCAL_DATE_TIME(GridBinaryMarshaller.LOCAL_DATE_TIME),
+
+    /** */
+    OFFSET_DATE_TIME(GridBinaryMarshaller.OFFSET_DATE_TIME),
+
+    /** */
     BYTE_ARR(GridBinaryMarshaller.BYTE_ARR),
 
     /** */
@@ -128,6 +140,18 @@ public enum BinaryWriteMode {
 
     /** */
     TIME_ARR(GridBinaryMarshaller.TIME_ARR),
+
+    /** */
+    LOCAL_TIME_ARR(GridBinaryMarshaller.LOCAL_TIME_ARR),
+
+    /** */
+    LOCAL_DATE_ARR(GridBinaryMarshaller.LOCAL_DATE_ARR),
+
+    /** */
+    LOCAL_DATE_TIME_ARR(GridBinaryMarshaller.LOCAL_DATE_TIME_ARR),
+
+    /** */
+    OFFSET_DATE_TIME_ARR(GridBinaryMarshaller.OFFSET_DATE_TIME),
 
     /** */
     OBJECT_ARR(GridBinaryMarshaller.OBJ_ARR),

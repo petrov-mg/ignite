@@ -19,6 +19,11 @@ package org.apache.ignite.internal.binary.builder;
 
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -297,6 +302,26 @@ public class BinaryBuilderReader implements BinaryPositionReadable {
 
                 break;
 
+            case GridBinaryMarshaller.LOCAL_TIME:
+                len = 8;
+
+                break;
+
+            case GridBinaryMarshaller.LOCAL_DATE:
+                len = 8;
+
+                break;
+
+            case GridBinaryMarshaller.LOCAL_DATE_TIME:
+                len = /*date*/ 8 + /*time*/ 8;
+
+                break;
+
+            case GridBinaryMarshaller.OFFSET_DATE_TIME:
+                len = /*zone offset*/ 4 + /*date*/ 8 + /*time*/ 8;
+
+                break;
+
             case GridBinaryMarshaller.CHAR_ARR:
             case GridBinaryMarshaller.SHORT_ARR:
                 len = 4 + readLength() * 2;
@@ -319,6 +344,10 @@ public class BinaryBuilderReader implements BinaryPositionReadable {
             case GridBinaryMarshaller.DATE_ARR:
             case GridBinaryMarshaller.TIMESTAMP_ARR:
             case GridBinaryMarshaller.TIME_ARR:
+            case GridBinaryMarshaller.LOCAL_TIME_ARR:
+            case GridBinaryMarshaller.LOCAL_DATE_ARR:
+            case GridBinaryMarshaller.LOCAL_DATE_TIME_ARR:
+            case GridBinaryMarshaller.OFFSET_DATE_TIME_ARR:
             case GridBinaryMarshaller.OBJ_ARR:
             case GridBinaryMarshaller.ENUM_ARR:
             case GridBinaryMarshaller.UUID_ARR:
@@ -437,6 +466,10 @@ public class BinaryBuilderReader implements BinaryPositionReadable {
             case GridBinaryMarshaller.DATE:
             case GridBinaryMarshaller.TIMESTAMP:
             case GridBinaryMarshaller.TIME:
+            case GridBinaryMarshaller.LOCAL_TIME:
+            case GridBinaryMarshaller.LOCAL_DATE:
+            case GridBinaryMarshaller.LOCAL_DATE_TIME:
+            case GridBinaryMarshaller.OFFSET_DATE_TIME:
                 return new BinaryPlainLazyValue(this, pos, len);
 
             case GridBinaryMarshaller.BYTE_ARR:
@@ -451,6 +484,10 @@ public class BinaryBuilderReader implements BinaryPositionReadable {
             case GridBinaryMarshaller.DATE_ARR:
             case GridBinaryMarshaller.TIMESTAMP_ARR:
             case GridBinaryMarshaller.TIME_ARR:
+            case GridBinaryMarshaller.LOCAL_TIME_ARR:
+            case GridBinaryMarshaller.LOCAL_DATE_ARR:
+            case GridBinaryMarshaller.LOCAL_DATE_TIME_ARR:
+            case GridBinaryMarshaller.OFFSET_DATE_TIME_ARR:
             case GridBinaryMarshaller.UUID_ARR:
             case GridBinaryMarshaller.STRING_ARR:
             case GridBinaryMarshaller.ENUM_ARR:
@@ -627,6 +664,26 @@ public class BinaryBuilderReader implements BinaryPositionReadable {
 
                 break;
 
+            case GridBinaryMarshaller.LOCAL_TIME:
+                plainLazyValLen = 8;
+
+                break;
+
+            case GridBinaryMarshaller.LOCAL_DATE:
+                plainLazyValLen = 8;
+
+                break;
+
+            case GridBinaryMarshaller.LOCAL_DATE_TIME:
+                plainLazyValLen = /*date*/ 8 + /*time*/ 8;
+
+                break;
+
+            case GridBinaryMarshaller.OFFSET_DATE_TIME:
+                plainLazyValLen = /*zone offset*/ 4 + /*date*/ 8 + /*time*/ 8;
+
+                break;
+
             case GridBinaryMarshaller.BYTE_ARR:
                 plainLazyValLen = 4 + readLength();
                 modifiableLazyVal = true;
@@ -751,6 +808,113 @@ public class BinaryBuilderReader implements BinaryPositionReadable {
                     pos += 8;
 
                     res[i] = new Time(time);
+                }
+
+                return res;
+            }
+
+            case GridBinaryMarshaller.LOCAL_TIME_ARR: {
+                int size = readInt();
+
+                LocalTime[] res = new LocalTime[size];
+
+                for (int i = 0; i < res.length; i++) {
+                    byte flag = arr[pos++];
+
+                    if (flag == GridBinaryMarshaller.NULL) continue;
+
+                    if (flag != GridBinaryMarshaller.LOCAL_TIME)
+                        throw new BinaryObjectException("Invalid flag value: " + flag);
+
+                    long nanoOfDay = BinaryPrimitives.readLong(arr, pos);
+
+                    pos += 8;
+
+                    res[i] = LocalTime.ofNanoOfDay(nanoOfDay);
+                }
+
+                return res;
+            }
+
+            case GridBinaryMarshaller.LOCAL_DATE_ARR: {
+                int size = readInt();
+
+                LocalDate[] res = new LocalDate[size];
+
+                for (int i = 0; i < res.length; i++) {
+                    byte flag = arr[pos++];
+
+                    if (flag == GridBinaryMarshaller.NULL) continue;
+
+                    if (flag != GridBinaryMarshaller.LOCAL_DATE)
+                        throw new BinaryObjectException("Invalid flag value: " + flag);
+
+                    long epochDay = BinaryPrimitives.readLong(arr, pos);
+
+                    pos += 8;
+
+                    res[i] = LocalDate.ofEpochDay(epochDay);
+                }
+
+                return res;
+            }
+
+            case GridBinaryMarshaller.LOCAL_DATE_TIME_ARR: {
+                int size = readInt();
+
+                LocalDateTime[] res = new LocalDateTime[size];
+
+                for (int i = 0; i < res.length; i++) {
+                    byte flag = arr[pos++];
+
+                    if (flag == GridBinaryMarshaller.NULL) continue;
+
+                    if (flag != GridBinaryMarshaller.LOCAL_DATE_TIME)
+                        throw new BinaryObjectException("Invalid flag value: " + flag);
+
+                    long epochDay = BinaryPrimitives.readLong(arr, pos);
+
+                    pos += 8;
+
+                    long nanoOfDay = BinaryPrimitives.readLong(arr, pos);
+
+                    pos += 8;
+
+                    res[i] = LocalDateTime.of(LocalDate.ofEpochDay(epochDay), LocalTime.ofNanoOfDay(nanoOfDay));
+                }
+
+                return res;
+            }
+
+            case GridBinaryMarshaller.OFFSET_DATE_TIME_ARR: {
+                int size = readInt();
+
+                OffsetDateTime[] res = new OffsetDateTime[size];
+
+                for (int i = 0; i < res.length; i++) {
+                    byte flag = arr[pos++];
+
+                    if (flag == GridBinaryMarshaller.NULL) continue;
+
+                    if (flag != GridBinaryMarshaller.OFFSET_DATE_TIME)
+                        throw new BinaryObjectException("Invalid flag value: " + flag);
+
+                    int zoneOffsetSeconds = BinaryPrimitives.readInt(arr, pos);
+
+                    pos += 4;
+
+                    long epochDay = BinaryPrimitives.readLong(arr, pos);
+
+                    pos += 8;
+
+                    long nanoOfDay = BinaryPrimitives.readLong(arr, pos);
+
+                    pos += 8;
+
+                    res[i] = OffsetDateTime.of(
+                        LocalDateTime.of(LocalDate.ofEpochDay(epochDay), LocalTime.ofNanoOfDay(nanoOfDay)),
+                        ZoneOffset.ofTotalSeconds(zoneOffsetSeconds)
+                    );
                 }
 
                 return res;

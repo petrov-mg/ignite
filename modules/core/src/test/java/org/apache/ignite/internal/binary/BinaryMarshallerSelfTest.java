@@ -32,6 +32,11 @@ import java.math.RoundingMode;
 import java.net.InetSocketAddress;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.AbstractQueue;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -368,6 +373,84 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
     public void testTimeArray() throws Exception {
         Time[] times = new Time[]{new Time(System.currentTimeMillis()), new Time(123456789)};
         assertArrayEquals(times, marshalUnmarshal(times));
+    }
+
+    /** @throws Exception If failed. */
+    @Test
+    public void testLocalTime() throws Exception {
+        LocalTime locTime = LocalTime.ofNanoOfDay(123L);
+
+        assertEquals(locTime, marshalUnmarshal(locTime));
+    }
+
+    /** @throws Exception If failed. */
+    @Test
+    public void testLocalTimeArray() throws Exception {
+        LocalTime[] locTimes = new LocalTime[]{LocalTime.ofNanoOfDay(123L), LocalTime.MIN, LocalTime.MAX};
+
+        assertArrayEquals(locTimes, marshalUnmarshal(locTimes));
+    }
+
+    /** @throws Exception If failed. */
+    @Test
+    public void testLocalDate() throws Exception {
+        LocalDate locDate = LocalDate.ofEpochDay(123L);
+
+        assertEquals(locDate, marshalUnmarshal(locDate));
+    }
+
+    /** @throws Exception If failed. */
+    @Test
+    public void testLocalDateArray() throws Exception {
+        LocalDate[] locDates = new LocalDate[]{LocalDate.ofEpochDay(123L), LocalDate.MIN, LocalDate.MAX};
+
+        assertArrayEquals(locDates, marshalUnmarshal(locDates));
+    }
+
+    /** @throws Exception If failed. */
+    @Test
+    public void testLocalDateTime() throws Exception {
+        LocalDateTime locDateTime = LocalDateTime.of(LocalDate.ofEpochDay(123L), LocalTime.ofNanoOfDay(1234L));
+
+        assertEquals(locDateTime, marshalUnmarshal(locDateTime));
+    }
+
+    /** @throws Exception If failed. */
+    @Test
+    public void testLocalDateTimeArray() throws Exception {
+        LocalDateTime[] locDateTimes = new LocalDateTime[] {
+            LocalDateTime.of(LocalDate.ofEpochDay(123L), LocalTime.ofNanoOfDay(123L)),
+            LocalDateTime.MIN,
+            LocalDateTime.MAX
+        };
+
+        assertArrayEquals(locDateTimes, marshalUnmarshal(locDateTimes));
+    }
+
+    /** @throws Exception If failed. */
+    @Test
+    public void testOffsetDateTime() throws Exception {
+        OffsetDateTime offsetDateTime = OffsetDateTime.of(
+            LocalDateTime.of(LocalDate.ofEpochDay(123L), LocalTime.ofNanoOfDay(123L)),
+            ZoneOffset.ofTotalSeconds(123)
+        );
+
+        assertEquals(offsetDateTime, marshalUnmarshal(offsetDateTime));
+    }
+
+    /** @throws Exception If failed. */
+    @Test
+    public void testOffsetDateTimeArray() throws Exception {
+        OffsetDateTime[] offsetDateTimes = new OffsetDateTime[] {
+            OffsetDateTime.of(
+                LocalDateTime.of(LocalDate.ofEpochDay(123L), LocalTime.ofNanoOfDay(123L)),
+                ZoneOffset.ofTotalSeconds(123)
+            ),
+            OffsetDateTime.MIN,
+            OffsetDateTime.MAX
+        };
+
+        assertArrayEquals(offsetDateTimes, marshalUnmarshal(offsetDateTimes));
     }
 
     /**
@@ -766,12 +849,25 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         Timestamp ts = new Timestamp(System.currentTimeMillis());
         Time time = new Time(System.currentTimeMillis());
         Time[] timeArr = new Time[]{time, new Time(date.getTime()), new Time(System.currentTimeMillis())};
+        LocalTime locTime = LocalTime.ofNanoOfDay(123L);
+        LocalTime[] locTimeArr = new LocalTime[]{locTime, LocalTime.MIN, LocalTime.MAX};
+
+        LocalDate locDate = LocalDate.ofEpochDay(123L);
+        LocalDate[] locDateArr = new LocalDate[]{locDate, LocalDate.MIN, LocalDate.MAX};
+
+        LocalDateTime locDateTime = LocalDateTime.of(locDate, locTime);
+        LocalDateTime[] locDateTimeArr = new LocalDateTime[]{locDateTime, LocalDateTime.MIN, LocalDateTime.MAX};
+
+        OffsetDateTime offsetDateTime = OffsetDateTime.of(locDateTime, ZoneOffset.ofTotalSeconds(123));
+        OffsetDateTime[] offsetDateTimeArr = new OffsetDateTime[]{offsetDateTime, OffsetDateTime.MIN, OffsetDateTime.MAX};
 
         DateClass1 obj1 = new DateClass1();
         obj1.date = date;
         obj1.ts = ts;
         obj1.time = time;
         obj1.timeArr = timeArr;
+        obj1.locTime = locTime;
+        obj1.locTimeArr = locTimeArr;
 
         BinaryObject po1 = marshal(obj1, marsh);
 
@@ -784,11 +880,18 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertArrayEquals(timeArr, (Object[])po1.field("timeArr"));
         assertEquals(Time[].class, po1.field("timeArr").getClass());
 
+        assertEquals(locTime, po1.field("locTime"));
+        assertEquals(LocalTime.class, po1.field("locTime").getClass());
+        assertArrayEquals(locTimeArr, po1.field("locTimeArr"));
+        assertEquals(LocalTime[].class, po1.field("locTimeArr").getClass());
+
         obj1 = po1.deserialize();
         assertEquals(date, obj1.date);
         assertEquals(ts, obj1.ts);
         assertEquals(time, obj1.time);
         assertArrayEquals(timeArr, obj1.timeArr);
+        assertEquals(locTime, obj1.locTime);
+        assertArrayEquals(locTimeArr, obj1.locTimeArr);
     }
 
     /**
@@ -817,6 +920,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertEquals(obj.str, po.field("str"));
         assertEquals(obj.uuid, po.field("uuid"));
         assertEquals(obj.date, po.field("date"));
+        assertEquals(obj.locTime, po.field("locTime"));
         assertEquals(Date.class, obj.date.getClass());
         assertEquals(obj.ts, po.field("ts"));
         assertArrayEquals(obj.bArr, (byte[])po.field("bArr"));
@@ -830,6 +934,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertArrayEquals(obj.strArr, (String[])po.field("strArr"));
         assertArrayEquals(obj.uuidArr, (UUID[])po.field("uuidArr"));
         assertArrayEquals(obj.dateArr, (Date[])po.field("dateArr"));
+        assertArrayEquals(obj.locTimeArr, po.field("locTimeArr"));
         assertArrayEquals(
             obj.objArr,
             useBinaryArrays ? po.<BinaryArray>field("objArr").array() : po.field("objArr")
@@ -855,6 +960,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertEquals(obj.inner.str, innerPo.field("str"));
         assertEquals(obj.inner.uuid, innerPo.field("uuid"));
         assertEquals(obj.inner.date, innerPo.field("date"));
+        assertEquals(obj.inner.locTime, innerPo.field("locTime"));
         assertEquals(Date.class, obj.inner.date.getClass());
         assertEquals(obj.inner.ts, innerPo.field("ts"));
         assertArrayEquals(obj.inner.bArr, (byte[])innerPo.field("bArr"));
@@ -868,6 +974,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertArrayEquals(obj.inner.strArr, (String[])innerPo.field("strArr"));
         assertArrayEquals(obj.inner.uuidArr, (UUID[])innerPo.field("uuidArr"));
         assertArrayEquals(obj.inner.dateArr, (Date[])innerPo.field("dateArr"));
+        assertArrayEquals(obj.inner.locTimeArr, innerPo.field("locTimeArr"));
         assertArrayEquals(
             obj.inner.objArr,
             useBinaryArrays ? innerPo.<BinaryArray>field("objArr").array() : innerPo.field("objArr")
@@ -908,6 +1015,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertEquals(obj.str, po.field("_str"));
         assertEquals(obj.uuid, po.field("_uuid"));
         assertEquals(obj.date, po.field("_date"));
+        assertEquals(obj.locTime, po.field("_locTime"));
         assertEquals(obj.ts, po.field("_ts"));
         assertArrayEquals(obj.bArr, (byte[])po.field("_bArr"));
         assertArrayEquals(obj.sArr, (short[])po.field("_sArr"));
@@ -920,6 +1028,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertArrayEquals(obj.strArr, (String[])po.field("_strArr"));
         assertArrayEquals(obj.uuidArr, (UUID[])po.field("_uuidArr"));
         assertArrayEquals(obj.dateArr, (Date[])po.field("_dateArr"));
+        assertArrayEquals(obj.locTimeArr, po.field("_locTimeArr"));
         assertArrayEquals(
             obj.objArr,
             useBinaryArrays ? po.<BinaryArray>field("_objArr").array() : po.field("_objArr")
@@ -946,6 +1055,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertEquals(obj.simple.uuid, simplePo.field("uuid"));
         assertEquals(obj.simple.date, simplePo.field("date"));
         assertEquals(Date.class, obj.simple.date.getClass());
+        assertEquals(obj.simple.locTime, simplePo.field("locTime"));
         assertEquals(obj.simple.ts, simplePo.field("ts"));
         assertArrayEquals(obj.simple.bArr, (byte[])simplePo.field("bArr"));
         assertArrayEquals(obj.simple.sArr, (short[])simplePo.field("sArr"));
@@ -958,6 +1068,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertArrayEquals(obj.simple.strArr, (String[])simplePo.field("strArr"));
         assertArrayEquals(obj.simple.uuidArr, (UUID[])simplePo.field("uuidArr"));
         assertArrayEquals(obj.simple.dateArr, (Date[])simplePo.field("dateArr"));
+        assertArrayEquals(obj.simple.locTimeArr, simplePo.field("locTimeArr"));
         assertArrayEquals(
             obj.simple.objArr,
             useBinaryArrays ? simplePo.<BinaryArray>field("objArr").array() : simplePo.field("objArr")
@@ -987,6 +1098,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertEquals(obj.binary.uuid, binaryPo.field("_uuid"));
         assertEquals(obj.binary.date, binaryPo.field("_date"));
         assertEquals(obj.binary.ts, binaryPo.field("_ts"));
+        assertEquals(obj.binary.locTime, binaryPo.field("_locTime"));
         assertArrayEquals(obj.binary.bArr, (byte[])binaryPo.field("_bArr"));
         assertArrayEquals(obj.binary.sArr, (short[])binaryPo.field("_sArr"));
         assertArrayEquals(obj.binary.iArr, (int[])binaryPo.field("_iArr"));
@@ -998,6 +1110,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertArrayEquals(obj.binary.strArr, (String[])binaryPo.field("_strArr"));
         assertArrayEquals(obj.binary.uuidArr, (UUID[])binaryPo.field("_uuidArr"));
         assertArrayEquals(obj.binary.dateArr, (Date[])binaryPo.field("_dateArr"));
+        assertArrayEquals(obj.binary.locTimeArr, binaryPo.field("_locTimeArr"));
         assertArrayEquals(
             obj.binary.objArr,
             useBinaryArrays ? binaryPo.<BinaryArray>field("_objArr").array() : binaryPo.field("_objArr")
@@ -1295,6 +1408,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertEquals(obj.str, po.field("str"));
         assertEquals(obj.uuid, po.field("uuid"));
         assertEquals(obj.date, po.field("date"));
+        assertEquals(obj.locTime, po.field("locTime"));
         assertEquals(Date.class, obj.date.getClass());
         assertEquals(obj.ts, po.field("ts"));
         assertArrayEquals(obj.bArr, (byte[])po.field("bArr"));
@@ -1308,6 +1422,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         assertArrayEquals(obj.strArr, (String[])po.field("strArr"));
         assertArrayEquals(obj.uuidArr, (UUID[])po.field("uuidArr"));
         assertArrayEquals(obj.dateArr, (Date[])po.field("dateArr"));
+        assertArrayEquals(obj.locTimeArr, po.field("locTimeArr"));
         assertArrayEquals(
             obj.objArr,
             useBinaryArrays ? po.<BinaryArray>field("objArr").array() : po.field("objArr")
@@ -4192,6 +4307,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         inner.uuid = UUID.randomUUID();
         inner.date = new Date();
         inner.ts = new Timestamp(System.currentTimeMillis());
+        inner.locTime = LocalTime.ofNanoOfDay(123456);
         inner.bArr = new byte[] {1, 2, 3};
         inner.sArr = new short[] {1, 2, 3};
         inner.iArr = new int[] {1, 2, 3};
@@ -4203,6 +4319,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         inner.strArr = new String[] {"str1", "str2", "str3"};
         inner.uuidArr = new UUID[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         inner.dateArr = new Date[] {new Date(11111), new Date(22222), new Date(33333)};
+        inner.locTimeArr = new LocalTime[] {LocalTime.ofNanoOfDay(123456), LocalTime.ofNanoOfDay(1234567)};
         inner.objArr = new Object[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         inner.col = new ArrayList<>();
         inner.map = new HashMap<>();
@@ -4232,6 +4349,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         outer.uuid = UUID.randomUUID();
         outer.date = new Date();
         outer.ts = new Timestamp(System.currentTimeMillis());
+        inner.locTime = LocalTime.ofNanoOfDay(123456);
         outer.bArr = new byte[] {10, 20, 30};
         outer.sArr = new short[] {10, 20, 30};
         outer.iArr = new int[] {10, 20, 30};
@@ -4243,6 +4361,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         outer.strArr = new String[] {"str10", "str20", "str30"};
         outer.uuidArr = new UUID[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         outer.dateArr = new Date[] {new Date(44444), new Date(55555), new Date(66666)};
+        inner.locTimeArr = new LocalTime[] {LocalTime.ofNanoOfDay(123456), LocalTime.ofNanoOfDay(1234567)};
         outer.objArr = new Object[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         outer.col = new ArrayList<>();
         outer.map = new HashMap<>();
@@ -4279,6 +4398,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         innerSimple.str = "str1";
         innerSimple.uuid = UUID.randomUUID();
         innerSimple.date = new Date();
+        innerSimple.locTime = LocalTime.ofNanoOfDay(123456);
         innerSimple.ts = new Timestamp(System.currentTimeMillis());
         innerSimple.bArr = new byte[] {1, 2, 3};
         innerSimple.sArr = new short[] {1, 2, 3};
@@ -4291,6 +4411,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         innerSimple.strArr = new String[] {"str1", "str2", "str3"};
         innerSimple.uuidArr = new UUID[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         innerSimple.dateArr = new Date[] {new Date(11111), new Date(22222), new Date(33333)};
+        innerSimple.locTimeArr = new LocalTime[] {LocalTime.ofNanoOfDay(123456), LocalTime.ofNanoOfDay(1234567)};
         innerSimple.objArr = new UUID[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         innerSimple.col = new ArrayList<>();
         innerSimple.map = new HashMap<>();
@@ -4319,6 +4440,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         innerBinary.uuid = UUID.randomUUID();
         innerBinary.date = new Date();
         innerBinary.ts = new Timestamp(System.currentTimeMillis());
+        innerBinary.locTime = LocalTime.ofNanoOfDay(1234567);
         innerBinary.bArr = new byte[] {10, 20, 30};
         innerBinary.sArr = new short[] {10, 20, 30};
         innerBinary.iArr = new int[] {10, 20, 30};
@@ -4330,6 +4452,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         innerBinary.strArr = new String[] {"str10", "str20", "str30"};
         innerBinary.uuidArr = new UUID[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         innerBinary.dateArr = new Date[] {new Date(44444), new Date(55555), new Date(66666)};
+        innerBinary.locTimeArr = new LocalTime[] {LocalTime.ofNanoOfDay(77777), LocalTime.ofNanoOfDay(88888)};
         innerBinary.objArr = new Object[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         innerBinary.bRaw = 3;
         innerBinary.sRaw = 3;
@@ -4343,6 +4466,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         innerBinary.uuidRaw = UUID.randomUUID();
         innerBinary.dateRaw = new Date();
         innerBinary.tsRaw = new Timestamp(System.currentTimeMillis());
+        innerBinary.locTimeRaw = LocalTime.ofNanoOfDay(1234567);
         innerBinary.bArrRaw = new byte[] {11, 21, 31};
         innerBinary.sArrRaw = new short[] {11, 21, 31};
         innerBinary.iArrRaw = new int[] {11, 21, 31};
@@ -4354,6 +4478,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         innerBinary.strArrRaw = new String[] {"str11", "str21", "str31"};
         innerBinary.uuidArrRaw = new UUID[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         innerBinary.dateArrRaw = new Date[] {new Date(77777), new Date(88888), new Date(99999)};
+        innerBinary.locTimeArrRaw = new LocalTime[] {LocalTime.ofNanoOfDay(77777), LocalTime.ofNanoOfDay(88888)};
         innerBinary.objArrRaw = new Object[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         innerBinary.col = new ArrayList<>();
         innerBinary.colRaw = new ArrayList<>();
@@ -4393,6 +4518,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         outer.str = "str4";
         outer.uuid = UUID.randomUUID();
         outer.date = new Date();
+        outer.locTime = LocalTime.ofNanoOfDay(123456);
         outer.ts = new Timestamp(System.currentTimeMillis());
         outer.bArr = new byte[] {12, 22, 32};
         outer.sArr = new short[] {12, 22, 32};
@@ -4405,6 +4531,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         outer.strArr = new String[] {"str12", "str22", "str32"};
         outer.uuidArr = new UUID[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         outer.dateArr = new Date[] {new Date(10101), new Date(20202), new Date(30303)};
+        outer.locTimeArr = new LocalTime[] {LocalTime.ofNanoOfDay(10101), LocalTime.ofNanoOfDay(20202)};
         outer.objArr = new Object[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         outer.simple = innerSimple;
         outer.binary = innerBinary;
@@ -4420,6 +4547,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         outer.uuidRaw = UUID.randomUUID();
         outer.dateRaw = new Date();
         outer.tsRaw = new Timestamp(System.currentTimeMillis());
+        outer.locTimeRaw = LocalTime.ofNanoOfDay(1234567);
         outer.bArrRaw = new byte[] {13, 23, 33};
         outer.sArrRaw = new short[] {13, 23, 33};
         outer.iArrRaw = new int[] {13, 23, 33};
@@ -4431,6 +4559,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         outer.strArrRaw = new String[] {"str13", "str23", "str33"};
         outer.uuidArrRaw = new UUID[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         outer.dateArr = new Date[] {new Date(40404), new Date(50505), new Date(60606)};
+        outer.locTimeArrRaw = new LocalTime[] {LocalTime.ofNanoOfDay(40404L), LocalTime.ofNanoOfDay(40404L)};
         outer.objArrRaw = new Object[] {UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()};
         outer.col = new ArrayList<>();
         outer.colRaw = new ArrayList<>();
@@ -4523,6 +4652,9 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         private Time time;
 
         /** */
+        private LocalTime locTime;
+
+        /** */
         private byte[] bArr;
 
         /** */
@@ -4557,6 +4689,9 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
 
         /** */
         private Time[] timeArr;
+
+        /** */
+        private LocalTime[] locTimeArr;
 
         /** */
         private Object[] objArr;
@@ -4679,6 +4814,12 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         private Time timeRaw;
 
         /** */
+        private LocalTime locTime;
+
+        /** */
+        private LocalTime locTimeRaw;
+
+        /** */
         private byte[] bArr;
 
         /** */
@@ -4751,6 +4892,12 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
         private Time[] timeArrRaw;
 
         /** */
+        private LocalTime[] locTimeArr;
+
+        /** */
+        private LocalTime[] locTimeArrRaw;
+
+        /** */
         private Object[] objArr;
 
         /** */
@@ -4807,6 +4954,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
             writer.writeDate("_date", date);
             writer.writeTimestamp("_ts", ts);
             writer.writeTime("_time", time);
+            writer.writeLocalTime("_locTime", locTime);
             writer.writeByteArray("_bArr", bArr);
             writer.writeShortArray("_sArr", sArr);
             writer.writeIntArray("_iArr", iArr);
@@ -4819,6 +4967,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
             writer.writeUuidArray("_uuidArr", uuidArr);
             writer.writeDateArray("_dateArr", dateArr);
             writer.writeTimeArray("_timeArr", timeArr);
+            writer.writeLocalTimeArray("_locTimeArr", locTimeArr);
             writer.writeObjectArray("_objArr", objArr);
             writer.writeCollection("_col", col);
             writer.writeMap("_map", map);
@@ -4842,6 +4991,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
             raw.writeDate(dateRaw);
             raw.writeTimestamp(tsRaw);
             raw.writeTime(timeRaw);
+            raw.writeLocalTime(locTimeRaw);
             raw.writeByteArray(bArrRaw);
             raw.writeShortArray(sArrRaw);
             raw.writeIntArray(iArrRaw);
@@ -4854,6 +5004,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
             raw.writeUuidArray(uuidArrRaw);
             raw.writeDateArray(dateArrRaw);
             raw.writeTimeArray(timeArrRaw);
+            raw.writeLocalTimeArray(locTimeArrRaw);
             raw.writeObjectArray(objArrRaw);
             raw.writeCollection(colRaw);
             raw.writeMap(mapRaw);
@@ -4878,6 +5029,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
             date = reader.readDate("_date");
             ts = reader.readTimestamp("_ts");
             time = reader.readTime("_time");
+            locTime = reader.readLocalTime("_locTime");
             bArr = reader.readByteArray("_bArr");
             sArr = reader.readShortArray("_sArr");
             iArr = reader.readIntArray("_iArr");
@@ -4890,6 +5042,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
             uuidArr = reader.readUuidArray("_uuidArr");
             dateArr = reader.readDateArray("_dateArr");
             timeArr = reader.readTimeArray("_timeArr");
+            locTimeArr = reader.readLocalTimeArray("_locTimeArr");
             objArr = reader.readObjectArray("_objArr");
             col = reader.readCollection("_col");
             map = reader.readMap("_map");
@@ -4913,6 +5066,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
             dateRaw = raw.readDate();
             tsRaw = raw.readTimestamp();
             timeRaw = raw.readTime();
+            locTimeRaw = raw.readLocalTime();
             bArrRaw = raw.readByteArray();
             sArrRaw = raw.readShortArray();
             iArrRaw = raw.readIntArray();
@@ -4925,6 +5079,7 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
             uuidArrRaw = raw.readUuidArray();
             dateArrRaw = raw.readDateArray();
             timeArrRaw = raw.readTimeArray();
+            locTimeArrRaw = raw.readLocalTimeArray();
             objArrRaw = raw.readObjectArray();
             colRaw = raw.readCollection();
             mapRaw = raw.readMap();
@@ -5453,6 +5608,12 @@ public class BinaryMarshallerSelfTest extends AbstractBinaryArraysTest {
 
         /** */
         private Time[] timeArr;
+
+        /** */
+        private LocalTime locTime;
+
+        /** */
+        private LocalTime[] locTimeArr;
     }
 
     /**

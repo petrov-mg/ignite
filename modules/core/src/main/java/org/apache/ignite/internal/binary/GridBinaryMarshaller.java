@@ -154,6 +154,30 @@ public class GridBinaryMarshaller {
     public static final byte BINARY_ENUM = 38;
 
     /** */
+    public static final byte LOCAL_DATE = 39;
+
+    /** */
+    public static final byte LOCAL_DATE_ARR = 40;
+
+    /** */
+    public static final byte LOCAL_TIME = 41;
+
+    /** */
+    public static final byte LOCAL_TIME_ARR = 42;
+
+    /** */
+    public static final byte LOCAL_DATE_TIME = 43;
+
+    /** */
+    public static final byte LOCAL_DATE_TIME_ARR = 44;
+
+    /** */
+    public static final byte OFFSET_DATE_TIME = 45;
+
+    /** */
+    public static final byte OFFSET_DATE_TIME_ARR = 46;
+
+    /** */
     public static final byte NULL = (byte)101;
 
     /** */

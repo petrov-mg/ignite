@@ -20,6 +20,10 @@ package org.apache.ignite.binary;
 import java.math.BigDecimal;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
@@ -116,6 +120,18 @@ public interface BinaryRawReader {
      */
     @Nullable public Time readTime() throws BinaryObjectException;
 
+    /** */
+    @Nullable public LocalDate readLocalDate() throws BinaryObjectException;
+
+    /** */
+    @Nullable public LocalTime readLocalTime() throws BinaryObjectException;
+
+    /** */
+    @Nullable public LocalDateTime readLocalDateTime() throws BinaryObjectException;
+
+    /** */
+    @Nullable public OffsetDateTime readOffsetDateTime() throws BinaryObjectException;
+
     /**
      * @return Object.
      * @param <T> Type of the object to read.
@@ -206,6 +222,18 @@ public interface BinaryRawReader {
      * @throws BinaryObjectException In case of error.
      */
     @Nullable public Time[] readTimeArray() throws BinaryObjectException;
+
+    /** */
+    @Nullable public LocalTime[] readLocalTimeArray() throws BinaryObjectException;
+
+    /** */
+    @Nullable public LocalDate[] readLocalDateArray() throws BinaryObjectException;
+
+    /** */
+    @Nullable public LocalDateTime[] readLocalDateTimeArray() throws BinaryObjectException;
+
+    /** */
+    @Nullable public OffsetDateTime[] readOffsetDateTimeArray() throws BinaryObjectException;
 
     /**
      * @return Object array.

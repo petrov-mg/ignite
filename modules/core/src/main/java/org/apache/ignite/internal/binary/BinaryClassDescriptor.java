@@ -26,6 +26,10 @@ import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -264,6 +268,10 @@ public class BinaryClassDescriptor {
             case DATE:
             case TIMESTAMP:
             case TIME:
+            case LOCAL_TIME:
+            case LOCAL_DATE:
+            case LOCAL_DATE_TIME:
+            case OFFSET_DATE_TIME:
             case BYTE_ARR:
             case SHORT_ARR:
             case INT_ARR:
@@ -278,6 +286,10 @@ public class BinaryClassDescriptor {
             case DATE_ARR:
             case TIMESTAMP_ARR:
             case TIME_ARR:
+            case LOCAL_TIME_ARR:
+            case LOCAL_DATE_ARR:
+            case LOCAL_DATE_TIME_ARR:
+            case OFFSET_DATE_TIME_ARR:
             case OBJECT_ARR:
             case COL:
             case MAP:
@@ -685,6 +697,26 @@ public class BinaryClassDescriptor {
 
                     break;
 
+                case LOCAL_TIME:
+                    writer.doWriteLocalTime((LocalTime)obj);
+
+                    break;
+
+                case LOCAL_DATE:
+                    writer.doWriteLocalDate((LocalDate)obj);
+
+                    break;
+
+                case LOCAL_DATE_TIME:
+                    writer.doWriteLocalDateTime((LocalDateTime)obj);
+
+                    break;
+
+                case OFFSET_DATE_TIME:
+                    writer.doWriteOffsetDateTime((OffsetDateTime)obj);
+
+                    break;
+
                 case BYTE_ARR:
                     writer.doWriteByteArray((byte[])obj);
 
@@ -752,6 +784,26 @@ public class BinaryClassDescriptor {
 
                 case TIME_ARR:
                     writer.doWriteTimeArray((Time[])obj);
+
+                    break;
+
+                case LOCAL_TIME_ARR:
+                    writer.doWriteLocalTimeArray((LocalTime[])obj);
+
+                    break;
+
+                case LOCAL_DATE_ARR:
+                    writer.doWriteLocalDateArray((LocalDate[])obj);
+
+                    break;
+
+                case LOCAL_DATE_TIME_ARR:
+                    writer.doWriteLocalDateTimeArray((LocalDateTime[])obj);
+
+                    break;
+
+                case OFFSET_DATE_TIME_ARR:
+                    writer.doWriteOffsetDateTimeArray((OffsetDateTime[])obj);
 
                     break;
 

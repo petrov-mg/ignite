@@ -25,6 +25,10 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -223,6 +227,11 @@ public class BinaryContext {
         registerPredefinedType(Date.class, GridBinaryMarshaller.DATE);
         registerPredefinedType(Timestamp.class, GridBinaryMarshaller.TIMESTAMP);
         registerPredefinedType(Time.class, GridBinaryMarshaller.TIME);
+        registerPredefinedType(LocalTime.class, GridBinaryMarshaller.LOCAL_TIME);
+        registerPredefinedType(LocalDate.class, GridBinaryMarshaller.LOCAL_DATE);
+        registerPredefinedType(LocalDateTime.class, GridBinaryMarshaller.LOCAL_DATE_TIME);
+        registerPredefinedType(OffsetDateTime.class, GridBinaryMarshaller.OFFSET_DATE_TIME);
+
         registerPredefinedType(UUID.class, GridBinaryMarshaller.UUID);
 
         registerPredefinedType(byte[].class, GridBinaryMarshaller.BYTE_ARR);
@@ -239,6 +248,10 @@ public class BinaryContext {
         registerPredefinedType(Date[].class, GridBinaryMarshaller.DATE_ARR);
         registerPredefinedType(Timestamp[].class, GridBinaryMarshaller.TIMESTAMP_ARR);
         registerPredefinedType(Time[].class, GridBinaryMarshaller.TIME_ARR);
+        registerPredefinedType(LocalTime[].class, GridBinaryMarshaller.LOCAL_TIME_ARR);
+        registerPredefinedType(LocalDate[].class, GridBinaryMarshaller.LOCAL_DATE_ARR);
+        registerPredefinedType(LocalDateTime[].class, GridBinaryMarshaller.LOCAL_DATE_TIME_ARR);
+        registerPredefinedType(OffsetDateTime[].class, GridBinaryMarshaller.OFFSET_DATE_TIME_ARR);
         registerPredefinedType(Object[].class, GridBinaryMarshaller.OBJ_ARR);
 
         // Special collections.

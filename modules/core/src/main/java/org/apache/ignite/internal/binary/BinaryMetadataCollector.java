@@ -23,6 +23,10 @@ import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -150,6 +154,26 @@ class BinaryMetadataCollector implements BinaryWriter {
     }
 
     /** {@inheritDoc} */
+    @Override public void writeLocalTime(String fieldName, @Nullable LocalTime val) throws BinaryObjectException {
+        add(fieldName, BinaryWriteMode.LOCAL_TIME);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDate(String fieldName, @Nullable LocalDate val) throws BinaryObjectException {
+        add(fieldName, BinaryWriteMode.LOCAL_DATE);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDateTime(String fieldName, @Nullable LocalDateTime val) throws BinaryObjectException {
+        add(fieldName, BinaryWriteMode.LOCAL_DATE_TIME);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeOffsetDateTime(String fieldName, @Nullable OffsetDateTime val) throws BinaryObjectException {
+        add(fieldName, BinaryWriteMode.OFFSET_DATE_TIME);
+    }
+
+    /** {@inheritDoc} */
     @Override public <T extends Enum<?>> void writeEnum(String fieldName, T val) throws BinaryObjectException {
         add(fieldName, BinaryWriteMode.ENUM);
     }
@@ -232,6 +256,26 @@ class BinaryMetadataCollector implements BinaryWriter {
     /** {@inheritDoc} */
     @Override public void writeTimeArray(String fieldName, @Nullable Time[] val) throws BinaryObjectException {
         add(fieldName, BinaryWriteMode.TIME_ARR);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalTimeArray(String fieldName, @Nullable LocalTime[] val) throws BinaryObjectException {
+        add(fieldName, BinaryWriteMode.LOCAL_TIME_ARR);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDateArray(String fieldName, @Nullable LocalDate[] val) throws BinaryObjectException {
+        add(fieldName, BinaryWriteMode.LOCAL_DATE_ARR);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDateTimeArray(String fieldName, @Nullable LocalDateTime[] val) throws BinaryObjectException {
+        add(fieldName, BinaryWriteMode.LOCAL_DATE_TIME_ARR);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeOffsetDateTimeArray(String fieldName, @Nullable OffsetDateTime[] val) throws BinaryObjectException {
+        add(fieldName, BinaryWriteMode.OFFSET_DATE_TIME_ARR);
     }
 
     /** {@inheritDoc} */

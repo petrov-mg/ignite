@@ -20,6 +20,10 @@ package org.apache.ignite.binary;
 import java.math.BigDecimal;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
@@ -137,6 +141,18 @@ public interface BinaryWriter {
      */
     public void writeTime(String fieldName, @Nullable Time val) throws BinaryObjectException;
 
+    /** */
+    public void writeLocalTime(String fieldName, @Nullable LocalTime val) throws BinaryObjectException;
+
+    /** */
+    public void writeLocalDate(String fieldName, @Nullable LocalDate val) throws BinaryObjectException;
+
+    /** */
+    public void writeLocalDateTime(String fieldName, @Nullable LocalDateTime val) throws BinaryObjectException;
+
+    /** */
+    public void writeOffsetDateTime(String fieldName, @Nullable OffsetDateTime val) throws BinaryObjectException;
+
     /**
      * @param fieldName Field name.
      * @param obj Value to write.
@@ -241,6 +257,18 @@ public interface BinaryWriter {
      * @throws BinaryObjectException In case of error.
      */
     public void writeTimeArray(String fieldName, @Nullable Time[] val) throws BinaryObjectException;
+
+    /** */
+    public void writeLocalTimeArray(String fieldName, @Nullable LocalTime[] val) throws BinaryObjectException;
+
+    /** */
+    public void writeLocalDateArray(String fieldName, @Nullable LocalDate[] val) throws BinaryObjectException;
+
+    /** */
+    public void writeLocalDateTimeArray(String fieldName, @Nullable LocalDateTime[] val) throws BinaryObjectException;
+
+    /** */
+    public void writeOffsetDateTimeArray(String fieldName, @Nullable OffsetDateTime[] val) throws BinaryObjectException;
 
     /**
      * @param fieldName Field name.

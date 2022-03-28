@@ -21,6 +21,10 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
@@ -95,6 +99,10 @@ public abstract class BinaryFieldAccessor {
             case DATE:
             case TIMESTAMP:
             case TIME:
+            case LOCAL_TIME:
+            case LOCAL_DATE:
+            case LOCAL_DATE_TIME:
+            case OFFSET_DATE_TIME:
             case BYTE_ARR:
             case SHORT_ARR:
             case INT_ARR:
@@ -109,6 +117,10 @@ public abstract class BinaryFieldAccessor {
             case DATE_ARR:
             case TIMESTAMP_ARR:
             case TIME_ARR:
+            case LOCAL_TIME_ARR:
+            case LOCAL_DATE_ARR:
+            case LOCAL_DATE_TIME_ARR:
+            case OFFSET_DATE_TIME_ARR:
             case ENUM_ARR:
             case OBJECT_ARR:
             case BINARY_OBJ:
@@ -576,6 +588,26 @@ public abstract class BinaryFieldAccessor {
 
                     break;
 
+                case LOCAL_TIME:
+                    writer.writeLocalTimeField((LocalTime)val);
+
+                    break;
+
+                case LOCAL_DATE:
+                    writer.writeLocalDateField((LocalDate)val);
+
+                    break;
+
+                case LOCAL_DATE_TIME:
+                    writer.writeLocalDateTimeField((LocalDateTime)val);
+
+                    break;
+
+                case OFFSET_DATE_TIME:
+                    writer.writeOffsetDateTime((OffsetDateTime)val);
+
+                    break;
+
                 case BYTE_ARR:
                     writer.writeByteArrayField((byte[])val);
 
@@ -643,6 +675,26 @@ public abstract class BinaryFieldAccessor {
 
                 case TIME_ARR:
                     writer.writeTimeArrayField((Time[])val);
+
+                    break;
+
+                case LOCAL_TIME_ARR:
+                    writer.writeLocalTimeArrayField((LocalTime[])val);
+
+                    break;
+
+                case LOCAL_DATE_ARR:
+                    writer.writeLocalDateArrayField((LocalDate[])val);
+
+                    break;
+
+                case LOCAL_DATE_TIME_ARR:
+                    writer.writeLocalDateTimeArrayField((LocalDateTime[])val);
+
+                    break;
+
+                case OFFSET_DATE_TIME_ARR:
+                    writer.writeOffsetDateTimeArrayField((OffsetDateTime[])val);
 
                     break;
 
@@ -792,6 +844,26 @@ public abstract class BinaryFieldAccessor {
 
                     break;
 
+                case LOCAL_TIME:
+                    val = reader.readLocalTime(id);
+
+                    break;
+
+                case LOCAL_DATE:
+                    val = reader.readLocalDate(id);
+
+                    break;
+
+                case LOCAL_DATE_TIME:
+                    val = reader.readLocalDateTime(id);
+
+                    break;
+
+                case OFFSET_DATE_TIME:
+                    val = reader.readOffsetDateTime(id);
+
+                    break;
+
                 case BYTE_ARR:
                     val = reader.readByteArray(id);
 
@@ -859,6 +931,26 @@ public abstract class BinaryFieldAccessor {
 
                 case TIME_ARR:
                     val = reader.readTimeArray(id);
+
+                    break;
+
+                case LOCAL_TIME_ARR:
+                    val = reader.readLocalTimeArray(id);
+
+                    break;
+
+                case LOCAL_DATE_ARR:
+                    val = reader.readLocalDateArray(id);
+
+                    break;
+
+                case LOCAL_DATE_TIME_ARR:
+                    val = reader.readLocalDateTimeArray(id);
+
+                    break;
+
+                case OFFSET_DATE_TIME_ARR:
+                    val = reader.readOffsetDateTimeArray(id);
 
                     break;
 

@@ -221,6 +221,8 @@ public class BinarySerializedFieldComparator {
             case GridBinaryMarshaller.LONG:
             case GridBinaryMarshaller.DOUBLE:
             case GridBinaryMarshaller.DATE:
+            case GridBinaryMarshaller.LOCAL_TIME:
+            case GridBinaryMarshaller.LOCAL_DATE:
                 return c1.readLong(1) == c2.readLong(1);
 
             case GridBinaryMarshaller.TIMESTAMP:
@@ -229,7 +231,13 @@ public class BinarySerializedFieldComparator {
             case GridBinaryMarshaller.TIME:
                 return c1.readLong(1) == c2.readLong(1);
 
+            case GridBinaryMarshaller.OFFSET_DATE_TIME:
+                return c1.readInt(1) == c2.readInt(1)
+                    && c1.readLong(1 + 4) == c2.readLong(1 + 4)
+                    && c1.readLong(1 + 4 + 8) == c2.readLong(1 + 4 + 8);
+
             case GridBinaryMarshaller.UUID:
+            case GridBinaryMarshaller.LOCAL_DATE_TIME:
                 return c1.readLong(1) == c2.readLong(1) && c1.readLong(1 + 8) == c2.readLong(1 + 8);
 
             case GridBinaryMarshaller.STRING:

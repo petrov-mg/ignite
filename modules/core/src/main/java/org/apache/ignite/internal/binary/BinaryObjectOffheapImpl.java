@@ -26,6 +26,11 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
@@ -347,6 +352,44 @@ public class BinaryObjectOffheapImpl extends BinaryObjectExImpl implements Exter
                 long time = BinaryPrimitives.readLong(ptr, fieldPos + 1);
 
                 val = new Time(time);
+
+                break;
+            }
+
+            case GridBinaryMarshaller.LOCAL_TIME: {
+                long nanoOfDay = BinaryPrimitives.readLong(ptr, fieldPos + 1);
+
+                val = LocalTime.ofNanoOfDay(nanoOfDay);
+
+                break;
+            }
+
+            case GridBinaryMarshaller.LOCAL_DATE: {
+                long epochDay = BinaryPrimitives.readLong(ptr, fieldPos + 1);
+
+                val = LocalDate.ofEpochDay(epochDay);
+
+                break;
+            }
+
+            case GridBinaryMarshaller.LOCAL_DATE_TIME: {
+                long epochDay = BinaryPrimitives.readLong(ptr, fieldPos + 1);
+                long nanoOfDay = BinaryPrimitives.readLong(ptr, fieldPos + 1 + 8);
+
+                val = LocalDateTime.of(LocalDate.ofEpochDay(epochDay), LocalTime.ofNanoOfDay(nanoOfDay));
+
+                break;
+            }
+
+            case GridBinaryMarshaller.OFFSET_DATE_TIME: {
+                int zoneOffsetSeconds = BinaryPrimitives.readInt(ptr, fieldPos + 1);
+                long epochDay = BinaryPrimitives.readLong(ptr, fieldPos + 1 + 4);
+                long nanoOfDay = BinaryPrimitives.readLong(ptr, fieldPos + 1 + 4 + 8);
+
+                val = OffsetDateTime.of(
+                    LocalDateTime.of(LocalDate.ofEpochDay(epochDay), LocalTime.ofNanoOfDay(nanoOfDay)),
+                    ZoneOffset.ofTotalSeconds(zoneOffsetSeconds)
+                );
 
                 break;
             }

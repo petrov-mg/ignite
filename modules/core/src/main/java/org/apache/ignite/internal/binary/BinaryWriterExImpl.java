@@ -25,6 +25,10 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
@@ -507,6 +511,53 @@ public class BinaryWriterExImpl implements BinaryWriter, BinaryRawWriterEx, Obje
         }
     }
 
+    /** */
+    public void doWriteLocalTime(@Nullable LocalTime localTime) {
+        if (localTime == null)
+            out.writeByte(GridBinaryMarshaller.NULL);
+        else {
+            out.unsafeEnsure(1 + 8);
+            out.unsafeWriteByte(GridBinaryMarshaller.LOCAL_TIME);
+            out.unsafeWriteLong(localTime.toNanoOfDay());
+        }
+    }
+
+    /** */
+    public void doWriteLocalDate(@Nullable LocalDate localDate) {
+        if (localDate == null)
+            out.writeByte(GridBinaryMarshaller.NULL);
+        else {
+            out.unsafeEnsure(1 + 8);
+            out.unsafeWriteByte(GridBinaryMarshaller.LOCAL_DATE);
+            out.unsafeWriteLong(localDate.toEpochDay());
+        }
+    }
+
+    /** */
+    public void doWriteLocalDateTime(@Nullable LocalDateTime locDateTime) {
+        if (locDateTime == null)
+            out.writeByte(GridBinaryMarshaller.NULL);
+        else {
+            out.unsafeEnsure(1 + 8 + 8);
+            out.unsafeWriteByte(GridBinaryMarshaller.LOCAL_DATE_TIME);
+            out.unsafeWriteLong(locDateTime.toLocalDate().toEpochDay());
+            out.unsafeWriteLong(locDateTime.toLocalTime().toNanoOfDay());
+        }
+    }
+
+    /** */
+    public void doWriteOffsetDateTime(@Nullable OffsetDateTime offsetDateTime) {
+        if (offsetDateTime == null)
+            out.writeByte(GridBinaryMarshaller.NULL);
+        else {
+            out.unsafeEnsure(1 + 4 + 8 + 8);
+            out.unsafeWriteByte(GridBinaryMarshaller.OFFSET_DATE_TIME);
+            out.unsafeWriteInt(offsetDateTime.getOffset().getTotalSeconds());
+            out.unsafeWriteLong(offsetDateTime.toLocalDate().toEpochDay());
+            out.unsafeWriteLong(offsetDateTime.toLocalTime().toNanoOfDay());
+        }
+    }
+
     /**
      * Write object.
      *
@@ -738,6 +789,62 @@ public class BinaryWriterExImpl implements BinaryWriter, BinaryRawWriterEx, Obje
 
             for (Time time : val)
                 doWriteTime(time);
+        }
+    }
+
+    /** */
+    void doWriteLocalTimeArray(@Nullable LocalTime[] val) {
+        if (val == null)
+            out.writeByte(GridBinaryMarshaller.NULL);
+        else {
+            out.unsafeEnsure(1 + 4);
+            out.unsafeWriteByte(GridBinaryMarshaller.LOCAL_TIME_ARR);
+            out.unsafeWriteInt(val.length);
+
+            for (LocalTime locTime : val)
+                doWriteLocalTime(locTime);
+        }
+    }
+
+    /** */
+    void doWriteLocalDateArray(@Nullable LocalDate[] val) {
+        if (val == null)
+            out.writeByte(GridBinaryMarshaller.NULL);
+        else {
+            out.unsafeEnsure(1 + 4);
+            out.unsafeWriteByte(GridBinaryMarshaller.LOCAL_DATE_ARR);
+            out.unsafeWriteInt(val.length);
+
+            for (LocalDate locDate : val)
+                doWriteLocalDate(locDate);
+        }
+    }
+
+    /** */
+    void doWriteLocalDateTimeArray(@Nullable LocalDateTime[] val) {
+        if (val == null)
+            out.writeByte(GridBinaryMarshaller.NULL);
+        else {
+            out.unsafeEnsure(1 + 4);
+            out.unsafeWriteByte(GridBinaryMarshaller.LOCAL_DATE_TIME_ARR);
+            out.unsafeWriteInt(val.length);
+
+            for (LocalDateTime locDateTime : val)
+                doWriteLocalDateTime(locDateTime);
+        }
+    }
+
+    /** */
+    void doWriteOffsetDateTimeArray(@Nullable OffsetDateTime[] val) {
+        if (val == null)
+            out.writeByte(GridBinaryMarshaller.NULL);
+        else {
+            out.unsafeEnsure(1 + 4);
+            out.unsafeWriteByte(GridBinaryMarshaller.OFFSET_DATE_TIME_ARR);
+            out.unsafeWriteInt(val.length);
+
+            for (OffsetDateTime offsetDateTime : val)
+                doWriteOffsetDateTime(offsetDateTime);
         }
     }
 
@@ -1214,6 +1321,26 @@ public class BinaryWriterExImpl implements BinaryWriter, BinaryRawWriterEx, Obje
         doWriteTime(val);
     }
 
+    /** */
+    void writeLocalTimeField(@Nullable LocalTime val) {
+        doWriteLocalTime(val);
+    }
+
+    /** */
+    void writeLocalDateField(@Nullable LocalDate val) {
+        doWriteLocalDate(val);
+    }
+
+    /** */
+    void writeLocalDateTimeField(@Nullable LocalDateTime val) {
+        doWriteLocalDateTime(val);
+    }
+
+    /** */
+    void writeOffsetDateTimeField(@Nullable OffsetDateTime val) {
+        doWriteOffsetDateTime(val);
+    }
+
     /**
      * @param obj Object.
      * @throws org.apache.ignite.binary.BinaryObjectException In case of error.
@@ -1318,6 +1445,34 @@ public class BinaryWriterExImpl implements BinaryWriter, BinaryRawWriterEx, Obje
      */
     void writeTimeArrayField(@Nullable Time[] val) {
         doWriteTimeArray(val);
+    }
+
+    /**
+     * @param val Value.
+     */
+    void writeLocalTimeArrayField(@Nullable LocalTime[] val) {
+        doWriteLocalTimeArray(val);
+    }
+
+    /**
+     * @param val Value.
+     */
+    void writeLocalDateArrayField(@Nullable LocalDate[] val) {
+        doWriteLocalDateArray(val);
+    }
+
+    /**
+     * @param val Value.
+     */
+    void writeLocalDateTimeArrayField(@Nullable LocalDateTime[] val) {
+        doWriteLocalDateTimeArray(val);
+    }
+
+    /**
+     * @param val Value.
+     */
+    void writeOffsetDateTimeArrayField(@Nullable OffsetDateTime[] val) {
+        doWriteOffsetDateTimeArray(val);
     }
 
     /**
@@ -1521,6 +1676,51 @@ public class BinaryWriterExImpl implements BinaryWriter, BinaryRawWriterEx, Obje
     }
 
     /** {@inheritDoc} */
+    @Override public void writeLocalTime(String fieldName, @Nullable LocalTime val) throws BinaryObjectException {
+        writeFieldId(fieldName);
+        writeLocalTimeField(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalTime(@Nullable LocalTime val) throws BinaryObjectException {
+        doWriteLocalTime(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDate(String fieldName, @Nullable LocalDate val) throws BinaryObjectException {
+        writeFieldId(fieldName);
+        writeLocalDateField(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDate(@Nullable LocalDate val) throws BinaryObjectException {
+        doWriteLocalDate(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDateTime(String fieldName, @Nullable LocalDateTime val) throws BinaryObjectException {
+        writeFieldId(fieldName);
+        writeLocalDateTimeField(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDateTime(@Nullable LocalDateTime val) throws BinaryObjectException {
+        doWriteLocalDateTime(val);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override public void writeOffsetDateTime(String fieldName, @Nullable OffsetDateTime val) throws BinaryObjectException {
+        writeFieldId(fieldName);
+        writeOffsetDateTimeField(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeOffsetDateTime(@Nullable OffsetDateTime val) throws BinaryObjectException {
+        doWriteOffsetDateTime(val);
+    }
+
+    /** {@inheritDoc} */
     @Override public void writeObject(String fieldName, @Nullable Object obj) throws BinaryObjectException {
         writeFieldId(fieldName);
         writeObjectField(obj);
@@ -1700,6 +1900,50 @@ public class BinaryWriterExImpl implements BinaryWriter, BinaryRawWriterEx, Obje
     /** {@inheritDoc} */
     @Override public void writeTimeArray(@Nullable Time[] val) throws BinaryObjectException {
         doWriteTimeArray(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalTimeArray(String fieldName, @Nullable LocalTime[] val) throws BinaryObjectException {
+        writeFieldId(fieldName);
+        writeLocalTimeArrayField(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalTimeArray(@Nullable LocalTime[] val) throws BinaryObjectException {
+        doWriteLocalTimeArray(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDateArray(String fieldName, @Nullable LocalDate[] val) throws BinaryObjectException {
+        writeFieldId(fieldName);
+        writeLocalDateArrayField(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDateArray(@Nullable LocalDate[] val) throws BinaryObjectException {
+        doWriteLocalDateArray(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDateTimeArray(String fieldName, @Nullable LocalDateTime[] val) throws BinaryObjectException {
+        writeFieldId(fieldName);
+        writeLocalDateTimeArrayField(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeLocalDateTimeArray(@Nullable LocalDateTime[] val) throws BinaryObjectException {
+        doWriteLocalDateTimeArray(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeOffsetDateTimeArray(String fieldName, @Nullable OffsetDateTime[] val) throws BinaryObjectException {
+        writeFieldId(fieldName);
+        writeOffsetDateTimeArrayField(val);
+    }
+
+    /** {@inheritDoc} */
+    @Override public void writeOffsetDateTimeArray(@Nullable OffsetDateTime[] val) throws BinaryObjectException {
+        doWriteOffsetDateTimeArray(val);
     }
 
      /** {@inheritDoc} */

@@ -23,6 +23,10 @@ import java.io.ObjectInput;
 import java.math.BigDecimal;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -68,12 +72,20 @@ import static org.apache.ignite.internal.binary.GridBinaryMarshaller.FLOAT_ARR;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.HANDLE;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.INT;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.INT_ARR;
+import static org.apache.ignite.internal.binary.GridBinaryMarshaller.LOCAL_DATE;
+import static org.apache.ignite.internal.binary.GridBinaryMarshaller.LOCAL_DATE_ARR;
+import static org.apache.ignite.internal.binary.GridBinaryMarshaller.LOCAL_DATE_TIME;
+import static org.apache.ignite.internal.binary.GridBinaryMarshaller.LOCAL_DATE_TIME_ARR;
+import static org.apache.ignite.internal.binary.GridBinaryMarshaller.LOCAL_TIME;
+import static org.apache.ignite.internal.binary.GridBinaryMarshaller.LOCAL_TIME_ARR;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.LONG;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.LONG_ARR;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.MAP;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.NULL;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.OBJ;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.OBJ_ARR;
+import static org.apache.ignite.internal.binary.GridBinaryMarshaller.OFFSET_DATE_TIME;
+import static org.apache.ignite.internal.binary.GridBinaryMarshaller.OFFSET_DATE_TIME_ARR;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.OPTM_MARSH;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.PROXY;
 import static org.apache.ignite.internal.binary.GridBinaryMarshaller.SHORT;
@@ -1308,6 +1320,186 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
     }
 
     /** {@inheritDoc} */
+    @Override @Nullable public LocalTime readLocalTime(String fieldName) throws BinaryObjectException {
+        return findFieldByName(fieldName) ? readLocalTime() : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalTime readLocalTime() throws BinaryObjectException {
+        return checkFlagNoHandles(LOCAL_TIME) == Flag.NORMAL ? BinaryUtils.doReadLocalTime(in) : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalTime[] readLocalTimeArray(String fieldName) throws BinaryObjectException {
+        return findFieldByName(fieldName) ? readLocalTimeArray() : null;
+    }
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException In case of error.
+     */
+    @Nullable LocalTime readLocalTime(int fieldId) throws BinaryObjectException {
+        return findFieldById(fieldId) ? readLocalTime() : null;
+    }
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException In case of error.
+     */
+    @Nullable LocalTime[] readLocalTimeArray(int fieldId) throws BinaryObjectException {
+        return findFieldById(fieldId) ? readLocalTimeArray() : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalTime[] readLocalTimeArray() throws BinaryObjectException {
+        switch (checkFlag(LOCAL_TIME_ARR)) {
+            case NORMAL:
+                return BinaryUtils.doReadLocalTimeArray(in);
+            case HANDLE:
+                return readHandleField();
+            default:
+                return null;
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalDate readLocalDate(String fieldName) throws BinaryObjectException {
+        return findFieldByName(fieldName) ? readLocalDate() : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalDate readLocalDate() throws BinaryObjectException {
+        return checkFlagNoHandles(LOCAL_DATE) == Flag.NORMAL ? BinaryUtils.doReadLocalDate(in) : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalDate[] readLocalDateArray(String fieldName) throws BinaryObjectException {
+        return findFieldByName(fieldName) ? readLocalDateArray() : null;
+    }
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException In case of error.
+     */
+    @Nullable LocalDate readLocalDate(int fieldId) throws BinaryObjectException {
+        return findFieldById(fieldId) ? readLocalDate() : null;
+    }
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException In case of error.
+     */
+    @Nullable LocalDate[] readLocalDateArray(int fieldId) throws BinaryObjectException {
+        return findFieldById(fieldId) ? readLocalDateArray() : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalDate[] readLocalDateArray() throws BinaryObjectException {
+        switch (checkFlag(LOCAL_DATE_ARR)) {
+            case NORMAL:
+                return BinaryUtils.doReadLocalDateArray(in);
+            case HANDLE:
+                return readHandleField();
+            default:
+                return null;
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalDateTime readLocalDateTime(String fieldName) throws BinaryObjectException {
+        return findFieldByName(fieldName) ? readLocalDateTime() : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalDateTime readLocalDateTime() throws BinaryObjectException {
+        return checkFlagNoHandles(LOCAL_DATE_TIME) == Flag.NORMAL ? BinaryUtils.doReadLocalDateTime(in) : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalDateTime[] readLocalDateTimeArray(String fieldName) throws BinaryObjectException {
+        return findFieldByName(fieldName) ? readLocalDateTimeArray() : null;
+    }
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException In case of error.
+     */
+    @Nullable LocalDateTime readLocalDateTime(int fieldId) throws BinaryObjectException {
+        return findFieldById(fieldId) ? readLocalDateTime() : null;
+    }
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException In case of error.
+     */
+    @Nullable LocalDateTime[] readLocalDateTimeArray(int fieldId) throws BinaryObjectException {
+        return findFieldById(fieldId) ? readLocalDateTimeArray() : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public LocalDateTime[] readLocalDateTimeArray() throws BinaryObjectException {
+        switch (checkFlag(LOCAL_DATE_TIME_ARR)) {
+            case NORMAL:
+                return BinaryUtils.doReadLocalDateTimeArray(in);
+            case HANDLE:
+                return readHandleField();
+            default:
+                return null;
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public OffsetDateTime readOffsetDateTime(String fieldName) throws BinaryObjectException {
+        return findFieldByName(fieldName) ? readOffsetDateTime() : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public OffsetDateTime readOffsetDateTime() throws BinaryObjectException {
+        return checkFlagNoHandles(LOCAL_DATE) == Flag.NORMAL ? BinaryUtils.doReadOffsetDateTime(in) : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public OffsetDateTime[] readOffsetDateTimeArray(String fieldName) throws BinaryObjectException {
+        return findFieldByName(fieldName) ? readOffsetDateTimeArray() : null;
+    }
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException In case of error.
+     */
+    @Nullable OffsetDateTime readOffsetDateTime(int fieldId) throws BinaryObjectException {
+        return findFieldById(fieldId) ? readOffsetDateTime() : null;
+    }
+
+    /**
+     * @param fieldId Field ID.
+     * @return Value.
+     * @throws BinaryObjectException In case of error.
+     */
+    @Nullable OffsetDateTime[] readOffsetDateTimeArray(int fieldId) throws BinaryObjectException {
+        return findFieldById(fieldId) ? readOffsetDateTimeArray() : null;
+    }
+
+    /** {@inheritDoc} */
+    @Override @Nullable public OffsetDateTime[] readOffsetDateTimeArray() throws BinaryObjectException {
+        switch (checkFlag(LOCAL_DATE_TIME_ARR)) {
+            case NORMAL:
+                return BinaryUtils.doReadOffsetDateTimeArray(in);
+            case HANDLE:
+                return readHandleField();
+            default:
+                return null;
+        }
+    }
+
+    /** {@inheritDoc} */
     @Nullable @Override public <T> T readObject(String fieldName) throws BinaryObjectException {
         try {
             return findFieldByName(fieldName) ? (T)BinaryUtils.doReadObject(in, ctx, ldr, this) : null;
@@ -1852,6 +2044,26 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
 
                 break;
 
+            case LOCAL_TIME:
+                obj = BinaryUtils.doReadLocalTime(in);
+
+                break;
+
+            case LOCAL_DATE:
+                obj = BinaryUtils.doReadLocalDate(in);
+
+                break;
+
+            case LOCAL_DATE_TIME:
+                obj = BinaryUtils.doReadLocalDateTime(in);
+
+                break;
+
+            case OFFSET_DATE_TIME:
+                obj = BinaryUtils.doReadOffsetDateTime(in);
+
+                break;
+
             case BYTE_ARR:
                 obj = BinaryUtils.doReadByteArray(in);
 
@@ -1919,6 +2131,26 @@ public class BinaryReaderExImpl implements BinaryReader, BinaryRawReaderEx, Bina
 
             case TIME_ARR:
                 obj = BinaryUtils.doReadTimeArray(in);
+
+                break;
+
+            case LOCAL_TIME_ARR:
+                obj = BinaryUtils.doReadLocalTimeArray(in);
+
+                break;
+
+            case LOCAL_DATE_ARR:
+                obj = BinaryUtils.doReadLocalDateArray(in);
+
+                break;
+
+            case LOCAL_DATE_TIME_ARR:
+                obj = BinaryUtils.doReadLocalDateTimeArray(in);
+
+                break;
+
+            case OFFSET_DATE_TIME_ARR:
+                obj = BinaryUtils.doReadOffsetDateTimeArray(in);
 
                 break;
 
