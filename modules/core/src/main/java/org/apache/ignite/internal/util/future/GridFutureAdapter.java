@@ -378,7 +378,9 @@ public class GridFutureAdapter<R> implements IgniteInternalFuture<R> {
         IgniteClosure<? super IgniteInternalFuture<R>, T> doneCb,
         Executor exec
     ) {
-        ChainFuture<R, T> fut = new ChainFuture<>(this, doneCb, exec);
+        GridFutureAdapter<T> fut = newIncompleteFuture();
+
+        listen(new GridFutureChainListener<>(fut, doneCb, exec));
 
         if (ignoreInterrupts)
             fut.ignoreInterrupts();
@@ -403,7 +405,7 @@ public class GridFutureAdapter<R> implements IgniteInternalFuture<R> {
         IgniteClosure<? super IgniteInternalFuture<R>, IgniteInternalFuture<T>> doneCb,
         @Nullable Executor exec
     ) {
-        GridFutureAdapter<T> res = new GridFutureAdapter<>();
+        GridFutureAdapter<T> res = newIncompleteFuture();
 
         if (ignoreInterrupts)
             res.ignoreInterrupts();
@@ -636,35 +638,8 @@ public class GridFutureAdapter<R> implements IgniteInternalFuture<R> {
         return s == CANCELLED ? "CANCELLED" : s != null && s.getClass() == Node.class ? "INIT" : DONE;
     }
 
-    /**
-     *
-     */
-    private static class ChainFuture<R, T> extends GridFutureAdapter<T> {
-        /** */
-        private final GridFutureAdapter<R> fut;
-
-        /** */
-        private final IgniteClosure<? super IgniteInternalFuture<R>, T> doneCb;
-
-        /**
-         * @param fut Future.
-         * @param doneCb Closure.
-         * @param cbExec Optional executor to run callback.
-         */
-        ChainFuture(
-            GridFutureAdapter<R> fut,
-            IgniteClosure<? super IgniteInternalFuture<R>, T> doneCb,
-            @Nullable Executor cbExec
-        ) {
-            this.fut = fut;
-            this.doneCb = doneCb;
-
-            fut.listen(new GridFutureChainListener<>(this, doneCb, cbExec));
-        }
-
-        /** {@inheritDoc} */
-        @Override public String toString() {
-            return "ChainFuture [orig=" + fut + ", doneCb=" + doneCb + ']';
-        }
+    /** */
+    protected <T> GridFutureAdapter<T> newIncompleteFuture() {
+        return new GridFutureAdapter<>();
     }
 }
