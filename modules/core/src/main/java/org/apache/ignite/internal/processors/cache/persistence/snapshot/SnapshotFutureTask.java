@@ -74,6 +74,7 @@ import org.apache.ignite.internal.util.typedef.C3;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree.partDeltaIndexFile;
@@ -125,7 +126,7 @@ class SnapshotFutureTask extends AbstractCreateSnapshotFutureTask implements Che
     private final boolean withMetaStorage;
 
     /** Checkpoint end future. */
-    private final CompletableFuture<Boolean> cpEndFut = new CompletableFuture<>();
+    private final CompletableFuture<Boolean> cpEndFut = new ContextAwareCompletableFuture<>();
 
     /** Future to wait until checkpoint mark phase will be finished and snapshot tasks scheduled. */
     private final GridFutureAdapter<Void> startedFut = new GridFutureAdapter<>();

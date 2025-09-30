@@ -25,6 +25,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheContextInfo;
 import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
 import org.apache.ignite.internal.processors.query.stat.config.StatisticsObjectConfiguration;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 
 /**
  * Statistics gathering context.
@@ -81,7 +82,7 @@ public class LocalStatisticsGatheringContext {
         this.remainingParts = new HashSet<>(remainingParts);
         this.allParts = (forceRecollect) ? null : new HashSet<>(remainingParts);
         this.topVer = topVer;
-        this.future = new CompletableFuture<>();
+        this.future = new ContextAwareCompletableFuture<>();
     }
 
     /**

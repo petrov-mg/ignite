@@ -24,6 +24,7 @@ import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.internal.util.GridBusyLock;
 import org.apache.ignite.internal.util.GridConcurrentHashSet;
 import org.apache.ignite.thread.IgniteThreadPoolExecutor;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 
 /**
  * Executor with busy run support.
@@ -155,7 +156,7 @@ public class BusyExecutor {
     public CompletableFuture<Boolean> submit(Runnable r) {
         GridBusyLock lock = busyLock;
 
-        CompletableFuture<Boolean> res = new CompletableFuture<>();
+        CompletableFuture<Boolean> res = new ContextAwareCompletableFuture<>();
 
         if (r instanceof CancellableTask) {
             CancellableTask ct = (CancellableTask)r;

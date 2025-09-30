@@ -126,6 +126,7 @@ import org.apache.ignite.spi.IgniteSpiCloseableIterator;
 import org.apache.ignite.spi.indexing.IndexingQueryFilter;
 import org.apache.ignite.spi.indexing.IndexingQueryFilterImpl;
 import org.apache.ignite.spi.indexing.IndexingSpi;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -2439,7 +2440,7 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
 
             this.type = type;
 
-            metadata = type == INDEX ? new CompletableFuture<>() : null;
+            metadata = type == INDEX ? new ContextAwareCompletableFuture<>() : null;
         }
 
         /**

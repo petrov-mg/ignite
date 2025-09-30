@@ -39,6 +39,7 @@ import org.apache.ignite.internal.processors.cache.query.reducer.TextQueryReduce
 import org.apache.ignite.internal.processors.cache.query.reducer.UnsortedCacheQueryReducer;
 import org.apache.ignite.internal.util.lang.GridPlainCallable;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 
 import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.INDEX;
 import static org.apache.ignite.internal.processors.cache.query.GridCacheQueryType.TEXT;
@@ -104,7 +105,7 @@ public class GridCacheDistributedQueryFuture<K, V, R> extends GridCacheQueryFutu
         Map<UUID, NodePageStream<R>> streamsMap = Collections.unmodifiableMap(streams);
 
         if (qry.query().type() == INDEX) {
-            idxQryMetaFut = new CompletableFuture<>();
+            idxQryMetaFut = new ContextAwareCompletableFuture<>();
 
             reducer = new IndexQueryReducer<>(qry.query().idxQryDesc().valType(), streamsMap, cctx, idxQryMetaFut);
         }

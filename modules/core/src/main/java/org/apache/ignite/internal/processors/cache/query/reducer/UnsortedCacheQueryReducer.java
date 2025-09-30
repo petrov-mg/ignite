@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 
 /**
  * Reducer of cache query results, no ordering of results is provided.
@@ -40,7 +41,7 @@ public class UnsortedCacheQueryReducer<R> extends CacheQueryReducer<R> {
     public UnsortedCacheQueryReducer(Map<UUID, NodePageStream<R>> pageStreams) {
         super(pageStreams);
 
-        futs = new CompletableFuture[pageStreams.size()];
+        futs = new ContextAwareCompletableFuture[pageStreams.size()];
     }
 
     /** {@inheritDoc} */
@@ -71,7 +72,7 @@ public class UnsortedCacheQueryReducer<R> extends CacheQueryReducer<R> {
 
             Arrays.fill(futs, 0, pendingNodesCnt, null);
 
-            page = get(CompletableFuture.anyOf(pendingFuts));
+            page = get(ContextAwareCompletableFuture.anyOf(pendingFuts));
         }
 
         return true;

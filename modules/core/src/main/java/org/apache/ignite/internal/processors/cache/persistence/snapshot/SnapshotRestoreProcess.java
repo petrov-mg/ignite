@@ -97,6 +97,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteFuture;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.metric.MetricRegistry;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 import org.jetbrains.annotations.Nullable;
 
 import static java.util.Optional.ofNullable;
@@ -1166,7 +1167,7 @@ public class SnapshotRestoreProcess {
 
             opCtx0.totalParts = size;
 
-            CompletableFuture.allOf(allPartFuts.toArray(new CompletableFuture[size]))
+            ContextAwareCompletableFuture.allOf(allPartFuts.toArray(new ContextAwareCompletableFuture[size]))
                 .runAfterBothAsync(metaFut, () -> {
                     try {
                         if (opCtx0.stopChecker.getAsBoolean())
@@ -1753,7 +1754,8 @@ public class SnapshotRestoreProcess {
         if (opCtx.isGroupCompressed(grpId)) {
             copyPartFut = copyPartFut.thenComposeAsync(
                 p -> {
-                    CompletableFuture<Path> result = new CompletableFuture<>();
+                    CompletableFuture<Path> result = new ContextAwareCompletableFuture<>();
+
                     try {
                         punchHole(grpId, partFut.partId, tmpPartFile);
 
@@ -1973,7 +1975,7 @@ public class SnapshotRestoreProcess {
     }
 
     /** Future will be completed when partition processing ends. */
-    private static class PartitionRestoreFuture extends CompletableFuture<Path> {
+    private static class PartitionRestoreFuture extends ContextAwareCompletableFuture<Path> {
         /** Partition id. */
         private final int partId;
 

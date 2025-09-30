@@ -24,6 +24,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.ignite.thread.context.function.ContextAwareBiConsumer;
 import org.apache.ignite.thread.context.function.ContextAwareBiFunction;
 import org.apache.ignite.thread.context.function.ContextAwareConsumer;
@@ -248,6 +249,50 @@ public class ContextAwareCompletableFuture<T> extends CompletableFuture<T> {
     /** {@inheritDoc} */
     @Override public <U> CompletableFuture<U> newIncompleteFuture() {
         return new ContextAwareCompletableFuture<>();
+    }
+
+    /** */
+    public static ContextAwareCompletableFuture<Void> allOf(ContextAwareCompletableFuture<?>... cfs) {
+        return wrap(CompletableFuture.allOf(cfs));
+    }
+
+    /** */
+    public static ContextAwareCompletableFuture<Object> anyOf(ContextAwareCompletableFuture<?>... cfs) {
+        return wrap(CompletableFuture.anyOf(cfs));
+    }
+
+    /** */
+    public static <U> ContextAwareCompletableFuture<U> supplyAsync(Supplier<U> supplier) {
+        return wrap(CompletableFuture.supplyAsync(supplier));
+    }
+
+    /** */
+    public static <U> ContextAwareCompletableFuture<U> supplyAsync(Supplier<U> supplier, Executor executor) {
+        return wrap(CompletableFuture.supplyAsync(supplier, executor));
+    }
+
+    /** */
+    public static ContextAwareCompletableFuture<Void> runAsync(Runnable runnable) {
+        return wrap(CompletableFuture.runAsync(runnable));
+    }
+
+    /** */
+    public static ContextAwareCompletableFuture<Void> runAsync(Runnable runnable, Executor executor) {
+        return wrap(CompletableFuture.runAsync(runnable, executor));
+    }
+
+    /** */
+    private static <U> ContextAwareCompletableFuture<U> wrap(CompletableFuture<U> completableFuture) {
+        ContextAwareCompletableFuture<U> res = new ContextAwareCompletableFuture<>();
+
+        completableFuture.whenComplete((result, throwable) -> {
+            if (throwable != null)
+                res.completeExceptionally(throwable);
+            else
+                res.complete(result);
+        });
+
+        return res;
     }
 }
 

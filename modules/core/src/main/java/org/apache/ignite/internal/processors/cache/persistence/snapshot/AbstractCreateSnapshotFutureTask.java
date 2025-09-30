@@ -42,6 +42,7 @@ import org.apache.ignite.internal.util.lang.IgniteThrowableRunner;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 
 import static org.apache.ignite.internal.pagemem.PageIdAllocator.INDEX_PARTITION;
 
@@ -201,7 +202,7 @@ public abstract class AbstractCreateSnapshotFutureTask extends AbstractSnapshotF
 
             int futsSize = futs.size();
 
-            CompletableFuture.allOf(futs.toArray(new CompletableFuture[futsSize])).whenComplete((res, t) -> {
+            ContextAwareCompletableFuture.allOf(futs.toArray(new CompletableFuture[futsSize])).whenComplete((res, t) -> {
                 assert t == null : "Exception must never be thrown since a wrapper is used " +
                     "for each snapshot task: " + t;
 
@@ -244,8 +245,8 @@ public abstract class AbstractCreateSnapshotFutureTask extends AbstractSnapshotF
     }
 
     /** */
-    protected CompletableFuture<Void> runAsync(IgniteThrowableRunner task) {
-        return CompletableFuture.runAsync(
+    protected ContextAwareCompletableFuture<Void> runAsync(IgniteThrowableRunner task) {
+        return ContextAwareCompletableFuture.runAsync(
             wrapExceptionIfStarted(task),
             snpSndr.executor()
         );

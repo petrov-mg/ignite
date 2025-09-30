@@ -71,6 +71,7 @@ import org.apache.ignite.internal.util.BasicRateLimiter;
 import org.apache.ignite.internal.util.GridConcurrentHashSet;
 import org.apache.ignite.internal.util.IgniteUtils;
 import org.apache.ignite.internal.util.lang.GridCloseableIterator;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.pagemem.PageIdAllocator.INDEX_PARTITION;
@@ -317,7 +318,7 @@ public class CreateDumpFutureTask extends AbstractCreateSnapshotFutureTask imple
 
         int futsSize = futs.size();
 
-        CompletableFuture.allOf(futs.toArray(new CompletableFuture[futsSize])).whenComplete((res, t) -> {
+        ContextAwareCompletableFuture.allOf(futs.toArray(new CompletableFuture[futsSize])).whenComplete((res, t) -> {
             clearDumpListener(gctx);
 
             if (log.isInfoEnabled()) {
@@ -369,7 +370,7 @@ public class CreateDumpFutureTask extends AbstractCreateSnapshotFutureTask imple
                     taken.add(new GroupPartitionId(grp, part));
             }
 
-            closeFut = CompletableFuture.runAsync(
+            closeFut = ContextAwareCompletableFuture.runAsync(
                 () -> {
                     thLocBufs.clear();
                     if (encThLocBufs != null)

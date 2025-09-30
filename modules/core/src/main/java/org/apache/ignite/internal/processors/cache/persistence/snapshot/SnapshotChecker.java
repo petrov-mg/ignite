@@ -30,6 +30,7 @@ import org.apache.ignite.internal.management.cache.IdleVerifyResult;
 import org.apache.ignite.internal.management.cache.PartitionKey;
 import org.apache.ignite.internal.processors.cache.persistence.filename.SnapshotFileTree;
 import org.apache.ignite.internal.processors.cache.verify.PartitionHashRecord;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 import org.jetbrains.annotations.Nullable;
 
 /** */
@@ -58,7 +59,7 @@ public class SnapshotChecker {
         int incIdx,
         @Nullable Collection<Integer> grpIds
     ) {
-        return CompletableFuture.supplyAsync(() ->
+        return ContextAwareCompletableFuture.supplyAsync(() ->
             new SnapshotMetadataVerificationTask(kctx.grid(), log, sft, incIdx, grpIds).execute(), executor);
     }
 
@@ -69,7 +70,7 @@ public class SnapshotChecker {
     ) {
         assert incIdx > 0;
 
-        return CompletableFuture.supplyAsync(
+        return ContextAwareCompletableFuture.supplyAsync(
             () -> new IncrementalSnapshotVerificationTask(kctx.grid(), log, sft, incIdx).execute(),
             executor
         );

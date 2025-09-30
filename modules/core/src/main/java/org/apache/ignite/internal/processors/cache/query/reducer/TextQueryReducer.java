@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.apache.ignite.internal.processors.cache.query.ScoredCacheEntry;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 
 /**
  * Reducer for {@code TextQuery} results.
@@ -37,7 +38,7 @@ public class TextQueryReducer<R> extends MergeSortCacheQueryReducer<R> {
 
     /** {@inheritDoc} */
     @Override protected CompletableFuture<Comparator<NodePage<R>>> pageComparator() {
-        CompletableFuture<Comparator<NodePage<R>>> f = new CompletableFuture<>();
+        CompletableFuture<Comparator<NodePage<R>>> f = new ContextAwareCompletableFuture<>();
 
         f.complete((o1, o2) -> -Float.compare(
             ((ScoredCacheEntry<?, ?>)o1.head()).score(), ((ScoredCacheEntry<?, ?>)o2.head()).score()));

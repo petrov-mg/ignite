@@ -52,6 +52,7 @@ import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.util.distributed.DistributedProcess.DistributedProcessType.CHECK_SNAPSHOT_METAS;
@@ -320,7 +321,7 @@ public class SnapshotCheckProcess {
         // Incremental snapshots do not support working on other topology. Only single meta and snapshot part can be processed.
         SnapshotMetadata meta = ctx.metas.get(0);
 
-        CompletableFuture<SnapshotCheckResponse> resFut = new CompletableFuture<>();
+        CompletableFuture<SnapshotCheckResponse> resFut = new ContextAwareCompletableFuture<>();
 
         CompletableFuture<IncrementalSnapshotVerificationTaskResult> workingFut = snpChecker.checkIncrementalSnapshot(
             ctx.locFileTree.get(meta.consistentId()), ctx.req.incrementalIndex());
@@ -341,7 +342,7 @@ public class SnapshotCheckProcess {
         Map<String, Map<PartitionKey, PartitionHashRecord>> perMetaResults = new ConcurrentHashMap<>(ctx.metas.size(), 1.0f);
         // Per consistent id.
         Map<String, Throwable> exceptions = new ConcurrentHashMap<>(ctx.metas.size(), 1.0f);
-        CompletableFuture<SnapshotCheckResponse> composedFut = new CompletableFuture<>();
+        CompletableFuture<SnapshotCheckResponse> composedFut = new ContextAwareCompletableFuture<>();
         AtomicInteger metasProcessed = new AtomicInteger(ctx.metas.size());
 
         for (SnapshotMetadata meta : ctx.metas) {
@@ -376,7 +377,7 @@ public class SnapshotCheckProcess {
         Map<String, Map<String, SnapshotHandlerResult<Object>>> perMetaResults = new ConcurrentHashMap<>(ctx.metas.size(), 1.0f);
         // Per consistent id.
         Map<String, Throwable> exceptions = new ConcurrentHashMap<>(ctx.metas.size(), 1.0f);
-        CompletableFuture<SnapshotCheckResponse> composedFut = new CompletableFuture<>();
+        CompletableFuture<SnapshotCheckResponse> composedFut = new ContextAwareCompletableFuture<>();
         AtomicInteger metasProcessed = new AtomicInteger(ctx.metas.size());
 
         for (SnapshotMetadata meta : ctx.metas) {

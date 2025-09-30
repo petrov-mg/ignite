@@ -129,6 +129,7 @@ import org.apache.ignite.marshaller.MarshallerContext;
 import org.apache.ignite.marshaller.Marshallers;
 import org.apache.ignite.marshaller.jdk.JdkMarshaller;
 import org.apache.ignite.thread.IgniteThreadFactory;
+import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
 import org.apache.ignite.transactions.TransactionIsolation;
 import org.jetbrains.annotations.Nullable;
 
@@ -2602,7 +2603,7 @@ public class JdbcThinConnection implements Connection {
             R res;
 
             if (isStream()) {
-                CompletableFuture<JdbcResult> resFut = new CompletableFuture<>();
+                CompletableFuture<JdbcResult> resFut = new ContextAwareCompletableFuture<>();
 
                 CompletableFuture<JdbcResult> oldFut = results.put(req.requestId(), resFut);
 
