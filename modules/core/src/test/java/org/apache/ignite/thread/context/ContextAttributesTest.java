@@ -19,6 +19,7 @@ package org.apache.ignite.thread.context;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +32,7 @@ import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.thread.context.concurrent.ContextAwareCompletableFuture;
+import org.apache.ignite.thread.context.concurrent.ContextAwareForkJoinPool;
 import org.junit.Test;
 
 /** */
@@ -295,6 +297,23 @@ public class ContextAttributesTest extends GridCommonAbstractTest {
             GridIoPolicy.UNDEFINED,
             null);
 
+        doExecutorServiceTest(pool);
+    }
+
+    /** */
+    @Test
+    public void testForkJoinCommonPool() throws Exception {
+        doExecutorServiceTest(ContextAwareForkJoinPool.commonPool());
+    }
+
+    /** */
+    @Test
+    public void testForkJoinPool() throws Exception {
+        doExecutorServiceTest(new ContextAwareForkJoinPool());
+    }
+
+    /** */
+    private void doExecutorServiceTest(ExecutorService pool) throws Exception {
         CountDownLatch latch = new CountDownLatch(2);
 
         pool.submit(() -> {
