@@ -73,6 +73,7 @@ import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.internal.util.worker.WorkProgressDispatcher;
 import org.apache.ignite.thread.IgniteThreadPoolExecutor;
+import org.apache.ignite.thread.context.concurrent.ContextAwareForkJoinPool;
 import org.jetbrains.annotations.Nullable;
 import org.jsr166.ConcurrentLinkedHashMap;
 
@@ -495,7 +496,7 @@ public class CheckpointWorkflow {
             Comparator<FullPageId> cmp = Comparator.comparingInt(FullPageId::groupId)
                 .thenComparingLong(FullPageId::effectivePageId);
 
-            ForkJoinPool pool = null;
+            ContextAwareForkJoinPool pool = null;
 
             for (T2<PageMemoryEx, FullPageId[]> pagesPerReg : cpPagesPerRegion) {
                 if (pagesPerReg.getValue().length >= parallelSortThreshold)
@@ -518,10 +519,10 @@ public class CheckpointWorkflow {
      * @param cmp Cmp.
      * @return ForkJoinPool instance, check {@link ForkJoinTask#fork()} realization.
      */
-    private static ForkJoinPool parallelSortInIsolatedPool(
+    private static ContextAwareForkJoinPool parallelSortInIsolatedPool(
         FullPageId[] pagesArr,
         Comparator<FullPageId> cmp,
-        ForkJoinPool pool
+        ContextAwareForkJoinPool pool
     ) throws IgniteCheckedException {
         ForkJoinPool.ForkJoinWorkerThreadFactory factory = new ForkJoinPool.ForkJoinWorkerThreadFactory() {
             @Override public ForkJoinWorkerThread newThread(ForkJoinPool pool) {
@@ -533,8 +534,8 @@ public class CheckpointWorkflow {
             }
         };
 
-        ForkJoinPool execPool = pool == null ?
-            new ForkJoinPool(PARALLEL_SORT_THREADS + 1, factory, null, false) : pool;
+        ContextAwareForkJoinPool execPool = pool == null ?
+            new ContextAwareForkJoinPool(PARALLEL_SORT_THREADS + 1, factory, null, false) : pool;
 
         Future<?> sortTask = execPool.submit(() -> Arrays.parallelSort(pagesArr, cmp));
 

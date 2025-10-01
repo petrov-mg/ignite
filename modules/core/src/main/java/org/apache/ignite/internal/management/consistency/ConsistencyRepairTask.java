@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.cache.CacheException;
@@ -49,6 +48,7 @@ import org.apache.ignite.internal.visor.VisorJob;
 import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.resources.LoggerResource;
+import org.apache.ignite.thread.context.concurrent.ContextAwareForkJoinPool;
 
 import static org.apache.ignite.events.EventType.EVT_CONSISTENCY_VIOLATION;
 
@@ -103,7 +103,7 @@ public class ConsistencyRepairTask extends AbstractConsistencyTask<ConsistencyRe
             AtomicReference<Exception> err = new AtomicReference<>();
 
             Map<Boolean, List<IgniteBiTuple<Integer, String>>> res = Arrays.stream(arg.partitions())
-                .mapToObj(p -> F.t(p, ForkJoinPool.commonPool().submit(() -> processPartition(p, arg))))
+                .mapToObj(p -> F.t(p, ContextAwareForkJoinPool.commonPool().submit(() -> processPartition(p, arg))))
                 .map(t -> {
                     try {
                         return F.t(t.get1(), t.get2().get());
