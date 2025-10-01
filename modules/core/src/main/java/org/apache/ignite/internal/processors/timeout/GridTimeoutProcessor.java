@@ -26,6 +26,7 @@ import org.apache.ignite.failure.FailureContext;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.GridProcessorAdapter;
+import org.apache.ignite.internal.thread.context.timeout.ContextAwareTimeoutObject;
 import org.apache.ignite.internal.util.GridConcurrentSkipListSet;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.X;
@@ -35,6 +36,7 @@ import org.apache.ignite.internal.util.worker.GridWorker;
 import org.apache.ignite.lang.IgniteBiInClosure;
 import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.lang.IgniteUuid;
+import org.apache.ignite.thread.context.ContextAwareWrapper;
 
 import static org.apache.ignite.failure.FailureType.CRITICAL_ERROR;
 import static org.apache.ignite.failure.FailureType.SYSTEM_WORKER_TERMINATION;
@@ -48,7 +50,7 @@ public class GridTimeoutProcessor extends GridProcessorAdapter {
 
     /** Time-based sorted set for timeout objects. */
     private final GridConcurrentSkipListSet<GridTimeoutObject> timeoutObjs =
-        new GridConcurrentSkipListSet<>(new Comparator<GridTimeoutObject>() {
+        new GridConcurrentSkipListSet<>(new Comparator<>() {
             /** {@inheritDoc} */
             @Override public int compare(GridTimeoutObject o1, GridTimeoutObject o2) {
                 int res = Long.compare(o1.endTime(), o2.endTime());
@@ -61,8 +63,11 @@ public class GridTimeoutProcessor extends GridProcessorAdapter {
                 if (res != 0)
                     return res;
 
+                Class<?> lhs = o1 instanceof ContextAwareWrapper ? ((ContextAwareWrapper<?>)o1).delegate().getClass() : o1.getClass();
+                Class<?> rhs = o2 instanceof ContextAwareWrapper ? ((ContextAwareWrapper<?>)o2).delegate().getClass() : o2.getClass();
+
                 // There can be an intersection between timeouts and ids for different subsystems.
-                return o1.getClass().getName().compareTo(o2.getClass().getName());
+                return lhs.getName().compareTo(rhs.getName());
             }
         });
 
@@ -105,11 +110,13 @@ public class GridTimeoutProcessor extends GridProcessorAdapter {
             // Timeout will never happen.
             return false;
 
-        boolean added = timeoutObjs.add(timeoutObj);
+        ContextAwareTimeoutObject timeoutObjWrapper = ContextAwareTimeoutObject.wrap(timeoutObj);
+
+        boolean added = timeoutObjs.add(timeoutObjWrapper);
 
         assert added : "Duplicate timeout object found: " + timeoutObj;
 
-        if (timeoutObjs.firstx() == timeoutObj) {
+        if (timeoutObjs.firstx() == timeoutObjWrapper) {
             synchronized (mux) {
                 mux.notify(); // No need to notifyAll since we only have one thread.
             }

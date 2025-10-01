@@ -35,9 +35,14 @@ public abstract class ContextAwareWrapper<T> {
     }
 
     /** */
-    protected static <T> T wrap(T delegate, BiFunction<T, ThreadContextSnapshotRecord, T> wrapper) {
+    public T delegate() {
+        return delegate;
+    }
+
+    /** */
+    protected static <T, R extends T> R wrap(T delegate, BiFunction<T, ThreadContextSnapshotRecord, R> wrapper) {
         return delegate == null || delegate instanceof ContextAwareRunnable
-            ? delegate
+            ? (R)delegate
             : wrapper.apply(delegate, ThreadContext.createSnapshot());
     }
 }
