@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
-import org.apache.ignite.internal.thread.context.future.ContextAwareIgniteInternalFuture;
 import org.apache.ignite.internal.thread.context.pool.ContextAwareThreadPoolExecutor;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.testframework.GridTestUtils;
@@ -182,7 +181,7 @@ public class ContextAttributesTest extends GridCommonAbstractTest {
     public void testIgniteFutureContextPropagation() throws Exception {
         AtomicReference<Exception> ex = new AtomicReference<>();
 
-        GridFutureAdapter<String> fut = new ContextAwareIgniteInternalFuture<>();
+        GridFutureAdapter<String> fut = new GridFutureAdapter<>();
         IgniteInternalFuture<String> chainFut;
 
         try (Scope ignored0 = ThreadContext.withAttribute(STRING_ATTR, "hello").withAttribute(INTEGER_ATTR, 1)) {

@@ -37,6 +37,7 @@ import org.apache.ignite.lang.IgniteClosure;
 import org.apache.ignite.lang.IgniteInClosure;
 import org.apache.ignite.lang.IgniteOutClosure;
 import org.apache.ignite.lang.IgniteRunnable;
+import org.apache.ignite.thread.context.function.ContextAwareInClosure;
 import org.jetbrains.annotations.Async;
 import org.jetbrains.annotations.Nullable;
 
@@ -353,6 +354,8 @@ public class GridFutureAdapter<R> implements IgniteInternalFuture<R> {
     /** {@inheritDoc} */
     @Async.Schedule
     @Override public void listen(IgniteInClosure<? super IgniteInternalFuture<R>> lsnr) {
+        lsnr = ContextAwareInClosure.wrap(lsnr);
+
         if (!registerWaiter(lsnr))
             notifyListener(lsnr);
     }
@@ -378,9 +381,7 @@ public class GridFutureAdapter<R> implements IgniteInternalFuture<R> {
         IgniteClosure<? super IgniteInternalFuture<R>, T> doneCb,
         Executor exec
     ) {
-        GridFutureAdapter<T> fut = newIncompleteFuture();
-
-        listen(new GridFutureChainListener<>(fut, doneCb, exec));
+        ChainFuture<R, T> fut = new ChainFuture<>(this, doneCb, exec);
 
         if (ignoreInterrupts)
             fut.ignoreInterrupts();
@@ -405,7 +406,7 @@ public class GridFutureAdapter<R> implements IgniteInternalFuture<R> {
         IgniteClosure<? super IgniteInternalFuture<R>, IgniteInternalFuture<T>> doneCb,
         @Nullable Executor exec
     ) {
-        GridFutureAdapter<T> res = newIncompleteFuture();
+        GridFutureAdapter<T> res = new GridFutureAdapter<>();
 
         if (ignoreInterrupts)
             res.ignoreInterrupts();
@@ -638,8 +639,35 @@ public class GridFutureAdapter<R> implements IgniteInternalFuture<R> {
         return s == CANCELLED ? "CANCELLED" : s != null && s.getClass() == Node.class ? "INIT" : DONE;
     }
 
-    /** */
-    protected <T> GridFutureAdapter<T> newIncompleteFuture() {
-        return new GridFutureAdapter<>();
+    /**
+     *
+     */
+    private static class ChainFuture<R, T> extends GridFutureAdapter<T> {
+        /** */
+        private final GridFutureAdapter<R> fut;
+
+        /** */
+        private final IgniteClosure<? super IgniteInternalFuture<R>, T> doneCb;
+
+        /**
+         * @param fut Future.
+         * @param doneCb Closure.
+         * @param cbExec Optional executor to run callback.
+         */
+        ChainFuture(
+            GridFutureAdapter<R> fut,
+            IgniteClosure<? super IgniteInternalFuture<R>, T> doneCb,
+            @Nullable Executor cbExec
+        ) {
+            this.fut = fut;
+            this.doneCb = doneCb;
+
+            fut.listen(new GridFutureChainListener<>(this, doneCb, cbExec));
+        }
+
+        /** {@inheritDoc} */
+        @Override public String toString() {
+            return "ChainFuture [orig=" + fut + ", doneCb=" + doneCb + ']';
+        }
     }
 }
