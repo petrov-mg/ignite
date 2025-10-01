@@ -44,5 +44,10 @@ public class ContextAwareIoPool implements IoPool {
     @Override public Executor executor() {
         return executor;
     }
+
+    /** */
+    public static IoPool wrap(IoPool pool) {
+        return pool == null ? null : new ContextAwareIoPool(pool);
+    }
 }
 

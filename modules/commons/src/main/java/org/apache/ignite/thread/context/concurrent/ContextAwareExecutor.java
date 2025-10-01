@@ -37,6 +37,6 @@ public class ContextAwareExecutor implements Executor {
 
     /** */
     public static Executor wrap(Executor delegate) {
-        return new ContextAwareExecutor(delegate);
+        return delegate == null ? null : new ContextAwareExecutor(delegate);
     }
 }
