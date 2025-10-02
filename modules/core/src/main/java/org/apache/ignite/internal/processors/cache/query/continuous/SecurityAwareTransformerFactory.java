@@ -22,9 +22,9 @@ import java.util.UUID;
 import javax.cache.configuration.Factory;
 import org.apache.ignite.internal.processors.security.AbstractSecurityAwareExternalizable;
 import org.apache.ignite.internal.processors.security.IgniteSecurity;
-import org.apache.ignite.internal.processors.security.OperationSecurityContext;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteSandbox;
 import org.apache.ignite.lang.IgniteClosure;
+import org.apache.ignite.thread.context.Scope;
 
 /**
  *  Security aware transformer factory.
@@ -58,7 +58,7 @@ public class SecurityAwareTransformerFactory<E, R> extends
             @Override public R apply(E e) {
                 IgniteSecurity security = ignite.context().security();
 
-                try (OperationSecurityContext c = security.withContext(subjectId)) {
+                try (Scope ignored = security.withContext(subjectId)) {
                     IgniteSandbox sandbox = security.sandbox();
 
                     return sandbox.enabled() ? sandbox.execute(() -> cl.apply(e)) : cl.apply(e);

@@ -68,7 +68,6 @@ import org.apache.ignite.internal.processors.rest.request.GridRestNodeStateBefor
 import org.apache.ignite.internal.processors.rest.request.GridRestRequest;
 import org.apache.ignite.internal.processors.rest.request.GridRestTaskRequest;
 import org.apache.ignite.internal.processors.rest.request.RestQueryRequest;
-import org.apache.ignite.internal.processors.security.OperationSecurityContext;
 import org.apache.ignite.internal.processors.security.SecurityContext;
 import org.apache.ignite.internal.util.GridSpinReadWriteLock;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
@@ -89,6 +88,7 @@ import org.apache.ignite.plugin.security.SecurityCredentials;
 import org.apache.ignite.plugin.security.SecurityException;
 import org.apache.ignite.plugin.security.SecurityPermission;
 import org.apache.ignite.thread.IgniteThread;
+import org.apache.ignite.thread.context.Scope;
 
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_REST_SECURITY_TOKEN_TIMEOUT;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_REST_SESSION_TIMEOUT;
@@ -290,7 +290,7 @@ public class GridRestProcessor extends GridProcessorAdapter implements IgniteRes
                 if (secCtx0 == null || ses.isTokenExpired(sesTokTtl))
                     ses.secCtx = secCtx0 = authenticate(req, ses);
 
-                try (OperationSecurityContext s = ctx.security().withContext(secCtx0)) {
+                try (Scope ignored = ctx.security().withContext(secCtx0)) {
                     authorize(req);
 
                     return handleRequest0(req);

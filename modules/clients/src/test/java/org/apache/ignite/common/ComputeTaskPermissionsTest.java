@@ -50,7 +50,6 @@ import org.apache.ignite.configuration.ThinClientConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.management.cache.VerifyBackupPartitionsTask;
 import org.apache.ignite.internal.processors.security.AbstractSecurityTest;
-import org.apache.ignite.internal.processors.security.OperationSecurityContext;
 import org.apache.ignite.internal.processors.security.PublicAccessJob;
 import org.apache.ignite.internal.processors.security.SecurityContext;
 import org.apache.ignite.internal.processors.security.compute.ComputePermissionCheckTest;
@@ -71,6 +70,7 @@ import org.apache.ignite.plugin.security.SecurityCredentials;
 import org.apache.ignite.plugin.security.SecurityException;
 import org.apache.ignite.plugin.security.SecurityPermissionSet;
 import org.apache.ignite.plugin.security.SecurityPermissionSetBuilder;
+import org.apache.ignite.thread.context.Scope;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.Test;
@@ -379,7 +379,7 @@ public class ComputeTaskPermissionsTest extends AbstractSecurityTest {
         SecurityContext initiatorSecCtx = securityContext("no-permissions-login-0");
 
         SupplierX<Future<?>> starter = () -> {
-            try (OperationSecurityContext ignored1 = grid(0).context().security().withContext(initiatorSecCtx)) {
+            try (Scope ignored1 = grid(0).context().security().withContext(initiatorSecCtx)) {
                 return new TestFutureAdapter<>(
                     grid(0).context().closure().runAsync(
                         BROADCAST,
@@ -429,7 +429,7 @@ public class ComputeTaskPermissionsTest extends AbstractSecurityTest {
             assertTrue(taskStartedLatch.await(getTestTimeout(), MILLISECONDS));
 
             try (
-                OperationSecurityContext ignored = initiator == null
+                Scope ignored = initiator == null
                     ? null
                     : grid(0).context().security().withContext(initiator)
             ) {

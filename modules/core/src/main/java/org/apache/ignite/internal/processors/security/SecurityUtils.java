@@ -57,7 +57,10 @@ import org.apache.ignite.plugin.security.SecurityPermission;
 import org.apache.ignite.plugin.security.SecurityPermissionSet;
 import org.apache.ignite.spi.IgniteSpiException;
 import org.apache.ignite.spi.discovery.DiscoverySpiNodeAuthenticator;
+import org.apache.ignite.thread.context.Scope;
+import org.apache.ignite.thread.context.ThreadContext;
 
+import static org.apache.ignite.internal.processors.security.IgniteSecurityProcessor.SEC_CTX;
 import static org.apache.ignite.internal.util.IgniteUtils.IGNITE_PKG;
 import static org.apache.ignite.internal.util.IgniteUtils.packageName;
 
@@ -170,12 +173,7 @@ public class SecurityUtils {
      * @see #withRemoteSecurityContext(GridKernalContext, SecurityContext)
      */
     public static SecurityContext remoteSecurityContext(GridKernalContext ctx) {
-        IgniteSecurity security = ctx.security();
-
-        if (!security.enabled() || security.isDefaultContext())
-            return null;
-
-        return security.securityContext();
+        return ThreadContext.get(SEC_CTX);
     }
 
     /** @return Current security subject ID if security is enabled, otherwise null. */
@@ -201,9 +199,9 @@ public class SecurityUtils {
      * context change is needed.
      * Note that this method is safe to use only when it is known to be called in the security context of the local node
      * (e.g. in system workers).
-     * @return {@link OperationSecurityContext} instance if new security context is set, otherwise {@code null}.
+     * @return {@link Scope} instance if new security context is set, otherwise {@code null}.
      */
-    public static OperationSecurityContext withRemoteSecurityContext(GridKernalContext ctx, SecurityContext secCtx) {
+    public static Scope withRemoteSecurityContext(GridKernalContext ctx, SecurityContext secCtx) {
         if (secCtx == null)
             return null;
 
@@ -274,7 +272,7 @@ public class SecurityUtils {
      * @return Proxy of {@code instance} if the sandbox is enabled and class of {@code instance} is not a system type
      * otherwise {@code instance}.
      */
-    public static <T> T sandboxedProxy(GridKernalContext ctx, final Class cls, final T instance) {
+    public static <T> T sandboxedProxy(GridKernalContext ctx, final Class<T> cls, final T instance) {
         if (instance == null)
             return null;
 

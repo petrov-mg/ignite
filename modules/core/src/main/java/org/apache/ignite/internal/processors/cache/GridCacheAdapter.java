@@ -89,6 +89,7 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.affinity.GridCacheAffinityImpl;
 import org.apache.ignite.internal.processors.cache.distributed.IgniteExternalizableExpiryPolicy;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtCacheAdapter;
+import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTxLocalAdapter;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtInvalidPartitionException;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtLocalPartition;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionTopology;
@@ -112,7 +113,6 @@ import org.apache.ignite.internal.processors.performancestatistics.OperationType
 import org.apache.ignite.internal.processors.platform.cache.PlatformCacheEntryFilter;
 import org.apache.ignite.internal.processors.platform.client.cache.ImmutableArrayMap;
 import org.apache.ignite.internal.processors.platform.client.cache.ImmutableArraySet;
-import org.apache.ignite.internal.processors.security.OperationSecurityContext;
 import org.apache.ignite.internal.processors.security.SecurityContext;
 import org.apache.ignite.internal.processors.task.GridInternal;
 import org.apache.ignite.internal.transactions.IgniteTxHeuristicCheckedException;
@@ -153,6 +153,7 @@ import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.resources.JobContextResource;
 import org.apache.ignite.resources.LoggerResource;
 import org.apache.ignite.thread.IgniteThreadFactory;
+import org.apache.ignite.thread.context.Scope;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionConcurrency;
 import org.apache.ignite.transactions.TransactionIsolation;
@@ -3888,7 +3889,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                                 ctx.operationContextPerCall(opCtx);
                                 ctx.shared().txContextReset();
 
-                                try (OperationSecurityContext ignored = ctx.kernalContext().security().withContext(secCtx)) {
+                                try (Scope ignored = ctx.kernalContext().security().withContext(secCtx)) {
                                     opFut = op.op(tx0).chain(clo);
                                 }
                                 catch (Throwable e) {

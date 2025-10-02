@@ -23,15 +23,11 @@ import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.io.ObjectStreamException;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.IgniteScheduler;
-import org.apache.ignite.internal.processors.security.OperationSecurityContext;
 import org.apache.ignite.internal.processors.security.SecurityUtils;
 import org.apache.ignite.internal.util.future.IgniteFutureImpl;
-import org.apache.ignite.internal.util.lang.GridPlainCallable;
-import org.apache.ignite.internal.util.lang.GridPlainRunnable;
 import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.lang.IgniteFuture;
 import org.apache.ignite.scheduler.SchedulerFuture;
@@ -68,7 +64,7 @@ public class IgniteSchedulerImpl implements IgniteScheduler, Externalizable {
         guard();
 
         try {
-            return new IgniteFutureImpl<>(ctx.closure().runLocalSafe(localSecureRunnable(r), false));
+            return new IgniteFutureImpl<>(ctx.closure().runLocalSafe(SecurityUtils.sandboxedProxy(ctx, Runnable.class, r), false));
         }
         finally {
             unguard();
@@ -83,7 +79,7 @@ public class IgniteSchedulerImpl implements IgniteScheduler, Externalizable {
         guard();
 
         try {
-            return ctx.timeout().schedule(localSecureRunnable(r), timeUnit.toMillis(delay), -1);
+            return ctx.timeout().schedule(SecurityUtils.sandboxedProxy(ctx, Runnable.class, r), timeUnit.toMillis(delay), -1);
         }
         finally {
             unguard();
@@ -97,7 +93,7 @@ public class IgniteSchedulerImpl implements IgniteScheduler, Externalizable {
         guard();
 
         try {
-            return new IgniteFutureImpl<>(ctx.closure().callLocalSafe(localSecureCallable(c), false));
+            return new IgniteFutureImpl<>(ctx.closure().callLocalSafe(SecurityUtils.sandboxedProxy(ctx, Callable.class, c), false));
         }
         finally {
             unguard();
@@ -111,7 +107,7 @@ public class IgniteSchedulerImpl implements IgniteScheduler, Externalizable {
         guard();
 
         try {
-            return ctx.schedule().schedule(localSecureRunnable(job), ptrn);
+            return ctx.schedule().schedule(SecurityUtils.sandboxedProxy(ctx, Runnable.class, job), ptrn);
         }
         finally {
             unguard();
@@ -125,7 +121,7 @@ public class IgniteSchedulerImpl implements IgniteScheduler, Externalizable {
         guard();
 
         try {
-            return ctx.schedule().schedule(localSecureCallable(job), ptrn);
+            return ctx.schedule().schedule(SecurityUtils.sandboxedProxy(ctx, Callable.class, job), ptrn);
         }
         finally {
             unguard();
@@ -164,70 +160,5 @@ public class IgniteSchedulerImpl implements IgniteScheduler, Externalizable {
      */
     private Object readResolve() throws ObjectStreamException {
         return ctx.grid().scheduler();
-    }
-
-    /** @return Security aware runnable. */
-    private Runnable localSecureRunnable(Runnable original) {
-        if (!ctx.security().enabled() || ctx.security().isDefaultContext())
-            return original;
-
-        return new SecurityAwareClosure<Void>(ctx.security().securityContext().subject().id(), original);
-    }
-
-    /** @return Security aware callable. */
-    private <T> Callable<T> localSecureCallable(Callable<T> original) {
-        if (!ctx.security().enabled() || ctx.security().isDefaultContext())
-            return original;
-
-        return new SecurityAwareClosure<>(ctx.security().securityContext().subject().id(), original);
-    }
-
-    /** */
-    private class SecurityAwareClosure<T> implements GridPlainRunnable, GridPlainCallable<T>, GridInternalWrapper<Object> {
-        /** Security subject id. */
-        private final UUID secSubjId;
-
-        /** Runnable. */
-        private final Runnable runnable;
-
-        /** Callable. */
-        private final Callable<T> call;
-
-        /** */
-        private SecurityAwareClosure(UUID secSubjId, Runnable r) {
-            this.secSubjId = secSubjId;
-            runnable = SecurityUtils.sandboxedProxy(ctx, Runnable.class, r);
-            call = null;
-        }
-
-        /** */
-        private SecurityAwareClosure(UUID secSubjId, Callable<T> c) {
-            this.secSubjId = secSubjId;
-            call = SecurityUtils.sandboxedProxy(ctx, Callable.class, c);
-            runnable = null;
-        }
-
-        /** {@inheritDoc} */
-        @Override public void run() {
-            assert runnable != null;
-
-            try (OperationSecurityContext c = ctx.security().withContext(secSubjId)) {
-                runnable.run();
-            }
-        }
-
-        /** {@inheritDoc} */
-        @Override public T call() throws Exception {
-            assert call != null;
-
-            try (OperationSecurityContext c = ctx.security().withContext(secSubjId)) {
-                return call.call();
-            }
-        }
-
-        /** {@inheritDoc} */
-        @Override public Object userObject() {
-            return runnable != null ? runnable : call;
-        }
     }
 }

@@ -29,6 +29,7 @@ import org.apache.ignite.internal.util.GridConcurrentHashSet;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.lang.IgniteCallable;
 import org.apache.ignite.scheduler.SchedulerFuture;
+import org.apache.ignite.thread.context.function.ContextAwareCallable;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -55,13 +56,15 @@ public class IgniteScheduleProcessor extends IgniteScheduleProcessorAdapter {
 
         ScheduleFutureImpl<Object> fut = new ScheduleFutureImpl<>(sched, ctx, ptrn);
 
-        fut.schedule(new IgniteCallable<Object>() {
+        IgniteCallable<Object> callable = new IgniteCallable<>() {
             @Nullable @Override public Object call() {
                 c.run();
 
                 return null;
             }
-        });
+        };
+
+        fut.schedule(ContextAwareCallable.wrap(callable));
 
         return fut;
     }

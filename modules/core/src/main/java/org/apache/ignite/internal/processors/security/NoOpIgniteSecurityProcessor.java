@@ -32,6 +32,7 @@ import org.apache.ignite.plugin.security.SecurityPermission;
 import org.apache.ignite.plugin.security.SecuritySubject;
 import org.apache.ignite.spi.IgniteNodeValidationResult;
 import org.apache.ignite.spi.discovery.DiscoveryDataBag;
+import org.apache.ignite.thread.context.Scope;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.processors.security.IgniteSecurityProcessor.ATTR_GRID_SEC_PROC_CLASS;
@@ -44,13 +45,6 @@ public class NoOpIgniteSecurityProcessor extends IgniteSecurityAdapter {
     /** Error message that occurs when trying to perform security operations if security disabled. */
     public static final String SECURITY_DISABLED_ERROR_MSG = "Operation cannot be performed: Ignite security disabled.";
 
-    /** No operation security context. */
-    private final OperationSecurityContext opSecCtx = new OperationSecurityContext(this, null) {
-        @Override public void close() {
-            // No-op.
-        }
-    };
-
     /** Instance of IgniteSandbox. */
     private final IgniteSandbox sandbox = new NoOpSandbox();
 
@@ -62,18 +56,13 @@ public class NoOpIgniteSecurityProcessor extends IgniteSecurityAdapter {
     }
 
     /** {@inheritDoc} */
-    @Override public OperationSecurityContext withContext(SecurityContext secCtx) {
-        return opSecCtx;
+    @Override public Scope withContext(SecurityContext secCtx) {
+        return null;
     }
 
     /** {@inheritDoc} */
-    @Override public OperationSecurityContext withContext(UUID nodeId) {
-        return opSecCtx;
-    }
-
-    /** {@inheritDoc} */
-    @Override public boolean isDefaultContext() {
-        return true;
+    @Override public Scope withContext(UUID nodeId) {
+        return null;
     }
 
     /** {@inheritDoc} */
