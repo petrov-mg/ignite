@@ -23,9 +23,6 @@ class ThreadContextData {
     private static final ScopedAttributeValueStack<?>[] EMPTY = new ScopedAttributeValueStack[0];
 
     /** */
-    private final ThreadContextAttributeRegistry attrReg = ThreadContextAttributeRegistry.instance();
-
-    /** */
     private int activeScopeDepth;
 
     /** */
@@ -36,22 +33,25 @@ class ThreadContextData {
 
     /** */
     <T> T get(ThreadContextAttribute<T> attr) {
-        ScopedAttributeValueStack<T> attrVals = attributeValues(attr.id());
+        if (attr.id() >= attrs.length)
+            return attr.initialValue();
 
-        return attrVals.peek();
+        ScopedAttributeValueStack<T> attrVals = (ScopedAttributeValueStack<T>)attrs[attr.id()];
+
+        return attrVals == null ? attr.initialValue() : attrVals.peek();
     }
 
     /** */
     <T> void put(ThreadContextAttribute<T> attr, T val) {
-        ScopedAttributeValueStack<T> attrVals = attributeValues(attr.id());
+        if (attr.id() >= attrs.length)
+            grow(attr.id() + 1);
 
-        if (attrVals.peek() == val)
-            return;
+        ScopedAttributeValueStack<T> attrVals = (ScopedAttributeValueStack<T>)attrs[attr.id()];
 
-        if (attrVals.isEmpty())
-            ++activeAttrsCnt;
+        if (attrVals == null)
+            attrs[attr.id()] = attrVals = new ScopedAttributeValueStack<>(attr);
 
-        attrVals.push(activeScopeDepth, val);
+        push(attrVals, val);
     }
 
     /** */
@@ -61,8 +61,12 @@ class ThreadContextData {
 
         ThreadContextSnapshot snapshot = ThreadContextSnapshot.emptySnapshot();
 
-        for (ScopedAttributeValueStack<?> attrVals : attrs)
-            snapshot = attrVals.exportTopTo(snapshot);
+        for (int i = 0; i < attrs.length; i++) {
+            ScopedAttributeValueStack<?> attrVals = attrs[i];
+
+            if (attrVals != null)
+                snapshot = attrVals.exportTopTo(snapshot);
+        }
 
         return snapshot;
     }
@@ -72,19 +76,20 @@ class ThreadContextData {
         if (snapshot.isEmpty() && activeAttrsCnt == 0)
             return;
 
-        for (int id = attrReg.size() - 1; id >= 0; id--) {
-            ThreadContextAttribute<Object> attr = attrReg.attribute(id);
-            Object attrVal;
+        int maxAttrId = snapshot.isEmpty() ? attrs.length - 1 : Math.max(snapshot.attribute().id(), attrs.length - 1);
 
-            if (!snapshot.isEmpty() && snapshot.attributeId() == id) {
-                attrVal = snapshot.attributeValue();
+        for (int attrId = maxAttrId; attrId >= 0; attrId--) {
+            if (!snapshot.isEmpty() && snapshot.attribute().id() == attrId) {
+                put(snapshot.attribute(), snapshot.attributeValue());
 
                 snapshot = snapshot.previous();
             }
-            else
-                attrVal = attr.initialValue();
+            else {
+                ScopedAttributeValueStack<Object> attrVals = (ScopedAttributeValueStack<Object>)attrs[attrId];
 
-            put(attr, attrVal);
+                if (attrVals != null)
+                    push(attrVals, attrVals.initialValue());
+            }
         }
     }
 
@@ -102,30 +107,35 @@ class ThreadContextData {
     }
 
     /** */
+    private <T> void push(ScopedAttributeValueStack<T> attrVals, T val) {
+        if (attrVals.peek() == val)
+            return;
+
+        if (attrVals.isEmpty())
+            ++activeAttrsCnt;
+
+        attrVals.push(activeScopeDepth, val);
+    }
+
+    /** */
     private void clearActiveScopeData() {
-        for (ScopedAttributeValueStack<?> attrVals : attrs) {
+        for (int i = 0; i < attrs.length; i++) {
+            ScopedAttributeValueStack<?> attrVals = attrs[i];
+
+            if (attrVals == null)
+                continue;
+
             if (attrVals.pop(activeScopeDepth) && attrVals.isEmpty())
                 --activeAttrsCnt;
         }
     }
 
     /** */
-    private <T> ScopedAttributeValueStack<T> attributeValues(int id) {
-        if (attrs.length <= id)
-            fetchRegisteredAttributes();
-
-        return (ScopedAttributeValueStack<T>)attrs[id];
-    }
-
-    /** */
-    private void fetchRegisteredAttributes() {
-        ScopedAttributeValueStack<?>[] upd = new ScopedAttributeValueStack[attrReg.size()];
+    private void grow(int size) {
+        ScopedAttributeValueStack<?>[] upd = new ScopedAttributeValueStack[size];
 
         if (attrs.length != 0)
             System.arraycopy(attrs, 0, upd, 0, attrs.length);
-
-        for (int id = attrs.length; id < attrReg.size(); id++)
-            upd[id] = new ScopedAttributeValueStack<>(attrReg.attribute(id));
 
         attrs = upd;
     }

@@ -19,7 +19,6 @@ package org.apache.ignite.internal.thread.context;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import org.apache.ignite.internal.util.typedef.F;
 
 /** */
 class ScopedAttributeValueStack<T> {
@@ -30,7 +29,7 @@ class ScopedAttributeValueStack<T> {
     private final ThreadContextAttribute<T> attr;
 
     /** */
-    private Deque<ScopedAttributeValue<T>> scopedVals;
+    private final Deque<ScopedAttributeValue<T>> scopedVals = new ArrayDeque<>(DFLT_SCOPE_ATTR_VAL_CAPACITY);
 
     /** */
     ScopedAttributeValueStack(ThreadContextAttribute<T> attr) {
@@ -49,9 +48,6 @@ class ScopedAttributeValueStack<T> {
 
     /** */
     void push(int scopeDepth, T val) {
-        if (scopedVals == null)
-            scopedVals = new ArrayDeque<>(DFLT_SCOPE_ATTR_VAL_CAPACITY);
-
         ScopedAttributeValue<T> scopedVal = scopedVals.peek();
 
         if (scopedVal != null && scopedVal.scopeDepth == scopeDepth)
@@ -74,7 +70,12 @@ class ScopedAttributeValueStack<T> {
 
     /** */
     boolean isEmpty() {
-        return F.isEmpty(scopedVals);
+        return scopedVals.isEmpty();
+    }
+
+    /** */
+    T initialValue() {
+        return attr.initialValue();
     }
 
     /** */

@@ -20,10 +20,10 @@ package org.apache.ignite.internal.thread.context;
 /** */
 public class ThreadContextSnapshot {
     /** */
-    private static final ThreadContextSnapshot EMPTY = new ThreadContextSnapshot(-1, null, null);
+    private static final ThreadContextSnapshot EMPTY = new ThreadContextSnapshot(null, null, null);
 
     /** */
-    private final int attrId;
+    private final ThreadContextAttribute<?> attr;
 
     /** */
     private final Object attrVal;
@@ -32,17 +32,17 @@ public class ThreadContextSnapshot {
     private final ThreadContextSnapshot prev;
 
     /** */
-    private ThreadContextSnapshot(int attrId, Object attrVal, ThreadContextSnapshot prev) {
-        this.attrId = attrId;
+    private ThreadContextSnapshot(ThreadContextAttribute<?> attr, Object attrVal, ThreadContextSnapshot prev) {
+        this.attr = attr;
         this.attrVal = attrVal;
         this.prev = prev;
     }
 
     /** */
-    int attributeId() {
+    <T> ThreadContextAttribute<T> attribute() {
         assert !isEmpty();
 
-        return attrId;
+        return (ThreadContextAttribute<T>)attr;
     }
 
     /** */
@@ -66,7 +66,7 @@ public class ThreadContextSnapshot {
 
     /** */
     <T> ThreadContextSnapshot withAttribute(ThreadContextAttribute<T> attr, T val) {
-        return new ThreadContextSnapshot(attr.id(), val, this);
+        return new ThreadContextSnapshot(attr, val, this);
     }
 
     /** */

@@ -42,10 +42,10 @@ public class ThreadContextAttributesTest extends GridCommonAbstractTest {
     private static final Integer DFLT_INT_VAL = 0;
 
     /** */
-    private static final ThreadContextAttribute<String> STR_ATTR = ThreadContextAttributeRegistry.instance().register();
+    private static final ThreadContextAttribute<String> STR_ATTR = ThreadContextAttribute.newInstance();
 
     /** */
-    private static final ThreadContextAttribute<Integer> INT_ATTR = ThreadContextAttributeRegistry.instance().register(DFLT_INT_VAL);
+    private static final ThreadContextAttribute<Integer> INT_ATTR = ThreadContextAttribute.newInstance(DFLT_INT_VAL);
 
     /** */
     private ExecutorService poolToShutdownAfterTest;
@@ -151,8 +151,9 @@ public class ThreadContextAttributesTest extends GridCommonAbstractTest {
     public void testRuntimeAttributeRegistration() {
         // Initializes the Context Data for the current thread to check the growth of the array containing attribute values.
         assertEquals(DFLT_INT_VAL, ThreadContext.get(INT_ATTR));
+        assertEquals(DFLT_STR_VAL, ThreadContext.get(STR_ATTR));
 
-        ThreadContextAttribute<Object> attr = ThreadContextAttributeRegistry.instance().register();
+        ThreadContextAttribute<Object> attr = ThreadContextAttribute.newInstance();
 
         assertEquals(null, ThreadContext.get(attr));
 

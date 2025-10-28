@@ -35,7 +35,6 @@ import org.apache.ignite.internal.processors.security.sandbox.NoOpSandbox;
 import org.apache.ignite.internal.thread.context.Scope;
 import org.apache.ignite.internal.thread.context.ThreadContext;
 import org.apache.ignite.internal.thread.context.ThreadContextAttribute;
-import org.apache.ignite.internal.thread.context.ThreadContextAttributeRegistry;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteFuture;
@@ -90,7 +89,7 @@ public class IgniteSecurityProcessor extends IgniteSecurityAdapter {
     }
 
     /** Thread context attribute that holds Security Context. */
-    private static final ThreadContextAttribute<SecurityContext> SEC_CTX = ThreadContextAttributeRegistry.instance().register();
+    private static final ThreadContextAttribute<SecurityContext> SEC_CTX = ThreadContextAttribute.newInstance();
 
     /** Security processor. */
     private final GridSecurityProcessor secPrc;

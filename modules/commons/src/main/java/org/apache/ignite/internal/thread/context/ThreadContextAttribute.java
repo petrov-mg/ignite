@@ -17,8 +17,18 @@
 
 package org.apache.ignite.internal.thread.context;
 
-/** */
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Represents a key used to access or modify corresponding attribute values in {@link ThreadContext}.
+ *
+ * @see ThreadContext#get(ThreadContextAttribute)
+ * @see ThreadContext#withAttribute(ThreadContextAttribute, Object)
+ */
 public class ThreadContextAttribute<T> {
+    /** */
+    private static final AtomicInteger ID_GEN = new AtomicInteger();
+
     /** */
     private final int id;
 
@@ -26,7 +36,7 @@ public class ThreadContextAttribute<T> {
     private final T initialVal;
 
     /** */
-    ThreadContextAttribute(int id, T initialVal) {
+    private ThreadContextAttribute(int id, T initialVal) {
         this.id = id;
         this.initialVal = initialVal;
     }
@@ -39,5 +49,25 @@ public class ThreadContextAttribute<T> {
     /** */
     public T initialValue() {
         return initialVal;
+    }
+
+    /**
+     * Creates attribute instance with initial value set to {@code null}.
+     *
+     * @see #newInstance(Object)
+     */
+    public static <T> ThreadContextAttribute<T> newInstance() {
+        return newInstance(null);
+    }
+
+    /**
+     * Creates attribute instance with specified initial value. Initial value is returned by
+     * {@link ThreadContext#get(ThreadContextAttribute)} method if attribute value is not set for {@link Scope} explicitly.
+     *
+     * @param initialVal Attribute initial value.
+     * @return Attribute instance.
+     */
+    public static <T> ThreadContextAttribute<T> newInstance(T initialVal) {
+        return new ThreadContextAttribute<>(ID_GEN.getAndIncrement(), initialVal);
     }
 }
