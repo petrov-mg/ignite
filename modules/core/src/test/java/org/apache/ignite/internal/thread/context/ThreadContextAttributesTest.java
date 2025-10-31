@@ -73,16 +73,16 @@ public class ThreadContextAttributesTest extends GridCommonAbstractTest {
 
         checkAttributeValues(DFLT_STR_VAL, DFLT_INT_VAL);
 
-        try (Scope ignored0 = ThreadContext.withAttribute(STR_ATTR, DFLT_STR_VAL).withAttribute(INT_ATTR, DFLT_INT_VAL)) {
+        try (ThreadContextScope ignored0 = ThreadContext.withAttribute(STR_ATTR, DFLT_STR_VAL).withAttribute(INT_ATTR, DFLT_INT_VAL)) {
             checkAttributeValues(DFLT_STR_VAL, DFLT_INT_VAL);
 
-            try (Scope ignored1 = ThreadContext.withAttribute(STR_ATTR, strAttrVal)) {
+            try (ThreadContextScope ignored1 = ThreadContext.withAttribute(STR_ATTR, strAttrVal)) {
                 checkAttributeValues(strAttrVal, DFLT_INT_VAL);
 
-                try (Scope ignored2 = ThreadContext.withAttribute(INT_ATTR, intAttrVal)) {
+                try (ThreadContextScope ignored2 = ThreadContext.withAttribute(INT_ATTR, intAttrVal)) {
                     checkAttributeValues(strAttrVal, intAttrVal);
 
-                    try (Scope ignored3 = ThreadContext.withAttribute(STR_ATTR, DFLT_STR_VAL)) {
+                    try (ThreadContextScope ignored3 = ThreadContext.withAttribute(STR_ATTR, DFLT_STR_VAL)) {
                         checkAttributeValues(DFLT_STR_VAL, intAttrVal);
                     }
 
@@ -101,10 +101,10 @@ public class ThreadContextAttributesTest extends GridCommonAbstractTest {
     /** */
     @Test
     public void testScopeAttributeValueOverwrite() {
-        try (Scope ignored0 = ThreadContext.withAttribute(STR_ATTR, "test").withAttribute(INT_ATTR, 3)) {
+        try (ThreadContextScope ignored0 = ThreadContext.withAttribute(STR_ATTR, "test").withAttribute(INT_ATTR, 3)) {
             checkAttributeValues("test", 3);
 
-            try (Scope ignored1 = ThreadContext.withAttribute(INT_ATTR, 1).withAttribute(INT_ATTR, 2)) {
+            try (ThreadContextScope ignored1 = ThreadContext.withAttribute(INT_ATTR, 1).withAttribute(INT_ATTR, 2)) {
                 checkAttributeValues("test", 2);
             }
 
@@ -119,16 +119,16 @@ public class ThreadContextAttributesTest extends GridCommonAbstractTest {
 
         checkers.add(ThreadContextSnapshotChecker.create());
 
-        try (Scope ignored0 = ThreadContext.withAttribute(STR_ATTR, DFLT_STR_VAL).withAttribute(INT_ATTR, DFLT_INT_VAL)) {
+        try (ThreadContextScope ignored0 = ThreadContext.withAttribute(STR_ATTR, DFLT_STR_VAL).withAttribute(INT_ATTR, DFLT_INT_VAL)) {
             checkers.add(ThreadContextSnapshotChecker.create());
 
-            try (Scope ignored1 = ThreadContext.withAttribute(STR_ATTR, "test")) {
+            try (ThreadContextScope ignored1 = ThreadContext.withAttribute(STR_ATTR, "test")) {
                 checkers.add(ThreadContextSnapshotChecker.create());
 
-                try (Scope ignored2 = ThreadContext.withAttribute(INT_ATTR, 1)) {
+                try (ThreadContextScope ignored2 = ThreadContext.withAttribute(INT_ATTR, 1)) {
                     checkers.add(ThreadContextSnapshotChecker.create());
 
-                    try (Scope ignored3 = ThreadContext.withAttribute(STR_ATTR, DFLT_STR_VAL)) {
+                    try (ThreadContextScope ignored3 = ThreadContext.withAttribute(STR_ATTR, DFLT_STR_VAL)) {
                         checkers.add(ThreadContextSnapshotChecker.create());
                     }
 
@@ -157,7 +157,7 @@ public class ThreadContextAttributesTest extends GridCommonAbstractTest {
 
         assertEquals(null, ThreadContext.get(attr));
 
-        try (Scope ignored0 = ThreadContext.withAttribute(attr, "test")) {
+        try (ThreadContextScope ignored0 = ThreadContext.withAttribute(attr, "test")) {
             assertEquals("test", ThreadContext.get(attr));
         }
 
@@ -274,11 +274,11 @@ public class ThreadContextAttributesTest extends GridCommonAbstractTest {
 
     /** */
     private void createAttributeChecks(BiConsumerX<String, Integer> checkGenerator) throws Exception {
-        try (Scope ignored = ThreadContext.withAttribute(STR_ATTR, "test0").withAttribute(INT_ATTR, 1)) {
+        try (ThreadContextScope ignored = ThreadContext.withAttribute(STR_ATTR, "test0").withAttribute(INT_ATTR, 1)) {
             checkGenerator.accept("test0", 1);
         }
 
-        try (Scope ignored = ThreadContext.withAttribute(STR_ATTR, "test1").withAttribute(INT_ATTR, 2)) {
+        try (ThreadContextScope ignored = ThreadContext.withAttribute(STR_ATTR, "test1").withAttribute(INT_ATTR, 2)) {
             checkGenerator.accept("test1", 2);
         }
 
@@ -314,10 +314,10 @@ public class ThreadContextAttributesTest extends GridCommonAbstractTest {
             checkAttributeValues(DFLT_STR_VAL, DFLT_INT_VAL);
 
             // Checks that snapshot are restored correctly for attributes with both initialized and initial values.
-            try (Scope ignored0 = ThreadContext.withAttribute(STR_ATTR, "test")) {
+            try (ThreadContextScope ignored0 = ThreadContext.withAttribute(STR_ATTR, "test")) {
                 checkAttributeValues("test", DFLT_INT_VAL);
 
-                try (Scope ignored1 = ThreadContext.withSnapshot(snapshot)) {
+                try (ThreadContextScope ignored1 = ThreadContext.withSnapshot(snapshot)) {
                     checkAttributeValues(strAttrVal, intAttrVal);
                 }
 

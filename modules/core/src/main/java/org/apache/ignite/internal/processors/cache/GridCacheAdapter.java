@@ -114,7 +114,7 @@ import org.apache.ignite.internal.processors.platform.client.cache.ImmutableArra
 import org.apache.ignite.internal.processors.platform.client.cache.ImmutableArraySet;
 import org.apache.ignite.internal.processors.security.SecurityContext;
 import org.apache.ignite.internal.processors.task.GridInternal;
-import org.apache.ignite.internal.thread.context.Scope;
+import org.apache.ignite.internal.thread.context.ThreadContextScope;
 import org.apache.ignite.internal.transactions.IgniteTxHeuristicCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
@@ -3888,7 +3888,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                                 ctx.operationContextPerCall(opCtx);
                                 ctx.shared().txContextReset();
 
-                                try (Scope ignored = ctx.kernalContext().security().withContext(secCtx)) {
+                                try (ThreadContextScope ignored = ctx.kernalContext().security().withContext(secCtx)) {
                                     opFut = op.op(tx0).chain(clo);
                                 }
                                 catch (Throwable e) {

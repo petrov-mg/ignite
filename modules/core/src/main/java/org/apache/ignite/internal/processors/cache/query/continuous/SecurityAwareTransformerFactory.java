@@ -23,7 +23,7 @@ import javax.cache.configuration.Factory;
 import org.apache.ignite.internal.processors.security.AbstractSecurityAwareExternalizable;
 import org.apache.ignite.internal.processors.security.IgniteSecurity;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteSandbox;
-import org.apache.ignite.internal.thread.context.Scope;
+import org.apache.ignite.internal.thread.context.ThreadContextScope;
 import org.apache.ignite.lang.IgniteClosure;
 
 /**
@@ -58,7 +58,7 @@ public class SecurityAwareTransformerFactory<E, R> extends
             @Override public R apply(E e) {
                 IgniteSecurity security = ignite.context().security();
 
-                try (Scope ignored = security.withContext(subjectId)) {
+                try (ThreadContextScope ignored = security.withContext(subjectId)) {
                     IgniteSandbox sandbox = security.sandbox();
 
                     return sandbox.enabled() ? sandbox.execute(() -> cl.apply(e)) : cl.apply(e);

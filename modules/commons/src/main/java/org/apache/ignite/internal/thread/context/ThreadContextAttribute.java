@@ -62,7 +62,7 @@ public class ThreadContextAttribute<T> {
 
     /**
      * Creates attribute instance with specified initial value. Initial value is returned by
-     * {@link ThreadContext#get(ThreadContextAttribute)} method if attribute value is not set for {@link Scope} explicitly.
+     * {@link ThreadContext#get(ThreadContextAttribute)} method if attribute value is not set for {@link ThreadContextScope} explicitly.
      *
      * @param initialVal Attribute initial value.
      * @return Attribute instance.

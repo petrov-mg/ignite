@@ -20,9 +20,9 @@ package org.apache.ignite.internal.thread.context.function;
 import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-import org.apache.ignite.internal.thread.context.Scope;
 import org.apache.ignite.internal.thread.context.ThreadContext;
 import org.apache.ignite.internal.thread.context.ThreadContextAwareWrapper;
+import org.apache.ignite.internal.thread.context.ThreadContextScope;
 import org.apache.ignite.internal.thread.context.ThreadContextSnapshot;
 
 /** */
@@ -34,7 +34,7 @@ public class ThreadContextAwareCallable<T> extends ThreadContextAwareWrapper<Cal
 
     /** {@inheritDoc} */
     @Override public T call() throws Exception {
-        try (Scope ignored = ThreadContext.withSnapshot(snapshot)) {
+        try (ThreadContextScope ignored = ThreadContext.withSnapshot(snapshot)) {
             return delegate.call();
         }
     }

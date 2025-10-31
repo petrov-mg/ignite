@@ -17,18 +17,23 @@
 
 package org.apache.ignite.internal.thread.context;
 
-/** */
-class ThreadContextScope implements Scope {
+/**
+ * Represents a scope with {@link ThreadContextAttribute} values bound to it. A newly created scope inherits
+ * {@link ThreadContextAttribute} values of the enclosing scope. Closing a scope restores the {@link ThreadContextAttribute}
+ * values bound to the enclosing scope. If no enclosing scope is present, attributes are restored to their initial values.
+ * Note, each created scope MUST be closed.
+ */
+public class ThreadContextScope implements AutoCloseable {
     /** */
-    private static final Scope INSTANCE = new ThreadContextScope();
+    private static final ThreadContextScope INSTANCE = new ThreadContextScope();
 
     /** */
     private ThreadContextScope() {
         // No-op.
     }
 
-    /** {@inheritDoc} */
-    @Override public <T> Scope withAttribute(ThreadContextAttribute<T> attr, T val) {
+    /** Binds attribute with specified value to the current scope. */
+    public <T> ThreadContextScope withAttribute(ThreadContextAttribute<T> attr, T val) {
         ThreadContext.data().put(attr, val);
 
         return this;
@@ -40,14 +45,14 @@ class ThreadContextScope implements Scope {
     }
 
     /** */
-    static Scope create() {
+    static ThreadContextScope create() {
         ThreadContext.data().onScopeCreated();
 
         return INSTANCE;
     }
 
     /** */
-    static Scope createWith(ThreadContextSnapshot snapshot) {
+    static ThreadContextScope createWith(ThreadContextSnapshot snapshot) {
         ThreadContext.data().onScopeCreated();
 
         ThreadContext.data().restoreSnapshot(snapshot);

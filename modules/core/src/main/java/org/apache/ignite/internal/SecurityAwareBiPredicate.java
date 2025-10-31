@@ -22,7 +22,7 @@ import java.util.UUID;
 import org.apache.ignite.internal.processors.security.AbstractSecurityAwareExternalizable;
 import org.apache.ignite.internal.processors.security.IgniteSecurity;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteSandbox;
-import org.apache.ignite.internal.thread.context.Scope;
+import org.apache.ignite.internal.thread.context.ThreadContextScope;
 import org.apache.ignite.lang.IgniteBiPredicate;
 
 /**
@@ -52,7 +52,7 @@ public class SecurityAwareBiPredicate<E1, E2> extends AbstractSecurityAwareExter
     @Override public boolean apply(E1 e1, E2 e2) {
         IgniteSecurity security = ignite.context().security();
 
-        try (Scope ignored = security.withContext(subjectId)) {
+        try (ThreadContextScope ignored = security.withContext(subjectId)) {
             IgniteSandbox sandbox = security.sandbox();
 
             return sandbox.enabled() ? sandbox.execute(() -> original.apply(e1, e2)) : original.apply(e1, e2);

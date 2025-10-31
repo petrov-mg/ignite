@@ -111,7 +111,7 @@ import org.apache.ignite.internal.processors.security.SecurityContext;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutObject;
 import org.apache.ignite.internal.processors.tracing.Span;
 import org.apache.ignite.internal.processors.tracing.SpanTags;
-import org.apache.ignite.internal.thread.context.Scope;
+import org.apache.ignite.internal.thread.context.ThreadContextScope;
 import org.apache.ignite.internal.util.GridListSet;
 import org.apache.ignite.internal.util.GridPartitionStateMap;
 import org.apache.ignite.internal.util.GridStringBuilder;
@@ -3062,7 +3062,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                     if (task == null)
                         continue; // Main while loop.
 
-                    try (Scope ignored = withRemoteSecurityContext(cctx.kernalContext(), task.securityContext())) {
+                    try (ThreadContextScope ignored = withRemoteSecurityContext(cctx.kernalContext(), task.securityContext())) {
                         if (!isExchangeTask(task)) {
                             processCustomTask(task);
 

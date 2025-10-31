@@ -17,7 +17,7 @@
 
 package org.apache.ignite.internal.thread.context;
 
-/** Represents entry point to manage Thread Context {@link Scope}s and associated attributes values. */
+/** Represents entry point to manage Thread Context {@link ThreadContextScope}s and associated attributes values. */
 public class ThreadContext {
     /** */
     private static final ThreadLocal<ThreadContextData> THREAD_CONTEXT_DATA_HOLDER = ThreadLocal.withInitial(ThreadContextData::new);
@@ -35,18 +35,18 @@ public class ThreadContext {
         return data().get(attr);
     }
 
-    /** Creates {@link Scope} with no attribute values bound to it. */
-    public static Scope createScope() {
+    /** Creates {@link ThreadContextScope} with no attribute values bound to it. */
+    public static ThreadContextScope createScope() {
         return ThreadContextScope.create();
     }
 
-    /** Creates {@link Scope} with specified attribute value bound to it. */
-    public static <T> Scope withAttribute(ThreadContextAttribute<T> attr, T val) {
+    /** Creates {@link ThreadContextScope} with specified attribute value bound to it. */
+    public static <T> ThreadContextScope withAttribute(ThreadContextAttribute<T> attr, T val) {
         return createScope().withAttribute(attr, val);
     }
 
-    /** Creates {@link Scope} with attribute values restored from specified snapshot. */
-    public static Scope withSnapshot(ThreadContextSnapshot snapshot) {
+    /** Creates {@link ThreadContextScope} with attribute values restored from specified snapshot. */
+    public static ThreadContextScope withSnapshot(ThreadContextSnapshot snapshot) {
         return ThreadContextScope.createWith(snapshot);
     }
 
