@@ -100,6 +100,8 @@ class ThreadContextData {
 
     /** */
     void onScopeClosed() {
+        assert activeScopeDepth != 0;
+
         if (activeAttrsCnt != 0)
             clearActiveScopeData();
 
