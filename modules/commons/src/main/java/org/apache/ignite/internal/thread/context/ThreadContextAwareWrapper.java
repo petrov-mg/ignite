@@ -49,7 +49,7 @@ public abstract class ThreadContextAwareWrapper<T> implements IgniteInternalWrap
         if (delegate == null || delegate instanceof ThreadContextAwareWrapper)
             return delegate;
 
-        ThreadContextSnapshot snapshot = ThreadContext.createSnapshot();
+        ThreadContextSnapshot snapshot = ThreadContextSnapshot.capture();
 
         if (ignoreEmptyContext && snapshot.isEmpty())
             return delegate;

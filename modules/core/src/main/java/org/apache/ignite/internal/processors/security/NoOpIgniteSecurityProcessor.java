@@ -25,7 +25,7 @@ import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteSandbox;
 import org.apache.ignite.internal.processors.security.sandbox.NoOpSandbox;
-import org.apache.ignite.internal.thread.context.ThreadContextScope;
+import org.apache.ignite.internal.thread.context.Scope;
 import org.apache.ignite.plugin.security.AuthenticationContext;
 import org.apache.ignite.plugin.security.SecurityCredentials;
 import org.apache.ignite.plugin.security.SecurityException;
@@ -56,13 +56,13 @@ public class NoOpIgniteSecurityProcessor extends IgniteSecurityAdapter {
     }
 
     /** {@inheritDoc} */
-    @Override public ThreadContextScope withContext(ThreadContextScope scope, SecurityContext secCtx) {
-        return scope;
+    @Override public Scope withContext(SecurityContext secCtx) {
+        return Scope.EMPTY;
     }
 
     /** {@inheritDoc} */
-    @Override public SecurityContext securityContext(UUID subjId) {
-        return null;
+    @Override public Scope withContext(UUID nodeId) {
+        return Scope.EMPTY;
     }
 
     /** {@inheritDoc} */
@@ -70,7 +70,6 @@ public class NoOpIgniteSecurityProcessor extends IgniteSecurityAdapter {
         return true;
     }
 
-    /** {@inheritDoc} */
     @Override public SecurityContext securityContext() {
         return null;
     }

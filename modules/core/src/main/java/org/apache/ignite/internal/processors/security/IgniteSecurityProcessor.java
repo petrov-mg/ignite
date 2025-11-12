@@ -32,9 +32,8 @@ import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.security.sandbox.AccessControllerSandbox;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteSandbox;
 import org.apache.ignite.internal.processors.security.sandbox.NoOpSandbox;
-import org.apache.ignite.internal.thread.context.ThreadContext;
 import org.apache.ignite.internal.thread.context.ThreadContextAttribute;
-import org.apache.ignite.internal.thread.context.ThreadContextScope;
+import org.apache.ignite.internal.thread.context.Scope;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteFuture;
@@ -125,12 +124,12 @@ public class IgniteSecurityProcessor extends IgniteSecurityAdapter {
     }
 
     /** {@inheritDoc} */
-    @Override public ThreadContextScope withContext(ThreadContextScope scope, SecurityContext secCtx) {
-        return scope.withAttribute(SEC_CTX, secCtx == dfltSecCtx ? null : secCtx);
+    @Override public Scope withContext(SecurityContext secCtx) {
+        return SEC_CTX.applyValue(secCtx == dfltSecCtx ? null : secCtx);
     }
 
     /** {@inheritDoc} */
-    @Override public SecurityContext securityContext(UUID subjId) {
+    @Override public Scope withContext(UUID subjId) {
         try {
             SecurityContext res = secPrc.securityContext(subjId);
 
@@ -141,7 +140,7 @@ public class IgniteSecurityProcessor extends IgniteSecurityAdapter {
                     throw new IllegalStateException("Failed to find security context for subject with given ID : " + subjId);
             }
 
-            return res;
+            return withContext(res);
         }
         catch (Throwable e) {
             log.error(FAILED_OBTAIN_SEC_CTX_MSG, e);
@@ -172,12 +171,12 @@ public class IgniteSecurityProcessor extends IgniteSecurityAdapter {
 
     /** {@inheritDoc} */
     @Override public boolean isDefaultContext() {
-        return ThreadContext.get(SEC_CTX) == null;
+        return SEC_CTX.value() == null;
     }
 
     /** {@inheritDoc} */
     @Override public SecurityContext securityContext() {
-        SecurityContext res = ThreadContext.get(SEC_CTX);
+        SecurityContext res = SEC_CTX.value();
 
         return res == null ? dfltSecCtx : res;
     }

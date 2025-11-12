@@ -56,7 +56,7 @@ import org.apache.ignite.internal.processors.security.SecurityUtils;
 import org.apache.ignite.internal.processors.service.GridServiceNotFoundException;
 import org.apache.ignite.internal.processors.task.GridInternal;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutObject;
-import org.apache.ignite.internal.thread.context.ThreadContextScope;
+import org.apache.ignite.internal.thread.context.Scope;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.LT;
@@ -564,7 +564,7 @@ public class GridJobWorker extends GridWorker implements GridTimeoutObject {
 
         SqlFieldsQuery.setThreadedQueryInitiatorId("task:" + ses.getTaskName() + ":" + getJobId());
 
-        try (ThreadContextScope ignored = ctx.security().withContext(secCtx)) {
+        try (Scope ignored = ctx.security().withContext(secCtx)) {
             if (partsReservation != null) {
                 try {
                     if (!partsReservation.reserve()) {
@@ -784,7 +784,7 @@ public class GridJobWorker extends GridWorker implements GridTimeoutObject {
                 status = CANCELLED;
 
                 U.wrapThreadLoader(dep.classLoader(), (IgniteRunnable)() -> {
-                    try (ThreadContextScope ignored = ctx.security().withContext(secCtx)) {
+                    try (Scope ignored = ctx.security().withContext(secCtx)) {
                         job0.cancel();
                     }
                 });

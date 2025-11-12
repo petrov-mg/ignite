@@ -17,49 +17,14 @@
 
 package org.apache.ignite.internal.thread.context;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-
 /** */
-class ScopedAttributeValueStack<T> {
-    /** */
-    private static final int DFLT_SCOPE_ATTR_VAL_CAPACITY = 2;
+public interface Scope extends AutoCloseable {
+    Scope EMPTY = new Scope() {
+        @Override public void close() {
+            // No-op.
+        }
+    };
 
-    /** */
-    private final ThreadContextAttribute<T> attr;
-
-    /** */
-    private final Deque<T> scopedVals = new ArrayDeque<>(DFLT_SCOPE_ATTR_VAL_CAPACITY);
-
-    /** */
-    ScopedAttributeValueStack(ThreadContextAttribute<T> attr) {
-        this.attr = attr;
-    }
-
-    /** */
-    void pop() {
-        assert !isEmpty();
-
-        scopedVals.pop();
-    }
-
-    /** */
-    void push(T val) {
-        scopedVals.push(val);
-    }
-
-    /** */
-    T peek() {
-        return isEmpty() ? attr.initialValue() : scopedVals.peek();
-    }
-
-    /** */
-    boolean isEmpty() {
-        return scopedVals.isEmpty();
-    }
-
-    /** */
-    public ThreadContextAttribute<T> attribute() {
-        return attr;
-    }
+    /** {@inheritDoc} */
+    @Override void close();
 }

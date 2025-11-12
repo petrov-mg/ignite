@@ -17,60 +17,102 @@
 
 package org.apache.ignite.internal.thread.context;
 
+import java.util.BitSet;
+import java.util.Collection;
+import java.util.LinkedList;
+import org.apache.ignite.internal.util.typedef.F;
+
 /** */
 public class ThreadContextSnapshot {
     /** */
-    private static final ThreadContextSnapshot EMPTY = new ThreadContextSnapshot(null, null, null);
+    private static final ThreadContextSnapshot EMPTY = new ThreadContextSnapshot(null);
 
     /** */
-    private final ThreadContextAttribute<?> attr;
+    private Collection<Record<?>> records;
 
     /** */
-    private final Object attrVal;
-
-    /** */
-    private final ThreadContextSnapshot prev;
-
-    /** */
-    private ThreadContextSnapshot(ThreadContextAttribute<?> attr, Object attrVal, ThreadContextSnapshot prev) {
-        this.attr = attr;
-        this.attrVal = attrVal;
-        this.prev = prev;
+    private ThreadContextSnapshot(Collection<Record<?>> holder) {
+        records = holder;
     }
 
     /** */
-    <T> ThreadContextAttribute<T> attribute() {
-        assert !isEmpty();
+    public Scope restoreAttributesValues() {
+        ThreadContextData data = ThreadContextData.get();
 
-        return (ThreadContextAttribute<T>)attr;
-    }
+        if (isEmpty() && data.activeAttributesCount() == 0)
+            return Scope.EMPTY;
 
-    /** */
-    <T> T attributeValue() {
-        assert !isEmpty();
+        CompositeScope scope = new CompositeScope();
 
-        return (T)attrVal;
-    }
+        if (isEmpty())
+            data.forEach(attr -> scope.add(attr.applyInitialValue()));
+        else {
+            BitSet restored = new BitSet();
 
-    /** */
-    ThreadContextSnapshot previous() {
-        assert !isEmpty();
+            for (Record<?> record : records) {
+                scope.add(record.restoreAttributeValue());
 
-        return prev;
+                restored.set(record.attributeId());
+            }
+
+            data.forEach(attr -> {
+                if (!restored.get(attr.id()))
+                    scope.add(attr.applyInitialValue());
+            });
+        }
+
+        return scope;
     }
 
     /** */
     boolean isEmpty() {
-        return this == EMPTY;
+        return F.isEmpty(records);
     }
 
     /** */
-    <T> ThreadContextSnapshot withAttribute(ThreadContextAttribute<T> attr, T val) {
-        return new ThreadContextSnapshot(attr, val, this);
+    static ThreadContextSnapshot capture() {
+        ThreadContextData data = ThreadContextData.get();
+
+        if (data.activeAttributesCount() == 0)
+            return EMPTY;
+
+        ThreadContextSnapshot snapshot = new ThreadContextSnapshot(new LinkedList<>());
+
+        data.forEach(snapshot::recordAttributeValue);
+
+        return snapshot;
     }
 
     /** */
-    static ThreadContextSnapshot emptySnapshot() {
-        return EMPTY;
+    private <T> void recordAttributeValue(ThreadContextAttribute<T> attr) {
+        if (records == null)
+            records = new LinkedList<>();
+
+        records.add(new Record<>(attr, attr.value()));
+    }
+
+    /** */
+    private static class Record<T> {
+        /** */
+        private final ThreadContextAttribute<T> attr;
+
+        /** */
+        private final T attrVal;
+
+        /** */
+        Record(ThreadContextAttribute<T> attr, T attrVal) {
+            this.attr = attr;
+            this.attrVal = attrVal;
+        }
+
+        /** */
+        int attributeId() {
+            return attr.id();
+        }
+
+        /** */
+        Scope restoreAttributeValue() {
+            return attr.applyValue(attrVal);
+        }
     }
 }

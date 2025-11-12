@@ -17,49 +17,18 @@
 
 package org.apache.ignite.internal.thread.context;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-
 /** */
-class ScopedAttributeValueStack<T> {
+public class AttributeValueScope implements Scope {
     /** */
-    private static final int DFLT_SCOPE_ATTR_VAL_CAPACITY = 2;
+    private final int attrId;
 
     /** */
-    private final ThreadContextAttribute<T> attr;
-
-    /** */
-    private final Deque<T> scopedVals = new ArrayDeque<>(DFLT_SCOPE_ATTR_VAL_CAPACITY);
-
-    /** */
-    ScopedAttributeValueStack(ThreadContextAttribute<T> attr) {
-        this.attr = attr;
+    AttributeValueScope(int attrId) {
+        this.attrId = attrId;
     }
 
-    /** */
-    void pop() {
-        assert !isEmpty();
-
-        scopedVals.pop();
-    }
-
-    /** */
-    void push(T val) {
-        scopedVals.push(val);
-    }
-
-    /** */
-    T peek() {
-        return isEmpty() ? attr.initialValue() : scopedVals.peek();
-    }
-
-    /** */
-    boolean isEmpty() {
-        return scopedVals.isEmpty();
-    }
-
-    /** */
-    public ThreadContextAttribute<T> attribute() {
-        return attr;
+    /** {@inheritDoc} */
+    @Override public void close() {
+        ThreadContextData.get().rollbackAttributeValue(attrId);
     }
 }

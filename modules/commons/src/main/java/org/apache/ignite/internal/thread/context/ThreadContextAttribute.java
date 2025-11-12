@@ -19,12 +19,7 @@ package org.apache.ignite.internal.thread.context;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Represents a key used to access or modify corresponding attribute values in {@link ThreadContext}.
- *
- * @see ThreadContext#get(ThreadContextAttribute)
- * @see ThreadContext#withAttribute(ThreadContextAttribute, Object)
- */
+/** */
 public class ThreadContextAttribute<T> {
     /** */
     private static final AtomicInteger ID_GEN = new AtomicInteger();
@@ -36,9 +31,13 @@ public class ThreadContextAttribute<T> {
     private final T initialVal;
 
     /** */
+    private final Scope attrScope;
+
+    /** */
     private ThreadContextAttribute(int id, T initialVal) {
         this.id = id;
         this.initialVal = initialVal;
+        this.attrScope = new AttributeValueScope(id);
     }
 
     /** */
@@ -51,6 +50,28 @@ public class ThreadContextAttribute<T> {
         return initialVal;
     }
 
+    /** */
+    public T value() {
+        T val = ThreadContextData.get().retrieveAttributeValue(id);
+
+        return val == null ? initialVal : val;
+    }
+
+    /** */
+    public Scope applyValue(T val) {
+        if (value() == val)
+            return Scope.EMPTY;
+
+        ThreadContextData.get().storeAttributeValue(this, val);
+
+        return attrScope;
+    }
+
+    /** */
+    Scope applyInitialValue() {
+        return applyValue(initialVal);
+    }
+
     /**
      * Creates attribute instance with initial value set to {@code null}.
      *
@@ -60,13 +81,7 @@ public class ThreadContextAttribute<T> {
         return newInstance(null);
     }
 
-    /**
-     * Creates attribute instance with specified initial value. Initial value is returned by
-     * {@link ThreadContext#get(ThreadContextAttribute)} method if attribute value is not set for {@link ThreadContextScope} explicitly.
-     *
-     * @param initialVal Attribute initial value.
-     * @return Attribute instance.
-     */
+    /** */
     public static <T> ThreadContextAttribute<T> newInstance(T initialVal) {
         return new ThreadContextAttribute<>(ID_GEN.getAndIncrement(), initialVal);
     }

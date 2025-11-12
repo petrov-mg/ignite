@@ -17,49 +17,29 @@
 
 package org.apache.ignite.internal.thread.context;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Collection;
+import java.util.LinkedList;
+import org.apache.ignite.internal.util.typedef.F;
 
 /** */
-class ScopedAttributeValueStack<T> {
+class CompositeScope implements Scope {
     /** */
-    private static final int DFLT_SCOPE_ATTR_VAL_CAPACITY = 2;
+    private Collection<Scope> scopes;
 
     /** */
-    private final ThreadContextAttribute<T> attr;
+    void add(Scope scope) {
+        if (scopes == null)
+            scopes = new LinkedList<>();
 
-    /** */
-    private final Deque<T> scopedVals = new ArrayDeque<>(DFLT_SCOPE_ATTR_VAL_CAPACITY);
-
-    /** */
-    ScopedAttributeValueStack(ThreadContextAttribute<T> attr) {
-        this.attr = attr;
+        scopes.add(scope);
     }
 
-    /** */
-    void pop() {
-        assert !isEmpty();
+    /** {@inheritDoc} */
+    @Override public void close() {
+        if (F.isEmpty(scopes))
+            return;
 
-        scopedVals.pop();
-    }
-
-    /** */
-    void push(T val) {
-        scopedVals.push(val);
-    }
-
-    /** */
-    T peek() {
-        return isEmpty() ? attr.initialValue() : scopedVals.peek();
-    }
-
-    /** */
-    boolean isEmpty() {
-        return scopedVals.isEmpty();
-    }
-
-    /** */
-    public ThreadContextAttribute<T> attribute() {
-        return attr;
+        for (Scope scope : scopes)
+            scope.close();
     }
 }

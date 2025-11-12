@@ -104,7 +104,7 @@ import org.apache.ignite.internal.processors.tracing.MTC;
 import org.apache.ignite.internal.processors.tracing.MTC.TraceSurroundings;
 import org.apache.ignite.internal.processors.tracing.Span;
 import org.apache.ignite.internal.processors.tracing.SpanTags;
-import org.apache.ignite.internal.thread.context.ThreadContextScope;
+import org.apache.ignite.internal.thread.context.Scope;
 import org.apache.ignite.internal.util.GridBoundedConcurrentLinkedHashSet;
 import org.apache.ignite.internal.util.IgniteUtils;
 import org.apache.ignite.internal.util.StripedCompositeReadWriteLock;
@@ -1872,7 +1872,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Object>> 
 
         UUID newSecSubjId = secSubjId != null ? secSubjId : nodeId;
 
-        try (ThreadContextScope ignored = ctx.security().withContext(newSecSubjId)) {
+        try (Scope ignored = ctx.security().withContext(newSecSubjId)) {
             lsnr.onMessage(nodeId, msg, plc);
         }
         finally {
@@ -3640,7 +3640,7 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Object>> 
 
                 if (msgBody != null) {
                     if (predLsnr != null) {
-                        try (ThreadContextScope ignored = ctx.security().withContext(initNodeId)) {
+                        try (Scope ignored = ctx.security().withContext(initNodeId)) {
                             if (!predLsnr.apply(nodeId, msgBody))
                                 removeMessageListener(TOPIC_COMM_USER, this);
                         }

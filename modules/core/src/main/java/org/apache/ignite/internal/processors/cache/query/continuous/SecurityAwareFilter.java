@@ -26,7 +26,7 @@ import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.internal.processors.security.AbstractSecurityAwareExternalizable;
 import org.apache.ignite.internal.processors.security.IgniteSecurity;
 import org.apache.ignite.internal.processors.security.sandbox.IgniteSandbox;
-import org.apache.ignite.internal.thread.context.ThreadContextScope;
+import org.apache.ignite.internal.thread.context.Scope;
 
 /**
  * Security aware remote filter.
@@ -60,7 +60,7 @@ public class SecurityAwareFilter<K, V> extends AbstractSecurityAwareExternalizab
 
         IgniteSecurity security = ignite.context().security();
 
-        try (ThreadContextScope ignored = security.withContext(subjectId)) {
+        try (Scope ignored = security.withContext(subjectId)) {
             IgniteSandbox sandbox = security.sandbox();
 
             return sandbox.enabled() ? sandbox.execute(() -> original.evaluate(evt)) : original.evaluate(evt);

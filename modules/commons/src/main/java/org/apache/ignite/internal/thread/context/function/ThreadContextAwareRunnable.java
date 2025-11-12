@@ -17,9 +17,8 @@
 
 package org.apache.ignite.internal.thread.context.function;
 
-import org.apache.ignite.internal.thread.context.ThreadContext;
 import org.apache.ignite.internal.thread.context.ThreadContextAwareWrapper;
-import org.apache.ignite.internal.thread.context.ThreadContextScope;
+import org.apache.ignite.internal.thread.context.Scope;
 import org.apache.ignite.internal.thread.context.ThreadContextSnapshot;
 
 /** */
@@ -31,7 +30,7 @@ public class ThreadContextAwareRunnable extends ThreadContextAwareWrapper<Runnab
 
     /** {@inheritDoc} */
     @Override public void run() {
-        try (ThreadContextScope ignored = ThreadContext.withSnapshot(snapshot)) {
+        try (Scope ignored = snapshot.restoreAttributesValues()) {
             delegate.run();
         }
     }
