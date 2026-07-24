@@ -30,7 +30,9 @@ off. Everything guarded only by `assert` below is, in production, a silent path.
 | [05.8](#58-asymmetric-attribute-registration) | Nodes disagree on distributed ID → attribute mapping | assertion only | high, but constrained |
 | [05.9](#59-capacity-overflow) | >32 local or >8 distributed attributes | assertion only | latent |
 | [05.10](#510-subject-no-longer-resolvable) | Received subject ID no longer in discovery history | `IllegalStateException` | low — fails closed |
-| [05.11](#511-empty-snapshot-restores-are-a-noop--fixed) | ~~`restoreSnapshot(null)` was a NOOP — default-context messages inherited the executing thread's context~~ | — | **fixed** (`13b506e028c`) — null now resets to defaults; regression test still missing |
+| [05.11](#511-empty-snapshot-restores-are-a-noop--fixed) | ~~`restoreSnapshot(null)` was a NOOP — default-context messages inherited the executing thread's context~~ | — | **fixed** (IGNITE-28915) — null now resets to defaults; regression test still missing |
+| [05.12](#512-derived-messages-inherit-the-in-scope-context) | Messages created while processing another message inherit its context via `addMessage`'s attach — `ServerImpl:3951` stamps a user's context onto `NodeFailedMessage` | nothing | **high — live defect, cheap fix** |
+| [05.13](#513-client-side-entry-points-that-never-capture) | `ClientImpl.MessageWorker.addMessage` never captures — client `failNode()` drops the caller's context | nothing | low — attribution loss only |
 
 ---
 
@@ -88,7 +90,7 @@ race and an almost-certain assertion failure. Never let a `Scope` escape its thr
 **This is the vector that has actually produced bugs**, repeatedly
 ([IGNITE-28902](06-tickets.md#ignite-28902--discovery-acknowledgement-messages),
 [IGNITE-28915](06-tickets.md#ignite-28915--postponed-discovery-messages--review-driven-refactoring), plus three more instances of
-the same shape fixed by the `IGNITE-28915 Refactoring` commit: ordered communication buffers
+the same shape fixed within IGNITE-28915: ordered communication buffers
 ([07 · F1](07-loss-candidate-scan.md#f1--ordered-communication-messages--fixed)), client-reconnect
 pending-message replay, and local pending-message re-enqueue —
 [found_problems #3/#4](found_problems_in_russian.md)).
@@ -118,7 +120,7 @@ pending queue. The replay loop simply ran on the ring worker thread — whose co
 never consulted it. Every postponed custom message was processed with default privileges.
 
 Note the *shape* of this bug: the "normal" path (`ServerImpl:3296`) had the restore; the
-**deferred/retry/replay** path did not. That is the pattern to look for. The refactoring closed the
+**deferred/retry/replay** path did not. That is the pattern to look for. IGNITE-28915 closed the
 three further instances found by that pattern:
 
 - `GridIoManager.unwind` (`:3795`) now restores each buffered ordered message's own snapshot
@@ -225,8 +227,12 @@ Anything else carries nothing:
   through it has a `null` `opCtxSnp`. (`GridIoManager`'s own listener warns about direct SPI use for
   unrelated reasons — the same anti-pattern also defeats context propagation.)
 - **Channel / file transfer.** `onChannelOpened0(rmtNodeId, (GridIoMessage)initMsg, channel)` on the
-  receive path is *not* wrapped in a `restoreSnapshot` scope, unlike `onMessage0` right
-  above it. Data moving over an opened channel therefore carries no restored context on the receiving
+  receive path is *not* wrapped in a `restoreSnapshot` scope, unlike `onMessage0` right above it —
+  even though the sender *does* attach a snapshot to the channel-init message and it arrives intact
+  in `initMsg.opCtxSnp`. Channel listeners and `TransmissionHandler`s (snapshot transfer, file-based
+  rebalance) run the whole transmission without the initiator's context. Exact mechanics and the fix
+  shape: [09 · P1](09-gridio-message-flow.md#p1--the-channel-path-never-restores), registered as
+  [F12](07-loss-candidate-scan.md#712-third-sweep-gridiomessage-flow-2026-07-24). Data moving over an opened channel therefore carries no restored context on the receiving
   side.
 - **Thin client / JDBC / ODBC protocols.** Separate wire formats entirely; the IEP explicitly exempts
   thin-client modules from the Checkstyle rules. These have their own authentication path.
@@ -265,7 +271,7 @@ The remaining holes:
 
 ## 5.7 Conditional wrapping on `security().enabled()` — FIXED
 
-**Status: fixed in the `IGNITE-28915 Refactoring` commit.** `PoolProcessor` (~line 276) originally
+**Status: fixed in IGNITE-28915.** `PoolProcessor` (~line 276) originally
 wrapped user-supplied executors only when security was enabled:
 
 ```java
@@ -323,6 +329,12 @@ registered attribute set at join time. An old node that predates a new attribute
 plugin that registers one, will receive bits it cannot map. Any second distributed attribute needs a
 node-join compatibility check or a feature gate.
 
+The same gap has a **transport-level** face in discovery: an old-version node in the ring has neither
+the `opCtxSnp` field nor the attached-flag bit, so forwarding any message through it re-creates the
+message without either — the context is silently dropped mid-ring, and downstream new-version nodes
+may restamp the now-flagless message with their own (typically empty) context
+([08 · P2](08-custom-message-flow.md#p2--mixed-version-ring-rolling-upgrade)).
+
 ---
 
 ## 5.9 Capacity overflow
@@ -373,10 +385,10 @@ will fail at the point of first authorization check, not at the point of loss.
 
 ## 5.11 Empty-snapshot restores are a NOOP — FIXED
 
-**Status: fixed by the `Fixed null snapshot problem` commit (`13b506e028c`, 2026-07-24).** This was
+**Status: fixed in IGNITE-28915 (the null-snapshot fix, 2026-07-24).** This was
 the open residual of the four P1 review findings ([found_problems](found_problems_in_russian.md)).
 
-The refactoring had given `restoreSnapshot` full-replacement semantics for a *non-null* snapshot, but
+IGNITE-28915's refactoring step had given `restoreSnapshot` full-replacement semantics for a *non-null* snapshot, but
 the `null` case kept a `NOOP_SCOPE` shortcut. Since a sender whose distributed attributes are all at
 their initial values transmits **no snapshot at all**
 ([03.1](03-cross-node-propagation.md#31-operationcontextdispatcher)), a NOOP restore meant a
@@ -410,7 +422,7 @@ replaying handler's context on local re-enqueue
 
 Two things remain worth knowing:
 
-- **No regression test for the reviewed scenario.** `13b506e028c` ships no tests.
+- **No regression test for the reviewed scenario.** The null-snapshot fix shipped no tests.
   `OperationContextAttributePropagationTest` asserts default-value transmission and per-message
   restore for two *non-default* ordered messages, but has no case sending a default-context message
   *behind* a non-default one into the same ordered set — the exact deterministic case from review is
@@ -422,10 +434,55 @@ Two things remain worth knowing:
 
 ---
 
-## 5.12 A review checklist
+## 5.12 Derived messages inherit the in-scope context
 
-> For the results of applying this checklist across Ignite's components — eight candidate sites with
-> code references, ranked — see [07 — Component scan](07-loss-candidate-scan.md).
+Found by the custom-message flow audit ([08](08-custom-message-flow.md#85-remaining-problems)).
+
+`ServerImpl.RingMessageWorker.addMessage` attaches the *current* thread snapshot to every locally
+originated message. When the ring worker creates a message **while processing another message**, it
+is inside that message's restore scope — so the derived message inherits the processed message's
+context and carries it cluster-wide.
+
+Three instances today, one of them a live defect:
+
+- **`ServerImpl:3951` — defect.** `sendMessageAcrossRing`, forwarding user A's custom message, detects
+  the next node failed and creates `TcpDiscoveryNodeFailedMessage` inside A's scope. Every node then
+  runs node-failure handling — topology update, `EVT_NODE_FAILED` listeners, exchange trigger — under
+  user A's subject. Fix: `attachOperationContextSnapshot(null)` at creation (the flag semantics allow
+  explicitly pinning "no context").
+- **`ServerImpl:6177` — benign.** The `TcpDiscoveryDiscardMessage` for a processed custom message
+  carries the originator's context around the ring; discard processing touches no listener and no
+  authorization, so no effect today — but it is an unintended smear and fragile against changes.
+- **`ServerImpl:6189` — intended.** The custom-event ack deliberately captures the originator's
+  context (IGNITE-28902 semantics).
+
+Nothing distinguishes the intended instance from the accidental ones — every new
+`addMessage`-inside-a-scope call site silently picks a side. That makes this a *class* of bug, not a
+single site; the checklist below gets an item for it.
+
+---
+
+## 5.13 Client-side entry points that never capture
+
+`ClientImpl.MessageWorker.addMessage(Object)` (`:2716`) performs **no** snapshot attach — unlike the
+server's `RingMessageWorker.addMessage`. Any locally created discovery message injected through the
+client worker queue therefore never captures the calling user's context, and by processing time the
+restore boundary has reset the worker thread to an empty context.
+
+Concrete case: `ClientImpl.failNode():539`. The server-side `failNode():1129` captures the caller's
+context (attribution of who failed the node); the client-side one silently loses it. Custom events
+are unaffected — `sendCustomEvent` captures at `SocketWriter.sendMessage:1314` on the caller thread.
+
+The asymmetry is the trap: the same public SPI operation propagates context from a server node and
+drops it from a client node.
+
+---
+
+## 5.14 A review checklist
+
+> For the results of applying this checklist across Ignite's components — eleven findings with code
+> references, ranked — see [07 — Component scan](07-loss-candidate-scan.md); for the directed audit
+> of the custom discovery message flow, see [08](08-custom-message-flow.md).
 
 When touching any asynchronous or cross-node path:
 
@@ -439,6 +496,10 @@ When touching any asynchronous or cross-node path:
 - [ ] Does it **derive a message from another** (ack, response, forward)? Is `opCtxSnp` copied — via
       the copy constructor or `attachOperationContextSnapshot` (never a bare field write, which would
       clobber a replayed message's envelope and skip the attached-flag)?
+- [ ] Does it **create a message while processing another** (inside a restore scope)? Decide
+      explicitly whose context the new message should carry: the current scope's (then say so — the
+      ack at `ServerImpl:6189` is the model) or none (then pin it with
+      `attachOperationContextSnapshot(null)` before handing it to `addMessage`) — §5.12.
 - [ ] Does every receive/replay path go through `OperationContextDispatcher.restoreSnapshot` — including
       for `opCtxSnp == null`? The dispatcher resets to defaults on null (§5.11); a hand-rolled
       `if (snp != null)` guard around the restore would silently reintroduce the inherited-context bug.

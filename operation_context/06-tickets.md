@@ -102,27 +102,25 @@ Fixed context propagation for **ack** messages sent via TCP Discovery SPI
 
 Details: [03.5](03-cross-node-propagation.md#35-transport-integration-point-2-tcp-discovery), [03.6](03-cross-node-propagation.md#36-transport-integration-point-3-zookeeper-discovery).
 
-### IGNITE-28915 — Postponed discovery messages (+ review-driven refactoring)
-**current branch, not yet merged** · five commits as of 2026-07-24:
+### IGNITE-28915 — Postponed discovery messages (+ review-driven hardening)
+**current branch, not yet merged** · state as of 2026-07-24
 
-| Commit | What |
-|---|---|
-| `f5decb750b3` | The original fix: restore `opCtxSnp` in `ServerImpl.checkPendingCustomMessages`' pending-drain loop, plus regression test |
-| `999aa70a16a` | Fixed tests (moved the "Delay custom message processing" debug log so it fires only when a message is actually parked — the log listener the postponed-message test keys on) |
-| `e88537a142f` | **Refactoring** in response to the four P1 review findings ([found_problems](found_problems_in_russian.md)) — see below |
-| `274d1df123a` | This documentation set + the review findings file |
-| `13b506e028c` | **Null-snapshot fix**: `restoreSnapshot(null)` now resets the context to defaults (`Restorer.restoreEmpty()`), and `attachOperationContextSnapshot` tracks attachment via a serialized flag bit (`OP_CTX_ATTACHED_FLAG_POS = 3`) instead of field nullness. Also renamed `ContextUpdater`/`ContextRestorer` → `Updater`/`Restorer`. Closes the residual of findings #1/#2/#4 — [05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed). No tests shipped |
+What started as a three-line fix (restore `opCtxSnp` in `ServerImpl.checkPendingCustomMessages`'
+pending-drain loop) grew, through review, into a hardening of the whole distributed-restore
+mechanism. The ticket delivers, as one unit:
 
-The refactoring commit is substantial (15 files, +516/−297) and landed several distinct changes:
-
-- **Renames:** dispatcher `collectDistributedAttributeValues()`/`restoreRemoteAttributeValues()` →
-  `createSnapshot()`/`restoreSnapshot()`; wire class `OperationContextMessage` →
-  `OperationContextSnapshotMessage` (now built via a nested `Builder`); carrier fields `opCtxMsg` →
-  `opCtxSnp` (`GridIoMessage`'s is now package-private and set via constructor).
-- **Full-replacement restore semantics** (review finding #1/#2, partial): new
-  `OperationContext.Restorer` swaps the whole thread context for the received attributes
-  instead of overlaying them; attributes absent from the message read `initialValue()` inside the
-  scope. The `null`-snapshot NOOP remained here and was closed by the follow-up `13b506e028c` —
+- **The original fix**: per-message restore when the coordinator drains postponed custom discovery
+  messages, plus regression test `testPostponedDiscoveryMessage` (skips under ZooKeeper discovery,
+  where the postponed-queue path does not exist).
+- **API renames**: dispatcher `collectDistributedAttributeValues()`/`restoreRemoteAttributeValues()`
+  → `createSnapshot()`/`restoreSnapshot()`; wire class `OperationContextMessage` →
+  `OperationContextSnapshotMessage` (built via a nested `Builder`); carrier fields `opCtxMsg` →
+  `opCtxSnp` (`GridIoMessage`'s is now package-private and set via constructor); collectors
+  `ContextUpdater`/`ContextRestorer` → `Updater`/`Restorer`.
+- **Full-replacement restore semantics** (review findings #1/#2): `OperationContext.Restorer` swaps
+  the whole thread context for the received attributes instead of overlaying them — attributes
+  absent from the message read `initialValue()` inside the scope — and `restoreSnapshot(null)`
+  resets to defaults via `Restorer.restoreEmpty()` instead of no-op'ing —
   [05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed).
 - **Ordered communication buffer restore** ([07 · F1](07-loss-candidate-scan.md#f1--ordered-communication-messages--fixed)):
   `GridIoManager.unwind` restores each buffered message's own snapshot; regression test
@@ -130,12 +128,15 @@ The refactoring commit is substantial (15 files, +516/−297) and landed several
 - **Client reconnect replay** (review finding #3): `ClientImpl.processDiscoveryMessage` became the
   per-message restore boundary, covering the `pendingMessages()` replay.
 - **Replay-safe attachment** (review finding #4): `TcpDiscoveryAbstractMessage.attachOperationContextSnapshot`
-  sets the envelope only if absent; `ServerImpl.addMessage` attaches for every `!fromSocket` message.
+  is first-attach-wins via a serialized flag bit (`OP_CTX_ATTACHED_FLAG_POS = 3`), so replays cannot
+  restamp a message's envelope — even one legitimately carrying an empty context; `ServerImpl.addMessage`
+  attaches for every `!fromSocket` message.
 - **`PoolProcessor`** wraps user IO pools unconditionally (dropped the `security().enabled()` guard —
   closes [05.7](05-context-loss.md#57-conditional-wrapping-on-security-enabled--fixed)).
 
-Tests renamed: `testSendAttributesPostponedMessage` → `testPostponedDiscoveryMessage` (skips under
-ZooKeeper discovery, where the postponed-queue path does not exist).
+All four P1 review findings ([found_problems](found_problems_in_russian.md)) are addressed. Still
+missing within the ticket: a regression test for the null-snapshot scenarios (see Current state
+below).
 
 Details: [03.4](03-cross-node-propagation.md#34-transport-integration-point-1-communication-gridiomanager), [03.5](03-cross-node-propagation.md#35-transport-integration-point-2-tcp-discovery), [05.2](05-context-loss.md#52-a-handoff-with-no-restore).
 
@@ -170,17 +171,29 @@ The ZK variants run through `ZookeeperDiscoverySpiTestSuite4`; security-side cov
 **Done:** local mechanism, thread-pool/future/worker-queue integration, static enforcement, TCP and ZK
 discovery propagation, communication propagation (including buffered ordered messages), security
 migrated onto the generic mechanism, registration lifecycle locked down, full-replacement restore
-semantics **including the null-snapshot case** (`13b506e028c`), unconditional user-pool wrapping,
+semantics **including the null-snapshot case**, unconditional user-pool wrapping,
 flag-based replay-safe snapshot attachment, per-message restore on client reconnect replay. All four
 P1 review findings are addressed in code.
 
-**Open, per [05](05-context-loss.md):**
+**Open, per [05](05-context-loss.md) and the [custom-flow audit](08-custom-message-flow.md):**
 
+- **`ServerImpl:3951` — derived `NodeFailedMessage` forged inside a foreign restore scope** (live
+  defect, one-line fix): cluster-wide node-failure handling can run under the subject of whatever
+  custom message was being forwarded when the next node failed —
+  [05.12](05-context-loss.md#512-derived-messages-inherit-the-in-scope-context).
 - **No regression test for the reviewed null-snapshot scenario** — a default-context ordered message
   behind a non-default one in the same message set (the deterministic test described in
-  [found_problems #1](found_problems_in_russian.md)); `13b506e028c` shipped no tests —
+  [found_problems #1](found_problems_in_russian.md)); IGNITE-28915's null-snapshot fix shipped no tests —
   [05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed).
-- Channel-open path (`onChannelOpened0`) has no restore scope — [05.5](05-context-loss.md#55-transports-that-carry-no-carrier-field).
+- `ClientImpl.MessageWorker.addMessage` never captures — client `failNode()` drops the caller's
+  context (server equivalent captures it) —
+  [05.13](05-context-loss.md#513-client-side-entry-points-that-never-capture).
+- Channel-open path (`onChannelOpened0`) has no restore scope, even though the channel-init message
+  carries the snapshot (`initMsg.opCtxSnp`) — transmission handlers run without the initiator's
+  context; three-line fix in the proven shape —
+  [09 · P1](09-gridio-message-flow.md#p1--the-channel-path-never-restores) /
+  [F12](07-loss-candidate-scan.md#712-third-sweep-gridiomessage-flow-2026-07-24),
+  refines [05.5](05-context-loss.md#55-transports-that-carry-no-carrier-field).
 - No join-time validation that nodes agree on the distributed attribute set; rolling upgrade with a
   new attribute is unhandled — [05.8](05-context-loss.md#58-asymmetric-attribute-registration).
 - Capacity assertions (32 local / 8 distributed) degrade to silent aliasing without `-ea` —
@@ -191,6 +204,6 @@ P1 review findings are addressed in code.
 
 **Unticketed candidates** found by the component sweep in
 [07 — Component scan](07-loss-candidate-scan.md) — F1 (ordered communication messages) has since been
-**fixed** by the refactoring commit; still open are the DataStreamer remap deque
+**fixed** within IGNITE-28915; still open are the DataStreamer remap deque
 ([F2](07-loss-candidate-scan.md#f2--datastreamer-remap-deque)), the write-behind store flush
 ([F3](07-loss-candidate-scan.md#f3--write-behind-store-flush)), and F4–F8.

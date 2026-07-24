@@ -183,7 +183,7 @@ to the local node — the right default for node-initiated internal traffic. Two
 
 - It engages **only when the thread's context is default**. While `restoreSnapshot(null)` was a NOOP
   this left a hole — a thread that had *inherited* a non-default context from an unrelated operation
-  kept it. Since `13b506e028c` the dispatcher resets the context to defaults before dispatch
+  kept it. Since the IGNITE-28915 null-snapshot fix the dispatcher resets the context to defaults before dispatch
   ([05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed)), so by the time this
   check runs, "default" reliably means "no context arrived with the message".
 - It is security-only. A second distributed attribute gets no equivalent floor.

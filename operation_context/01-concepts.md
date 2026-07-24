@@ -110,8 +110,8 @@ Two package-private batch collectors exist, both built on a shared `AttributeCol
   context consists of *exactly* the restored attributes — everything else, including local
   non-distributed attributes, reads as `initialValue()`. This is deliberate (see
   [03.1](03-cross-node-propagation.md#31-operationcontextdispatcher)): a remotely received context
-  must not be overlaid on top of whatever the receiving thread already had. Since the
-  `Fixed null snapshot problem` commit (`13b506e028c`) the empty case is symmetric too:
+  must not be overlaid on top of whatever the receiving thread already had. Since the IGNITE-28915
+  null-snapshot fix the empty case is symmetric too:
   restoring an *empty* set swaps the context to `null` (`restoreEmpty()`), resetting every attribute
   to its default rather than no-op'ing — the history of that fix is in
   [05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed).

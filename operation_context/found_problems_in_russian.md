@@ -1,6 +1,5 @@
-> **Статусы проверены 2026-07-24** по коду ветки (`13b506e028c`, включая коммиты
-> `IGNITE-28915 Refactoring` = `e88537a142f` и `IGNITE-28915 Fixed null snapshot problem` =
-> `13b506e028c`). После рефакторинга методы переименованы:
+> **Статусы проверены 2026-07-24** по коду ветки IGNITE-28915. В рамках тикета методы
+> переименованы:
 > `restoreRemoteAttributeValues()` → `restoreSnapshot()`, `collectDistributedAttributeValues()` →
 > `createSnapshot()`, поле `opCtxMsg` → `opCtxSnp`.
 >
@@ -14,11 +13,11 @@
 
 > **Статус: исправлено** (в два шага).
 > — `unwind` (`GridIoManager:3795`) открывает `restoreSnapshot(mc.message.opCtxSnp)` на каждое
-> сообщение (`e88537a142f`); regression-тест `testPostponedCommunicationOrderedMessage`.
+> сообщение; regression-тест `testPostponedCommunicationOrderedMessage`.
 > — Overlay-семантика для непустого снапшота исправлена: `Restorer` делает **полную замену**
 > контекста потока (`Update` с `prev == null`), поэтому атрибуты, отсутствующие в bitmap,
 > читаются как `initialValue()`.
-> — Null-случай закрыт коммитом `13b506e028c`: `restoreSnapshot(null)` теперь вызывает
+> — Null-случай также закрыт в рамках IGNITE-28915: `restoreSnapshot(null)` теперь вызывает
 > `Restorer.restoreEmpty()` — контекст потока заменяется на пустой на время scope, т.е. реализован
 > предложенный full-state fix. **Открыто:** регрессионного теста на детерминированный сценарий
 > (default-context сообщение вслед за non-default в одном message set) по-прежнему нет. См.
@@ -50,8 +49,8 @@ restoreRemoteAttributeValues() не восстанавливает полное 
 
 > **Статус: исправлено** — тем же централизованным изменением семантики restore.
 > Pending custom message с непустым снапшотом полностью вытесняет контекст внешнего topology
-> message (full-state replace, `e88537a142f`), а с `opCtxSnp == null` — сбрасывает его к defaults
-> (`Restorer.restoreEmpty()`, `13b506e028c`). Наследования контекста внешнего scope больше нет. См.
+> message (full-state replace), а с `opCtxSnp == null` — сбрасывает его к defaults
+> (`Restorer.restoreEmpty()`). Наследования контекста внешнего scope больше нет. См.
 > [05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed).
 
 ServerImpl.java:6317
@@ -70,11 +69,11 @@ checkPendingCustomMessages() вызывается не только из чис�
 
 3. P1 — context вложенных сообщений теряется при client reconnect
 
-> **Статус: исправлено** (коммит `IGNITE-28915 Refactoring`). Реализовано ровно предложенное:
+> **Статус: исправлено** (в рамках IGNITE-28915). Реализовано ровно предложенное:
 > `ClientImpl.processDiscoveryMessage` (`:2150-2154`) стал context boundary
 > (`try (Scope ignored = operationCtxDispatcher.restoreSnapshot(msg.opCtxSnp))`), и replay из
 > `msg.pendingMessages()` (`:2562`, `:2572`) идёт через него — каждое pending message
-> обрабатывается под собственным контекстом. Null-случай также закрыт `13b506e028c`
+> обрабатывается под собственным контекстом. Null-случай также закрыт
 > (reset к defaults вместо NOOP).
 
 ClientImpl.java:2561 и ClientImpl.java:2571
@@ -93,9 +92,9 @@ try (Scope ignored = operationCtxDispatcher.restoreRemoteAttributeValues(msg.opC
 
 4. P1 — local replay перезаписывает исходный context
 
-> **Статус: исправлено** (коммиты `IGNITE-28915 Refactoring` + `13b506e028c`). Введён
+> **Статус: исправлено** (в рамках IGNITE-28915). Введён
 > `TcpDiscoveryAbstractMessage.attachOperationContextSnapshot(...)`; `RingMessageWorker.addMessage`
-> вызывает его только для `!fromSocket`-сообщений (`ServerImpl:3023-3024`). После `13b506e028c`
+> вызывает его только для `!fromSocket`-сообщений (`ServerImpl:3023-3024`). Теперь
 > «attach уже был» фиксируется отдельным сериализуемым флагом (`OP_CTX_ATTACHED_FLAG_POS = 3`),
 > а не проверкой поля на null — поэтому сообщение с легитимно пустым envelope (отправитель с
 > default context) при requeue тоже НЕ переписывается снапшотом текущего потока-обработчика.

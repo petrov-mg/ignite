@@ -107,7 +107,7 @@ extPools[id] = OperationContextAwareIoPool.wrap(ex);
 
 Earlier revisions guarded this with `ctx.security().enabled()`, which would have silently dropped any
 future non-security distributed attribute on clusters running without security. The condition was
-removed in the `IGNITE-28915 Refactoring` commit — see the (now historical)
+removed in IGNITE-28915 — see the (now historical)
 [05.7](05-context-loss.md#57-conditional-wrapping-on-security-enabled--fixed).
 
 ## 2.3 `IgniteThread`

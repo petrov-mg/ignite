@@ -24,8 +24,10 @@ propagation: using the Ignite-provided executor / future / thread class is enoug
 | [04 — The Security attribute](04-security-attribute.md) | `SecurityContext` as the first and currently only distributed attribute; `SecurityContextWrapper`; subject re-resolution on the receiving node |
 | [05 — How context gets lost](05-context-loss.md) | **The important one.** Every known loss vector, ranked, with the code that causes it and how it is (or is not) defended against |
 | [06 — Tickets and change history](06-tickets.md) | IEP-143 subtask breakdown, what each commit landed, current state and remaining work |
-| [07 — Component scan: candidate loss sites](07-loss-candidate-scan.md) | Results of a directed sweep of Ignite components for unguarded queue/thread handoffs — eight candidate sites, ranked, plus verified-clean negative results |
-| [Found problems (russian)](found_problems_in_russian.md) | Four P1 review findings against the IGNITE-28915 PR — all four now fixed in code (`e88537a142f` + `13b506e028c`); per-problem status annotations inline |
+| [07 — Component scan: candidate loss sites](07-loss-candidate-scan.md) | Results of two directed sweeps for unguarded queue/thread handoffs — eleven findings (F1 fixed), ranked, plus verified-clean negative results |
+| [08 — Custom message flow: context audit](08-custom-message-flow.md) | End-to-end walkthrough of custom discovery message processing in `ServerImpl`/`ClientImpl` — capture/carry/restore inventory and the five remaining problems (one live defect: `ServerImpl:3951`) |
+| [09 — GridIoMessage flow: context audit](09-gridio-message-flow.md) | End-to-end walkthrough of communication message processing in `GridIoManager` — single capture funnel, single restore boundary, every deferral path verified; one live gap (the channel path, F12) |
+| [Found problems (russian)](found_problems_in_russian.md) | Four P1 review findings against the IGNITE-28915 PR — all four now fixed in code within IGNITE-28915; per-problem status annotations inline |
 
 ## Package layout
 

@@ -26,7 +26,7 @@ go on the wire through Ignite's own serialization. That is why `SecurityContext`
 distributed attribute directly and is boxed in `SecurityContextWrapper`
 ([04](04-security-attribute.md)).
 
-> **Naming note.** The `IGNITE-28915 Refactoring` commit renamed the dispatcher API:
+> **Naming note.** IGNITE-28915 renamed the dispatcher API:
 > `collectDistributedAttributeValues()` → **`createSnapshot()`** and
 > `restoreRemoteAttributeValues(…)` → **`restoreSnapshot(…)`**, mirroring the local
 > `OperationContext.createSnapshot()`/`restoreSnapshot()` pair. The wire class was renamed
@@ -131,7 +131,7 @@ attribute that was **not** in the message — distributed or local — reads its
 the fix for the overlay bug found in review (a message carrying only attribute 1 no longer inherits
 attribute 2 from whatever the receiving thread was doing —
 [found_problems #1/#2](found_problems_in_russian.md)). The `snp == null` branch got the same treatment
-in the follow-up `Fixed null snapshot problem` commit (`13b506e028c`): `Restorer.restoreEmpty()` swaps
+in the follow-up null-snapshot fix within IGNITE-28915: `Restorer.restoreEmpty()` swaps
 the context to empty, so a message whose sender had a *fully default* context no longer inherits the
 executing thread's context ([05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed)).
 
@@ -192,7 +192,7 @@ public GridIoMessage createGridIoMessage(Object topic, Message msg, byte plc,
 }
 ```
 
-The carrier field on `GridIoMessage` (package-private since the refactoring):
+The carrier field on `GridIoMessage` (package-private since IGNITE-28915):
 
 ```java
 @Nullable OperationContextSnapshotMessage opCtxSnp;
@@ -221,7 +221,7 @@ pool thread.
 
 **Ordered (buffered) messages** get a second restore point. Ordered messages that cannot be delivered
 immediately are parked in a `GridCommunicationMessageSet` and drained later — possibly by a different
-thread carrying a different context. Since the refactoring, `unwind` (`GridIoManager:3795`) restores
+thread carrying a different context. Since IGNITE-28915, `unwind` (`GridIoManager:3795`) restores
 each buffered message's own snapshot around its listener invocation, mirroring the tracing span:
 
 ```java
@@ -324,7 +324,7 @@ every postponed message.
 `checkPendingCustomMessages()` is also reached from `processNodeAddFinishedMessage` /
 `processNodeLeftMessage` / `processNodeFailedMessage`, i.e. from *inside* the `:3296` scope of the
 topology message being processed. With full-replacement restore semantics a pending message carrying a
-snapshot cleanly displaces that outer context, and since `13b506e028c` a pending message with
+snapshot cleanly displaces that outer context, and since the null-snapshot fix a pending message with
 `opCtxSnp == null` resets it to defaults — neither case leaks the topology message's context
 ([05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed)).
 
@@ -335,7 +335,7 @@ snapshot cleanly displaces that outer context, and since `13b506e028c` a pending
 | 1314 | send | `msg.attachOperationContextSnapshot(operationCtxDispatcher.createSnapshot())` in `SocketWriter.sendMessage` — every client-originated message |
 | 2151 | receive | `processDiscoveryMessage` is itself the restore boundary |
 
-The receive side was restructured by the refactoring (review finding
+The receive side was restructured by IGNITE-28915 (review finding
 [#3](found_problems_in_russian.md)):
 
 ```java
