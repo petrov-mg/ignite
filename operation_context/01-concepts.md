@@ -88,10 +88,33 @@ Note `==`, **reference** identity, not `equals`. Setting the value that is alrea
 nothing and returns `NOOP_SCOPE`. Setting an equal-but-distinct instance does create an update — that
 is correct but slightly wasteful; it never loses data.
 
-`ContextUpdater` (package-private, used by the 2- and 3-arg `set` overloads and by
-`OperationContextDispatcher.restoreRemoteAttributeValues`) batches several attribute writes into a
-*single* `Update` node, applying the same identity short-circuit per attribute and returning
-`NOOP_SCOPE` if nothing actually changed.
+Two package-private batch collectors exist, both built on a shared `AttributeCollector` base:
+
+- **`Updater`** (used by the 2- and 3-arg `set` overloads) batches several attribute writes into
+  a *single* `Update` node pushed **on top of** the existing chain, applying the same identity
+  short-circuit per attribute and returning `NOOP_SCOPE` if nothing actually changed.
+- **`Restorer`** (used by `OperationContextDispatcher.restoreSnapshot`) instead builds a fresh
+  `Update` with **`prev == null`** and swaps it in via `restoreSnapshotInternal`:
+
+  ```java
+  Scope restore() {
+      return ctx.restoreSnapshotInternal(isEmpty() ? null : ctx.new Update(toArray(), null));
+  }
+
+  static Scope restoreEmpty() {
+      return new Restorer(INSTANCE.get()).restore();
+  }
+  ```
+
+  That is **full-replacement** semantics: for the duration of the returned `Scope`, the thread's
+  context consists of *exactly* the restored attributes — everything else, including local
+  non-distributed attributes, reads as `initialValue()`. This is deliberate (see
+  [03.1](03-cross-node-propagation.md#31-operationcontextdispatcher)): a remotely received context
+  must not be overlaid on top of whatever the receiving thread already had. Since the
+  `Fixed null snapshot problem` commit (`13b506e028c`) the empty case is symmetric too:
+  restoring an *empty* set swaps the context to `null` (`restoreEmpty()`), resetting every attribute
+  to its default rather than no-op'ing — the history of that fix is in
+  [05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed).
 
 ### `restoreSnapshot` — cross-thread restoration
 

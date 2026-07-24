@@ -26,6 +26,13 @@ go on the wire through Ignite's own serialization. That is why `SecurityContext`
 distributed attribute directly and is boxed in `SecurityContextWrapper`
 ([04](04-security-attribute.md)).
 
+> **Naming note.** The `IGNITE-28915 Refactoring` commit renamed the dispatcher API:
+> `collectDistributedAttributeValues()` → **`createSnapshot()`** and
+> `restoreRemoteAttributeValues(…)` → **`restoreSnapshot(…)`**, mirroring the local
+> `OperationContext.createSnapshot()`/`restoreSnapshot()` pair. The wire class was renamed
+> `OperationContextMessage` → **`OperationContextSnapshotMessage`**, and the carrier fields
+> `opCtxMsg` → **`opCtxSnp`**.
+
 ### Registration
 
 ```java
@@ -53,47 +60,51 @@ register attribute 3 late while node B never does, the two nodes would disagree 
 ### Collect (sender side)
 
 ```java
-public @Nullable OperationContextMessage collectDistributedAttributeValues() {
+public @Nullable OperationContextSnapshotMessage createSnapshot() {
     …
+    OperationContextSnapshotMessage.Builder snpBuilder = OperationContextSnapshotMessage.Builder.create();
+
     for (int id = 0; id < locRegisteredAttrs.length; id++) {
         OperationContextAttribute<? extends Message> attr = locRegisteredAttrs[id];
-        if (attr == null) continue;
+
+        if (attr == null)
+            continue;
 
         Message curVal = OperationContext.get(attr);
 
-        if (curVal == attr.initialValue()) continue;   // (!) nothing to propagate
-
-        vals.add(curVal);
-        bitmap |= (byte)(1 << id);
+        if (curVal != attr.initialValue())
+            snpBuilder.add(id, curVal);                // (!) initial value is never sent
     }
 
-    return bitmap == 0 ? null : new OperationContextMessage(bitmap, vals.toArray(Message[]::new));
+    return snpBuilder.isEmpty() ? null : snpBuilder.build();
 }
 ```
 
 Two things to internalise:
 
 - **The empty context costs nothing on the wire.** No registered attributes, or every attribute at its
-  initial value → returns `null` → the carrier message's `opCtxMsg` field stays `null` → one null flag
+  initial value → returns `null` → the carrier message's `opCtxSnp` field stays `null` → one null flag
   on the wire.
 - **"Initial value" means "not propagated."** Comparison is `==` against `attr.initialValue()`. An
   attribute deliberately set back to its initial value is indistinguishable from unset, and the remote
   node will fall back to *its own* default. For security this is the intended semantic (see
-  [04](04-security-attribute.md)) but it is a semantic trap for future attributes.
+  [04](04-security-attribute.md)). Since the receive side resets to defaults on a `null` snapshot
+  ([05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed)), the two ends are now
+  symmetric: "not sent" and "restored as default" mean the same thing.
 
 ### Restore (receiver side)
 
 ```java
-public Scope restoreRemoteAttributeValues(@Nullable OperationContextMessage msg) {
-    if (msg == null)
-        return Scope.NOOP_SCOPE;
+public Scope restoreSnapshot(@Nullable OperationContextSnapshotMessage snp) {
+    if (snp == null)
+        return Restorer.restoreEmpty();       // reset every attribute to its default
     …
-    OperationContext.ContextUpdater updater = OperationContext.ContextUpdater.create();
+    Restorer ctxRestorer = Restorer.create();
 
-    for (byte valIdx = 0, attrId = 0; valIdx < msg.attrs.length; ++valIdx) {
-        Message curVal = msg.attrs[valIdx];
+    for (byte valIdx = 0, attrId = 0; valIdx < snp.attrs.length; ++valIdx) {
+        Message attrVal = snp.attrs[valIdx];
 
-        while ((msg.idBitmap & (1 << attrId)) == 0)
+        while ((snp.idBitmap & (1 << attrId)) == 0)
             ++attrId;
 
         assert attrId < locRegisteredAttrs.length;
@@ -101,17 +112,28 @@ public Scope restoreRemoteAttributeValues(@Nullable OperationContextMessage msg)
         OperationContextAttribute<Message> attr =
             (OperationContextAttribute<Message>)locRegisteredAttrs[attrId++];
 
-        updater.set(attr, curVal);
+        assert attr != null;
+
+        ctxRestorer.add(attr, attrVal);
     }
 
-    return updater.apply();
+    return ctxRestorer.restore();
 }
 ```
 
 The wire format is a **positional** encoding: values are stored densely in `attrs[]`, and `idBitmap`
 says which distributed IDs they belong to. The loop walks the bitmap and the value array in lockstep.
-All values land in a single `Update` node via `ContextUpdater`, so the returned `Scope` unwinds the
-whole remote context in one step.
+
+**Restore is full replacement, not overlay — including the null case.** `Restorer.restore()`
+([01.2](01-concepts.md#12-operationcontext--the-store)) swaps the thread's *entire* context for a
+fresh single-`Update` chain containing exactly the received attributes. Within the scope, every
+attribute that was **not** in the message — distributed or local — reads its `initialValue()`. This is
+the fix for the overlay bug found in review (a message carrying only attribute 1 no longer inherits
+attribute 2 from whatever the receiving thread was doing —
+[found_problems #1/#2](found_problems_in_russian.md)). The `snp == null` branch got the same treatment
+in the follow-up `Fixed null snapshot problem` commit (`13b506e028c`): `Restorer.restoreEmpty()` swaps
+the context to empty, so a message whose sender had a *fully default* context no longer inherits the
+executing thread's context ([05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed)).
 
 Correctness of the decode depends entirely on the two nodes having *identical* ID→attribute mappings.
 The `assert attrId < locRegisteredAttrs.length` is the only guard, and it is an assertion.
@@ -135,10 +157,10 @@ Contrast with local `OperationContextAttribute` IDs, which come from a JVM-local
 depend on class-init order — meaningless across nodes. The distributed ID is a separate, explicit,
 stable number precisely because of that.
 
-## 3.3 The wire format — `OperationContextMessage`
+## 3.3 The wire format — `OperationContextSnapshotMessage`
 
 ```java
-public class OperationContextMessage implements Message {
+public class OperationContextSnapshotMessage implements Message {
     /** Values of operation context attributes. */
     @Order(0)
     Message[] attrs;
@@ -150,30 +172,30 @@ public class OperationContextMessage implements Message {
 ```
 
 Standard Ignite `@Order`-annotated message; the serializer is generated
-(`OperationContextMessageSerializer`) and the type is registered in `CoreMessagesProvider`.
+(`OperationContextSnapshotMessageSerializer`) and the type is registered in `CoreMessagesProvider`.
+Instances are built via the nested `Builder` (`add(attrId, attrVal)` asserts against duplicate IDs;
+`build()` is only reachable when at least one attribute was added, so an instance on the wire is never
+empty — `restoreSnapshot` asserts `idBitmap != 0`).
 
 > `@Order` fields must be contiguous `0..n-1` per class — renumber if a field is ever removed.
 
 ## 3.4 Transport integration point 1: Communication (`GridIoManager`)
 
-**Send** — every outgoing message is built through one factory method, which is where collection
-happens (`GridIoManager:2054`):
+**Send** — every outgoing message is built through one factory method, and the snapshot is now a
+constructor argument (`GridIoManager:2041`):
 
 ```java
 public GridIoMessage createGridIoMessage(Object topic, Message msg, byte plc,
                                          boolean ordered, long timeout, boolean skipOnTimeout) {
-    GridIoMessage res = new GridIoMessage(plc, topic, msg, ordered, timeout, skipOnTimeout);
-
-    res.opCtxMsg = ctx.operationContextDispatcher().collectDistributedAttributeValues();
-
-    return res;
+    return new GridIoMessage(plc, topic, msg, ordered, timeout, skipOnTimeout,
+        ctx.operationContextDispatcher().createSnapshot());
 }
 ```
 
-The carrier field on `GridIoMessage`:
+The carrier field on `GridIoMessage` (package-private since the refactoring):
 
 ```java
-public @Nullable OperationContextMessage opCtxMsg;
+@Nullable OperationContextSnapshotMessage opCtxSnp;
 ```
 
 **Receive** — one restore, wrapping all message dispatch (`GridIoManager:462`):
@@ -184,8 +206,7 @@ getSpi().setListener(commLsnr = new CommunicationListenerEx<>() {
         try {
             GridIoMessage msg0 = (GridIoMessage)msg;
 
-            try (Scope ignored = ctx.operationContextDispatcher()
-                                    .restoreRemoteAttributeValues(msg0.opCtxMsg)) {
+            try (Scope ignored = ctx.operationContextDispatcher().restoreSnapshot(msg0.opCtxSnp)) {
                 onMessage0(nodeId, msg0, msgC);
             }
         }
@@ -198,8 +219,36 @@ runs with the sender's context restored — and because the pool executors are c
 ([02](02-intra-node-propagation.md)), the context survives the subsequent hop into a striped or system
 pool thread.
 
-Historically this was done by a dedicated `GridIoSecurityAwareMessage` wrapper class; IGNITE-28753
-deleted it and folded the behaviour into the generic `opCtxMsg` field.
+**Ordered (buffered) messages** get a second restore point. Ordered messages that cannot be delivered
+immediately are parked in a `GridCommunicationMessageSet` and drained later — possibly by a different
+thread carrying a different context. Since the refactoring, `unwind` (`GridIoManager:3795`) restores
+each buffered message's own snapshot around its listener invocation, mirroring the tracing span:
+
+```java
+for (OrderedMessageContainer mc = msgs.poll(); mc != null; mc = msgs.poll()) {
+    try (
+        Scope ignored0 = ctx.operationContextDispatcher().restoreSnapshot(mc.message.opCtxSnp);
+        TraceSurroundings ignore = support(ctx.tracing().create(COMMUNICATION_ORDERED_PROCESS, mc.parentSpan))
+    ) {
+        …
+        invokeListener(plc, lsnr, nodeId, mc.message.message());
+    }
+    …
+}
+```
+
+This closed the strongest finding of the component scan
+([07 · F1](07-loss-candidate-scan.md#f1--ordered-communication-messages--fixed)); the regression test is
+`testPostponedCommunicationOrderedMessage`. A buffered message with `opCtxSnp == null` resets the
+context to defaults ([05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed)), so it
+does not inherit the drain thread's context either.
+
+`invokeListener` itself adds a security-specific floor (`GridIoManager:1832`): if the thread reaches
+listener dispatch with a **default** security context, it runs the listener under the *sender node's*
+subject via `withContext(nodeId)` — see [04.5](04-security-attribute.md#45-listener-level-fallback--withremotesecuritycontext).
+
+Historically all of this was done by a dedicated `GridIoSecurityAwareMessage` wrapper class;
+IGNITE-28753 deleted it and folded the behaviour into the generic `opCtxSnp` field.
 
 ## 3.5 Transport integration point 2: TCP Discovery
 
@@ -210,13 +259,33 @@ nodes, are buffered and replayed, and generate acknowledgements. The context bel
 The carrier is on the common base class, `TcpDiscoveryAbstractMessage`:
 
 ```java
-public @Nullable OperationContextMessage opCtxMsg;
+public @Nullable OperationContextSnapshotMessage opCtxSnp;
 …
-opCtxMsg = msg.opCtxMsg;      // line 109 — copy constructor preserves it
+opCtxSnp = msg.opCtxSnp;      // line 109 — copy constructor preserves it
 ```
 
 That copy-constructor line is what keeps the context attached when the ring re-wraps or forwards a
-message.
+message (the copy constructor also copies `flags`, which matters below). Attachment goes through a
+guarded setter (line 240):
+
+```java
+public void attachOperationContextSnapshot(@Nullable OperationContextSnapshotMessage opCtxSnp) {
+    if (!getFlag(OP_CTX_ATTACHED_FLAG_POS)) {
+        this.opCtxSnp = opCtxSnp;
+
+        setFlag(OP_CTX_ATTACHED_FLAG_POS, true);
+    }
+}
+```
+
+The **first-attach-wins guard is load-bearing**: a message that is re-enqueued locally
+(pending-message replay, ensured-delivery retry) keeps its *original* envelope instead of being
+restamped with whatever context the replaying thread happens to carry — that overwrite was review
+finding [#4](found_problems_in_russian.md). The guard is a dedicated **flag bit**
+(`OP_CTX_ATTACHED_FLAG_POS = 3`, a previously unused slot in the serialized `flags` word), not a null
+check on the field — so "attached a legitimately empty context" is remembered too, survives the wire,
+and survives the copy constructor. An earlier if-null version of this guard would have restamped
+default-context messages on replay.
 
 `TcpDiscoveryImpl` holds the dispatcher (`protected final OperationContextDispatcher
 operationCtxDispatcher`, line 144) so both `ServerImpl` and `ClientImpl` can use it.
@@ -225,12 +294,12 @@ operationCtxDispatcher`, line 144) so both `ServerImpl` and `ClientImpl` can use
 
 | Line | Direction | What |
 |---|---|---|
-| 3024 | send | `msg.opCtxMsg = operationCtxDispatcher.collectDistributedAttributeValues();` — outgoing custom message |
-| 3296 | receive | restore around custom-message processing |
-| 6189 | send | `ackMsg.opCtxMsg = …` — **acknowledgement** messages (IGNITE-28902) |
+| 3024 | send | `msg.attachOperationContextSnapshot(operationCtxDispatcher.createSnapshot())` in `RingMessageWorker.addMessage`, applied to **every** locally originated message (`!fromSocket`), not just custom events |
+| 3296 | receive | restore around ring-message processing (`processMessage`) |
+| 6189 | send | `ackMsg.attachOperationContextSnapshot(…)` — **acknowledgement** messages (IGNITE-28902) |
 | 6317 | receive | restore around processing of **postponed/pending** custom messages (IGNITE-28915) |
 
-The last one is the most recent fix and the clearest illustration of the failure mode. Before:
+The pending-message restore is the clearest illustration of the failure mode. Before:
 
 ```java
 while ((msg = pollPendingCustomMessage()) != null)
@@ -241,23 +310,46 @@ After:
 
 ```java
 while ((msg = pollPendingCustomMessage()) != null) {
-    try (Scope ignored = operationCtxDispatcher.restoreRemoteAttributeValues(msg.opCtxMsg)) {
+    try (Scope ignored = operationCtxDispatcher.restoreSnapshot(msg.opCtxSnp)) {
         processCustomMessage(msg, true);
     }
 }
 ```
 
 Custom discovery messages received while a node join is in progress are parked in a pending queue and
-replayed by the coordinator once `joiningNodes` empties. The message object retained `opCtxMsg`
-correctly — nobody was *reading* it on the replay path. The context was silently the ring worker's
-(i.e. empty) for every postponed message.
+replayed by the coordinator once `joiningNodes` empties. The message object retained its snapshot
+correctly — nobody was *reading* it on the replay path. The context was silently the ring worker's for
+every postponed message.
+
+`checkPendingCustomMessages()` is also reached from `processNodeAddFinishedMessage` /
+`processNodeLeftMessage` / `processNodeFailedMessage`, i.e. from *inside* the `:3296` scope of the
+topology message being processed. With full-replacement restore semantics a pending message carrying a
+snapshot cleanly displaces that outer context, and since `13b506e028c` a pending message with
+`opCtxSnp == null` resets it to defaults — neither case leaks the topology message's context
+([05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed)).
 
 ### `ClientImpl` — two integration points
 
 | Line | Direction | What |
 |---|---|---|
-| 1314 | send | `msg.opCtxMsg = operationCtxDispatcher.collectDistributedAttributeValues();` |
-| 1767 | receive | `restoreRemoteAttributeValues(dm == null ? null : dm.opCtxMsg)` |
+| 1314 | send | `msg.attachOperationContextSnapshot(operationCtxDispatcher.createSnapshot())` in `SocketWriter.sendMessage` — every client-originated message |
+| 2151 | receive | `processDiscoveryMessage` is itself the restore boundary |
+
+The receive side was restructured by the refactoring (review finding
+[#3](found_problems_in_russian.md)):
+
+```java
+protected void processDiscoveryMessage(TcpDiscoveryAbstractMessage msg) {
+    try (Scope ignored = operationCtxDispatcher.restoreSnapshot(msg.opCtxSnp)) {
+        processDiscoveryMessage0(msg);
+    }
+}
+```
+
+Making the per-message dispatch method the boundary means the **client-reconnect replay** is covered
+for free: `processClientReconnectMessage` iterates `msg.pendingMessages()` (`:2562`, `:2572`) and
+routes each pending message through `processDiscoveryMessage`, so each replayed message runs under its
+*own* transported context rather than the reconnect container's.
 
 ## 3.6 Transport integration point 3: ZooKeeper Discovery
 
@@ -267,40 +359,40 @@ correctly — nobody was *reading* it on the replay path. The context was silent
 ```java
 public class ZkOperationContextAwareCustomMessage implements DiscoverySpiCustomMessage {
     DiscoverySpiCustomMessage delegate;
-    OperationContextMessage opCtxMsg;
+    OperationContextSnapshotMessage opCtxSnp;
 
     @Override public DiscoverySpiCustomMessage ackMessage() {
-        return ack == null ? null : new ZkOperationContextAwareCustomMessage(ack, opCtxMsg);
+        return ack == null ? null : new ZkOperationContextAwareCustomMessage(ack, opCtxSnp);
     }
 }
 ```
 
-Note that `ackMessage()` re-wraps the ack with the *same* `opCtxMsg` — the ZK equivalent of the
+Note that `ackMessage()` re-wraps the ack with the *same* `opCtxSnp` — the ZK equivalent of the
 `ServerImpl:6189` ack fix.
 
 Send side (`ZookeeperDiscoveryImpl:672`):
 
 ```java
-OperationContextMessage opCtx = opCtxDispatcher.collectDistributedAttributeValues();
+OperationContextSnapshotMessage opCtxSnp = opCtxDispatcher.createSnapshot();
 
-if (opCtx != null)
-    sendCustomMessage(new ZkOperationContextAwareCustomMessage(msg, opCtx));
+if (opCtxSnp != null)
+    sendCustomMessage(new ZkOperationContextAwareCustomMessage(msg, opCtxSnp));
 ```
 
-The wrapper is allocated **only when there is context to carry** — the `null` return from `collect`
-means the original message goes out undecorated.
+The wrapper is allocated **only when there is context to carry** — the `null` return from
+`createSnapshot` means the original message goes out undecorated.
 
 Receive side (`ZookeeperDiscoveryImpl:3531-3551`) unwraps and restores:
 
 ```java
-OperationContextMessage opCtxMsg = null;
+OperationContextSnapshotMessage opCtxSnp = null;
 
 if (msg instanceof ZkOperationContextAwareCustomMessage) {
-    opCtxMsg = ((ZkOperationContextAwareCustomMessage)msg).opCtxMsg;
+    opCtxSnp = ((ZkOperationContextAwareCustomMessage)msg).opCtxSnp;
     msg = ((ZkOperationContextAwareCustomMessage)msg).delegate;
 }
 …
-try (Scope ignored = opCtxDispatcher.restoreRemoteAttributeValues(opCtxMsg)) { … }
+try (Scope ignored = opCtxDispatcher.restoreSnapshot(opCtxSnp)) { … }
 ```
 
 `ZkDiscoveryCustomEventData` carries a comment noting its unmarshalled message holder "can be wrapped
@@ -313,18 +405,18 @@ with `ZkOperationContextAwareCustomMessage`" — anything that reads that holder
    ─────────────                                       ─────────────
    OperationContext (ThreadLocal)
         │
-        │ collectDistributedAttributeValues()
+        │ dispatcher.createSnapshot()
         ▼
-   OperationContextMessage{ idBitmap, Message[] attrs }
+   OperationContextSnapshotMessage{ idBitmap, Message[] attrs }
         │
         │ attached to carrier:
-        │   • GridIoMessage.opCtxMsg                  (communication)
-        │   • TcpDiscoveryAbstractMessage.opCtxMsg    (TCP discovery, incl. acks & pending)
+        │   • GridIoMessage.opCtxSnp                  (communication, incl. buffered ordered msgs)
+        │   • TcpDiscoveryAbstractMessage.opCtxSnp    (TCP discovery, incl. acks & pending)
         │   • ZkOperationContextAwareCustomMessage    (ZK discovery, decorator)
         ▼
    ══════════════════ network ══════════════════▶
-                                                       restoreRemoteAttributeValues(msg)
-                                                            │
+                                                       dispatcher.restoreSnapshot(snp)
+                                                            │  (full replacement; null → reset to defaults)
                                                             ▼
                                                    try (Scope) { process(msg) }
                                                             │

@@ -1,6 +1,28 @@
+> **Статусы проверены 2026-07-24** по коду ветки (`13b506e028c`, включая коммиты
+> `IGNITE-28915 Refactoring` = `e88537a142f` и `IGNITE-28915 Fixed null snapshot problem` =
+> `13b506e028c`). После рефакторинга методы переименованы:
+> `restoreRemoteAttributeValues()` → `restoreSnapshot()`, `collectDistributedAttributeValues()` →
+> `createSnapshot()`, поле `opCtxMsg` → `opCtxSnp`.
+>
+> **Итог: все четыре проблемы исправлены в коде.** Открытым остаётся только отсутствие
+> регрессионного теста на детерминированный сценарий из п.1 (второе ordered message с default
+> context вслед за non-default в том же message set).
+
 ### Блокирующие проблемы
 
 1. P1 — контекст протекает между ordered messages
+
+> **Статус: исправлено** (в два шага).
+> — `unwind` (`GridIoManager:3795`) открывает `restoreSnapshot(mc.message.opCtxSnp)` на каждое
+> сообщение (`e88537a142f`); regression-тест `testPostponedCommunicationOrderedMessage`.
+> — Overlay-семантика для непустого снапшота исправлена: `Restorer` делает **полную замену**
+> контекста потока (`Update` с `prev == null`), поэтому атрибуты, отсутствующие в bitmap,
+> читаются как `initialValue()`.
+> — Null-случай закрыт коммитом `13b506e028c`: `restoreSnapshot(null)` теперь вызывает
+> `Restorer.restoreEmpty()` — контекст потока заменяется на пустой на время scope, т.е. реализован
+> предложенный full-state fix. **Открыто:** регрессионного теста на детерминированный сценарий
+> (default-context сообщение вслед за non-default в одном message set) по-прежнему нет. См.
+> [05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed).
 
 GridIoManager.java:3806
 
@@ -26,6 +48,12 @@ restoreRemoteAttributeValues() не восстанавливает полное 
 
 2. P1 — тот же overlay-баг в pending discovery
 
+> **Статус: исправлено** — тем же централизованным изменением семантики restore.
+> Pending custom message с непустым снапшотом полностью вытесняет контекст внешнего topology
+> message (full-state replace, `e88537a142f`), а с `opCtxSnp == null` — сбрасывает его к defaults
+> (`Restorer.restoreEmpty()`, `13b506e028c`). Наследования контекста внешнего scope больше нет. См.
+> [05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed).
+
 ServerImpl.java:6317
 
 checkPendingCustomMessages() вызывается не только из чистого noMessageLoop(), но также из:
@@ -42,6 +70,13 @@ checkPendingCustomMessages() вызывается не только из чис�
 
 3. P1 — context вложенных сообщений теряется при client reconnect
 
+> **Статус: исправлено** (коммит `IGNITE-28915 Refactoring`). Реализовано ровно предложенное:
+> `ClientImpl.processDiscoveryMessage` (`:2150-2154`) стал context boundary
+> (`try (Scope ignored = operationCtxDispatcher.restoreSnapshot(msg.opCtxSnp))`), и replay из
+> `msg.pendingMessages()` (`:2562`, `:2572`) идёт через него — каждое pending message
+> обрабатывается под собственным контекстом. Null-случай также закрыт `13b506e028c`
+> (reset к defaults вместо NOOP).
+
 ClientImpl.java:2561 и ClientImpl.java:2571
 
 Внешний scope в message worker восстановлен из TcpDiscoveryClientReconnectMessage. Затем каждое сообщение из msg.pendingMessages() передаётся в processDiscoveryMessage(pendingMsg) без восстановления его собственного pendingMsg.opCtxMsg.
@@ -57,6 +92,14 @@ try (Scope ignored = operationCtxDispatcher.restoreRemoteAttributeValues(msg.opC
 Тогда и обычный dispatch, и reconnect replay будут иметь одинаковую семантику.
 
 4. P1 — local replay перезаписывает исходный context
+
+> **Статус: исправлено** (коммиты `IGNITE-28915 Refactoring` + `13b506e028c`). Введён
+> `TcpDiscoveryAbstractMessage.attachOperationContextSnapshot(...)`; `RingMessageWorker.addMessage`
+> вызывает его только для `!fromSocket`-сообщений (`ServerImpl:3023-3024`). После `13b506e028c`
+> «attach уже был» фиксируется отдельным сериализуемым флагом (`OP_CTX_ATTACHED_FLAG_POS = 3`),
+> а не проверкой поля на null — поэтому сообщение с легитимно пустым envelope (отправитель с
+> default context) при requeue тоже НЕ переписывается снапшотом текущего потока-обработчика.
+> Флаг и `opCtxSnp` копируются copy-конструктором и передаются по сети (`flags` — wire-поле).
 
 ServerImpl.java:4069
 

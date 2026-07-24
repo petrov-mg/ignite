@@ -31,7 +31,7 @@ restore internals. Findings below are ranked by confidence × blast radius.
 
 | # | Site | Shape | Confidence | Severity |
 |---|---|---|---|---|
-| [F1](#f1--ordered-communication-messages) | `GridCommunicationMessageSet.unwind` | A + B | Confirmed | **High** |
+| [F1](#f1--ordered-communication-messages--fixed) | `GridCommunicationMessageSet.unwind` | A + B | **FIXED** (`e88537a142f` + null case in `13b506e028c`) | ~~High~~ — closed; regression test for the null case still missing |
 | [F2](#f2--datastreamer-remap-deque) | `DataStreamerImpl.dataToRemap` | B | Confirmed | **High** |
 | [F3](#f3--write-behind-store-flush) | `GridCacheWriteBehindStore` | A | Confirmed | **High** |
 | [F4](#f4--unewthread-pins-context-for-a-threads-lifetime) | `U.newThread(GridWorker)` — 14 sites | A (sticky) | Confirmed | Medium |
@@ -42,12 +42,32 @@ restore internals. Findings below are ranked by confidence × blast radius.
 
 Verified-clean results are in [7.10](#710-negative-results).
 
+> **Re-verified 2026-07-24** against the branch head (`13b506e028c`): F1 is fixed by the
+> `IGNITE-28915 Refactoring` commit (`e88537a142f`), and its null-snapshot residual by
+> `13b506e028c`; F2–F8 re-checked against current sources and
+> unchanged (`DataStreamerImpl:289/1007/1019`, `GridCacheWriteBehindStore` still has zero context
+> imports, `CommonUtils.newThread:2671`, `GridContinuousProcessor:1663/2183-2229`,
+> `GridJobWorker:255/533/747`, `ServerImpl` task hook `:2961/:2975/:3145`).
+
 ---
 
-## F1 — Ordered communication messages
+## F1 — Ordered communication messages — FIXED
+
+**Status: fixed by the `IGNITE-28915 Refactoring` commit** (`e88537a142f`). `unwind`
+(`GridIoManager:3795`) now opens a `restoreSnapshot(mc.message.opCtxSnp)` scope per drained message,
+exactly the fix proposed below; the regression test is
+`OperationContextAttributePropagationTest.testPostponedCommunicationOrderedMessage` (all sender/receiver
+pairs, two ordered messages with different contexts on one topic).
+
+The null-snapshot residual (a buffered default-context message inheriting the draining thread's
+context) was subsequently closed by `13b506e028c`: `restoreSnapshot(null)` now resets the context to
+defaults ([05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed)). The "context seen
+by the listener" column of the drain-entry table below describes the **pre-fix** behaviour.
+
+The original finding, kept for the record:
 
 **`GridIoManager` — `GridCommunicationMessageSet` (:3620), `OrderedMessageContainer` (:3865),
-`unwind` (:1785).**
+`unwind` (:3795).**
 
 This is the same bug as IGNITE-28915, in the communication path instead of discovery, and it is the
 strongest finding in the scan.
@@ -56,7 +76,7 @@ Ordered messages that arrive before their listener is ready are buffered:
 
 ```java
 private static class OrderedMessageContainer {
-    GridIoMessage message;          // ← carries opCtxMsg
+    GridIoMessage message;          // ← carries opCtxSnp
     long addedTime;
     IgniteRunnable closure;
     Span parentSpan;                // ← tracing IS carried across the hop
@@ -98,15 +118,16 @@ The `:1746` case is the serious one: two nodes send ordered messages on the same
 thread T1 (carrying subject A) reserves the set and unwinds *both* — so B's message is handled as A.
 
 **The fix is cheap and the data is already present.** `mc.message` is a `GridIoMessage`, which has
-`opCtxMsg`. Mirror the tracing line:
+`opCtxSnp`. Mirror the tracing line:
 
 ```java
-try (Scope ignored = ctx.operationContextDispatcher().restoreRemoteAttributeValues(mc.message.opCtxMsg)) {
+try (Scope ignored = ctx.operationContextDispatcher().restoreSnapshot(mc.message.opCtxSnp)) {
     invokeListener(plc, lsnr, nodeId, mc.message.message());
 }
 ```
 
 No new field, no wire change, no capture site — same three-line shape as the IGNITE-28915 fix.
+*(This is exactly what the refactoring commit implemented.)*
 
 ---
 
@@ -302,7 +323,7 @@ setBeforeEachPollAction(() -> {
 });
 ```
 
-`runTasks()` runs in `beforeEachPollAction`, i.e. *outside* the `restoreRemoteAttributeValues` scope
+`runTasks()` runs in `beforeEachPollAction`, i.e. *outside* the `restoreSnapshot` scope
 that wraps `processMessage` (:3296) — so no contamination from the previous message, which is the
 right call. But nothing carries context *in* either.
 
@@ -314,15 +335,17 @@ story at all.
 
 ## 7.9 Suggested order of work
 
-1. **F1** — smallest fix, highest severity, data already on the message. Direct analogue of a bug
-   already fixed twice.
-2. **F2** — one-line fix at the enqueue site.
-3. **F4** — audit the four user-thread `U.newThread` sites; likely the right answer is that long-lived
+1. ~~**F1**~~ — **done** (refactoring commit; see above).
+2. ~~**The null-snapshot NOOP**~~ — **done** (`13b506e028c`; dispatcher-level full-state restore —
+   [05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed)). Remaining: a regression
+   test for the default-behind-non-default ordered scenario.
+3. **F2** — one-line fix at the enqueue site.
+4. **F4** — audit the four user-thread `U.newThread` sites; likely the right answer is that long-lived
    workers should start with an *empty* context (the six-argument constructor) and take context
    per-item instead.
-4. **F5** — falls out of F4 plus a per-batch snapshot.
-5. **F3** — needs a design decision on coalescing semantics.
-6. **F6/F7** — a prerequisite pair for any second distributed attribute.
+5. **F5** — falls out of F4 plus a per-batch snapshot.
+6. **F3** — needs a design decision on coalescing semantics.
+7. **F6/F7** — a prerequisite pair for any second distributed attribute.
 
 ---
 

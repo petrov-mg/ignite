@@ -26,10 +26,11 @@ off. Everything guarded only by `assert` below is, in production, a silent path.
 | [05.4](#54-capture-time--submit-time) | `wrap()` called long before the work is submitted | nothing | medium |
 | [05.5](#55-transports-that-carry-no-carrier-field) | Bytes leaving the node outside `GridIoMessage`/discovery messages | nothing | medium |
 | [05.6](#56-escaping-into-raw-jdk-concurrency) | Raw `Thread`/`CompletableFuture`/`ThreadPoolExecutor`/parallel streams | Checkstyle, with suppressions | medium |
-| [05.7](#57-conditional-wrapping-on-security-enabled) | `PoolProcessor` wraps user pools only when security is on | nothing | latent |
+| [05.7](#57-conditional-wrapping-on-security-enabled--fixed) | ~~`PoolProcessor` wraps user pools only when security is on~~ | — | **fixed** — wrapping is now unconditional |
 | [05.8](#58-asymmetric-attribute-registration) | Nodes disagree on distributed ID → attribute mapping | assertion only | high, but constrained |
 | [05.9](#59-capacity-overflow) | >32 local or >8 distributed attributes | assertion only | latent |
 | [05.10](#510-subject-no-longer-resolvable) | Received subject ID no longer in discovery history | `IllegalStateException` | low — fails closed |
+| [05.11](#511-empty-snapshot-restores-are-a-noop--fixed) | ~~`restoreSnapshot(null)` was a NOOP — default-context messages inherited the executing thread's context~~ | — | **fixed** (`13b506e028c`) — null now resets to defaults; regression test still missing |
 
 ---
 
@@ -84,9 +85,13 @@ race and an almost-certain assertion failure. Never let a `Scope` escape its thr
 
 ## 5.2 A handoff with no restore
 
-**This is the vector that has actually produced bugs**, twice in the last month
+**This is the vector that has actually produced bugs**, repeatedly
 ([IGNITE-28902](06-tickets.md#ignite-28902--discovery-acknowledgement-messages),
-[IGNITE-28915](06-tickets.md#ignite-28915--postponed-discovery-messages)).
+[IGNITE-28915](06-tickets.md#ignite-28915--postponed-discovery-messages--review-driven-refactoring), plus three more instances of
+the same shape fixed by the `IGNITE-28915 Refactoring` commit: ordered communication buffers
+([07 · F1](07-loss-candidate-scan.md#f1--ordered-communication-messages--fixed)), client-reconnect
+pending-message replay, and local pending-message re-enqueue —
+[found_problems #3/#4](found_problems_in_russian.md)).
 
 The mechanism only works where someone wrote the capture/restore pair. Any new asynchronous handoff,
 queue, buffer, replay path, or message type is context-lossy **by default**. The framework has no way
@@ -96,13 +101,13 @@ The IGNITE-28915 case is the cleanest example. `ServerImpl` parks custom discove
 arrive while a join is in progress, and the coordinator replays them once `joiningNodes` empties:
 
 ```java
-// before — msg.opCtxMsg was populated, but nobody read it
+// before — msg.opCtxSnp was populated, but nobody read it
 while ((msg = pollPendingCustomMessage()) != null)
     processCustomMessage(msg, true);
 
 // after
 while ((msg = pollPendingCustomMessage()) != null) {
-    try (Scope ignored = operationCtxDispatcher.restoreRemoteAttributeValues(msg.opCtxMsg)) {
+    try (Scope ignored = operationCtxDispatcher.restoreSnapshot(msg.opCtxSnp)) {
         processCustomMessage(msg, true);
     }
 }
@@ -113,14 +118,23 @@ pending queue. The replay loop simply ran on the ring worker thread — whose co
 never consulted it. Every postponed custom message was processed with default privileges.
 
 Note the *shape* of this bug: the "normal" path (`ServerImpl:3296`) had the restore; the
-**deferred/retry/replay** path did not. That is the pattern to look for.
+**deferred/retry/replay** path did not. That is the pattern to look for. The refactoring closed the
+three further instances found by that pattern:
+
+- `GridIoManager.unwind` (`:3795`) now restores each buffered ordered message's own snapshot
+  ([07 · F1](07-loss-candidate-scan.md#f1--ordered-communication-messages--fixed));
+- `ClientImpl.processDiscoveryMessage` (`:2151`) is now itself the restore boundary, so the
+  client-reconnect `pendingMessages()` replay restores per message;
+- `TcpDiscoveryAbstractMessage.attachOperationContextSnapshot` sets the envelope **only if absent**,
+  so `processPendingMessagesLocally` → `addMessage` no longer overwrites a replayed message's original
+  context with the replaying handler's.
 
 ### Where to look for more of these
 
 - Anything that **buffers and replays**: pending queues, retry loops, message backlogs, reconnect
   replay, deferred/postponed processing.
 - Anything that **generates a derived message**: acknowledgements, responses, forwarded messages,
-  split/fan-out messages. `TcpDiscoveryAbstractMessage`'s copy constructor propagates `opCtxMsg`
+  split/fan-out messages. `TcpDiscoveryAbstractMessage`'s copy constructor propagates `opCtxSnp`
   (line 109) and `ZkOperationContextAwareCustomMessage.ackMessage()` re-wraps — a *new* message type
   that does neither will silently drop it.
 - Anything that **takes from a queue** without using `AsyncQueueHandler.takeQueuedElement()` /
@@ -200,18 +214,18 @@ Cross-node propagation exists only where a carrier field was added:
 
 | Path | Carrier | Status |
 |---|---|---|
-| Communication (`GridIoManager`) | `GridIoMessage.opCtxMsg` | covered, send + receive |
-| TCP discovery | `TcpDiscoveryAbstractMessage.opCtxMsg` | covered incl. acks and pending messages |
+| Communication (`GridIoManager`) | `GridIoMessage.opCtxSnp` | covered: send + receive + buffered ordered drain |
+| TCP discovery | `TcpDiscoveryAbstractMessage.opCtxSnp` | covered incl. acks, pending messages, client reconnect replay |
 | ZK discovery | `ZkOperationContextAwareCustomMessage` decorator | covered |
 
 Anything else carries nothing:
 
 - **Direct `CommunicationSpi` use.** The context is attached in
   `GridIoManager.createGridIoMessage(…)`. Code that constructs and sends a message without going
-  through it has a `null` `opCtxMsg`. (`GridIoManager`'s own listener warns about direct SPI use for
+  through it has a `null` `opCtxSnp`. (`GridIoManager`'s own listener warns about direct SPI use for
   unrelated reasons — the same anti-pattern also defeats context propagation.)
 - **Channel / file transfer.** `onChannelOpened0(rmtNodeId, (GridIoMessage)initMsg, channel)` on the
-  receive path is *not* wrapped in a `restoreRemoteAttributeValues` scope, unlike `onMessage0` right
+  receive path is *not* wrapped in a `restoreSnapshot` scope, unlike `onMessage0` right
   above it. Data moving over an opened channel therefore carries no restored context on the receiving
   side.
 - **Thin client / JDBC / ODBC protocols.** Separate wire formats entirely; the IEP explicitly exempts
@@ -249,22 +263,24 @@ The remaining holes:
 
 ---
 
-## 5.7 Conditional wrapping on `security().enabled()`
+## 5.7 Conditional wrapping on `security().enabled()` — FIXED
 
-`PoolProcessor` (~line 276):
+**Status: fixed in the `IGNITE-28915 Refactoring` commit.** `PoolProcessor` (~line 276) originally
+wrapped user-supplied executors only when security was enabled:
 
 ```java
+// before
 extPools[id] = ctx.security().enabled() ? OperationContextAwareIoPool.wrap(ex) : ex;
+
+// now
+extPools[id] = OperationContextAwareIoPool.wrap(ex);
 ```
 
-User-supplied executors become context-aware **only when security is enabled**. Today this is sound —
-`SECURITY` is the only distributed attribute, so with security off there is nothing to propagate.
-
-It is a landmine for the next attribute. The moment a second distributed attribute is registered
-(tracing, request IDs, tenant IDs, …), every cluster running without security loses it across custom
-executor pools, with no error and no test failure. The condition should become "any distributed
-attribute registered", or simply unconditional, before `DistributedAttributeRegistry` grows a second
-constant.
+The old condition was sound only while `SECURITY` was the sole distributed attribute; a second
+attribute (tracing, request IDs, tenant IDs, …) would have been silently dropped across custom
+executor pools on every cluster running without security. Wrapping is now unconditional, so this
+vector is closed. Kept here because the *pattern* — propagation machinery gated on
+`security().enabled()` — is still worth rejecting in review.
 
 ---
 
@@ -355,7 +371,58 @@ will fail at the point of first authorization check, not at the point of loss.
 
 ---
 
-## 5.11 A review checklist
+## 5.11 Empty-snapshot restores are a NOOP — FIXED
+
+**Status: fixed by the `Fixed null snapshot problem` commit (`13b506e028c`, 2026-07-24).** This was
+the open residual of the four P1 review findings ([found_problems](found_problems_in_russian.md)).
+
+The refactoring had given `restoreSnapshot` full-replacement semantics for a *non-null* snapshot, but
+the `null` case kept a `NOOP_SCOPE` shortcut. Since a sender whose distributed attributes are all at
+their initial values transmits **no snapshot at all**
+([03.1](03-cross-node-propagation.md#31-operationcontextdispatcher)), a NOOP restore meant a
+default-context message executed under whatever context the executing thread already had — a real,
+valid, **wrong** context whenever that thread was mid-way through another operation (the reviewed
+deterministic scenario: two ordered messages in one set, the second sent with default context, was
+processed under the first sender's subject).
+
+The fix makes the null case symmetric with the non-null one:
+
+```java
+public Scope restoreSnapshot(@Nullable OperationContextSnapshotMessage snp) {
+    if (snp == null)
+        return Restorer.restoreEmpty();   // swap the whole context to empty for the scope
+    …
+}
+```
+
+`Restorer.restoreEmpty()` performs `restoreSnapshotInternal(null)` — the thread's context is replaced
+by the empty chain, so **every** attribute reads `initialValue()` inside the scope (a no-op only when
+the thread's context is already empty). This closes all four windows in one place: ordered
+communication drain (`GridIoManager.unwind:3795`), pending custom discovery messages
+(`ServerImpl.checkPendingCustomMessages:6306`), client reconnect replay (`ClientImpl:2562/2572`), and
+plain listener dispatch.
+
+The companion change closed the last envelope hole: `attachOperationContextSnapshot` now records
+"attached" in a serialized **flag bit** (`OP_CTX_ATTACHED_FLAG_POS = 3`) rather than inferring it from
+field nullness — so a message legitimately carrying an empty context is not restamped with the
+replaying handler's context on local re-enqueue
+([03.5](03-cross-node-propagation.md#35-transport-integration-point-2-tcp-discovery)).
+
+Two things remain worth knowing:
+
+- **No regression test for the reviewed scenario.** `13b506e028c` ships no tests.
+  `OperationContextAttributePropagationTest` asserts default-value transmission and per-message
+  restore for two *non-default* ordered messages, but has no case sending a default-context message
+  *behind* a non-default one into the same ordered set — the exact deterministic case from review is
+  unregressed.
+- **Remote restores mask local attributes too.** Both the null and non-null restore replace the
+  context *wholesale*, so a thread-local (non-distributed) attribute set by the receiving node is
+  invisible inside a remote-restore scope. Harmless today (production has no such attribute crossing
+  these boundaries), but it is a semantic to keep in mind for future local attributes.
+
+---
+
+## 5.12 A review checklist
 
 > For the results of applying this checklist across Ignite's components — eight candidate sites with
 > code references, ranked — see [07 — Component scan](07-loss-candidate-scan.md).
@@ -367,14 +434,18 @@ When touching any asynchronous or cross-node path:
       and is it justified?
 - [ ] Does this introduce a **queue, buffer, or replay path**? Is the snapshot captured on enqueue and
       restored on dequeue — on *every* dequeue path, including retry, timeout, and shutdown drain?
-- [ ] Does this introduce a **new message type or transport**? Does it carry `opCtxMsg` (or the ZK
-      decorator), and does the receive side open a `restoreRemoteAttributeValues` scope?
-- [ ] Does it **derive a message from another** (ack, response, forward)? Is `opCtxMsg` copied?
+- [ ] Does this introduce a **new message type or transport**? Does it carry `opCtxSnp` (or the ZK
+      decorator), and does the receive side open a `restoreSnapshot` scope?
+- [ ] Does it **derive a message from another** (ack, response, forward)? Is `opCtxSnp` copied — via
+      the copy constructor or `attachOperationContextSnapshot` (never a bare field write, which would
+      clobber a replayed message's envelope and skip the attached-flag)?
+- [ ] Does every receive/replay path go through `OperationContextDispatcher.restoreSnapshot` — including
+      for `opCtxSnp == null`? The dispatcher resets to defaults on null (§5.11); a hand-rolled
+      `if (snp != null)` guard around the restore would silently reintroduce the inherited-context bug.
 - [ ] Is every `Scope` in a **try-with-resources**, closed on the same thread, in LIFO order?
 - [ ] Is any wrapped closure **stored** rather than submitted immediately (§5.3)?
 - [ ] If adding a **distributed attribute**: is the ID in `DistributedAttributeRegistry`, is
-      registration before `finishRegistration()`, is there a rolling-upgrade story (§5.8), and does
-      `PoolProcessor`'s `security().enabled()` condition still hold (§5.7)?
+      registration before `finishRegistration()`, and is there a rolling-upgrade story (§5.8)?
 
 ---
 

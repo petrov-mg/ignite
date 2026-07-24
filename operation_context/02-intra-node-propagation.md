@@ -99,15 +99,16 @@ Two entry points matter:
 }
 ```
 
-Note the caveat in `PoolProcessor` (line ~276):
+`PoolProcessor` (line ~276) wraps user-supplied executors **unconditionally**:
 
 ```java
-extPools[id] = ctx.security().enabled() ? OperationContextAwareIoPool.wrap(ex) : ex;
+extPools[id] = OperationContextAwareIoPool.wrap(ex);
 ```
 
-Custom executors are made context-aware **only when security is enabled**. Today that is sound because
-`SECURITY` is the only distributed attribute; it becomes a loss vector the moment a second attribute
-is added ([05.7](05-context-loss.md#57-conditional-wrapping-on-security-enabled)).
+Earlier revisions guarded this with `ctx.security().enabled()`, which would have silently dropped any
+future non-security distributed attribute on clusters running without security. The condition was
+removed in the `IGNITE-28915 Refactoring` commit — see the (now historical)
+[05.7](05-context-loss.md#57-conditional-wrapping-on-security-enabled--fixed).
 
 ## 2.3 `IgniteThread`
 
@@ -195,11 +196,11 @@ try (Scope ignored = OperationContext.restoreSnapshot(contextualEvt.contextSnaps
 }
 ```
 
-with the same shape at `:2736-2748` (discovery worker requests) and `:2829-2831` (future notifications).
+with the same shape at `:2748` (discovery worker requests) and `:2829-2831` (future notifications).
 
 This queue-handoff pattern is where the two most recent bugs were found: any code path that pulls an
 item out of such a queue **without** going through the restoring accessor drops the context. See
-[IGNITE-28915](06-tickets.md#ignite-28915--postponed-discovery-messages).
+[IGNITE-28915](06-tickets.md#ignite-28915--postponed-discovery-messages--review-driven-refactoring).
 
 ## 2.6 Static enforcement — Checkstyle
 

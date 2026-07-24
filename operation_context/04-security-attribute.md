@@ -35,9 +35,9 @@ private static final OperationContextAttribute<SecurityContextWrapper> SEC_CTX_A
 `start()`, i.e. before `IgniteKernal` calls `finishRegistration()`.
 
 Because the attribute is only registered when the security processor is active, a cluster with
-security disabled has **zero** distributed attributes; `collectDistributedAttributeValues()` returns
-`null` on its very first check (`locRegisteredAttrs.length == 0`) and the distributed machinery costs
-nothing at all.
+security disabled has **zero** distributed attributes; `OperationContextDispatcher.createSnapshot()`
+returns `null` on its very first check (`locRegisteredAttrs.length == 0`) and the distributed
+machinery costs nothing at all.
 
 ## 4.2 Setting the context
 
@@ -60,8 +60,8 @@ try-with-resources exactly like any other context update.
 
 - `isDefaultContext()` is just `OperationContext.get(SEC_CTX_ATTR) == null`;
 - `securityContext()` returns `dfltSecCtx` when the attribute is absent;
-- `collectDistributedAttributeValues()` **skips** it (`curVal == attr.initialValue()`), so no security
-  data goes on the wire, and the receiving node uses *its own* default.
+- `OperationContextDispatcher.createSnapshot()` **skips** it (`curVal == attr.initialValue()`), so no
+  security data goes on the wire, and the receiving node uses *its own* default.
 
 That last point is intended: "I am running as myself" should not be transmitted as a subject ID that
 the remote node would then have to resolve. But it means an *absent* context and a *default* context
@@ -153,12 +153,47 @@ practical failure mode: a client disconnects and ages out of the discovery histo
 it started is still running. Discovery history depth is the effective bound on how long a received
 context stays resolvable ([05.10](05-context-loss.md#510-subject-no-longer-resolvable)).
 
-## 4.5 What IGNITE-28753 removed
+## 4.5 Listener-level fallback — `withRemoteSecurityContext`
+
+Because "sender had default context" is transmitted as *nothing* (see 4.2), the framework alone cannot
+distinguish it from "no context at all". Two dispatch sites paper over that for security specifically
+by substituting the **sender node's** subject when no explicit context arrived:
+
+```java
+// GridIoManager.invokeListener (:1832) — same pattern in GridDiscoveryManager (:929)
+try (Scope ignored = withRemoteSecurityContext(nodeId)) {
+    lsnr.onMessage(nodeId, msg, plc);
+}
+
+private Scope withRemoteSecurityContext(UUID nodeId) {
+    // No remote Security Context has been attached to the message processing thread so far.
+    // This means that the message was sent as part of an operation initiated by the sender node.
+    if (ctx.security().isDefaultContext())
+        return ctx.security().withContext(nodeId);
+
+    // Verify that the Security Context currently attached to the thread is valid.
+    ctx.security().securityContext();
+
+    return Scope.NOOP_SCOPE;
+}
+```
+
+Semantics: a message with no attached security context is attributed to the *sending node* rather than
+to the local node — the right default for node-initiated internal traffic. Two limits worth knowing:
+
+- It engages **only when the thread's context is default**. While `restoreSnapshot(null)` was a NOOP
+  this left a hole — a thread that had *inherited* a non-default context from an unrelated operation
+  kept it. Since `13b506e028c` the dispatcher resets the context to defaults before dispatch
+  ([05.11](05-context-loss.md#511-empty-snapshot-restores-are-a-noop--fixed)), so by the time this
+  check runs, "default" reliably means "no context arrived with the message".
+- It is security-only. A second distributed attribute gets no equivalent floor.
+
+## 4.6 What IGNITE-28753 removed
 
 Before this ticket, security had its own parallel propagation stack. The commit deleted
 `GridIoSecurityAwareMessage` (68 lines) — a dedicated message wrapper that existed solely to carry a
 subject ID alongside a communication message — and cut ~58 lines from `GridIoManager`, replacing it
-all with the single generic `GridIoMessage.opCtxMsg` field. `GridDiscoveryManager` and
+all with the single generic `GridIoMessage.opCtxSnp` field (named `opCtxMsg` at the time). `GridDiscoveryManager` and
 `IgniteAuthenticationProcessor` were adjusted similarly.
 
 This is the payoff the IEP was aiming for: the security subsystem now describes *what* it wants
